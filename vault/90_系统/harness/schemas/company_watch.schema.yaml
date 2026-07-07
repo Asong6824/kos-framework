@@ -1,0 +1,33 @@
+type: company_watch
+paths:
+  - 50_信息雷达/公司监控
+required:
+  type:
+    kind: enum
+    values: [company_watch]
+  company:
+    kind: string
+  status:
+    kind: enum
+    values: [active, paused, archived]
+  created:
+    kind: date
+  updated:
+    kind: date
+optional:
+  title:
+    kind: string
+  ticker:
+    kind: string
+  market:
+    kind: string
+  related_topics:
+    kind: list
+  related_projects:
+    kind: list
+  related_research:
+    kind: list
+  last_reviewed_at:
+    kind: string
+  tags:
+    kind: list

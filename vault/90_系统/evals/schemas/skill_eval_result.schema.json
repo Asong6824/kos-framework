@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "properties": {
+    "skill": {
+      "type": "string"
+    },
+    "suite": {
+      "type": "string"
+    },
+    "overall_pass": {
+      "type": "boolean"
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "pass": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "pass", "notes"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["skill", "suite", "overall_pass", "score", "checks"],
+  "additionalProperties": false
+}

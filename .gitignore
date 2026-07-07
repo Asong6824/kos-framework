@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+*.pyc
+90_系统/harness/reports/
+90_系统/evals/artifacts/*.json
+vault/90_系统/harness/reports/
+vault/90_系统/evals/artifacts/*.json
+.env
+*.env
+/local-docs/

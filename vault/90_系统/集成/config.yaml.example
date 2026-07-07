@@ -1,0 +1,13 @@
+# 开发阶段：将以下片段合并到 ~/.hermes/profiles/kos/config.yaml
+# 正式阶段：将路径替换为正式 kos vault 下的 41_Skills
+skills:
+  external_dirs:
+    - /path/to/your/kos-vault/41_Skills
+  guard_agent_created: true
+
+curator:
+  enabled: true
+  interval_hours: 168
+  min_idle_hours: 2
+  stale_after_days: 30
+  archive_after_days: 90

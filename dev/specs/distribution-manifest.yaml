@@ -1,0 +1,66 @@
+name: kos-framework
+version: "0.1.0"
+distribution_root: vault
+required_paths:
+  - .kos.md
+  - .hermes.md
+  - AGENTS.md
+  - CLAUDE.md
+  - README.md
+  - 00_工作台
+  - 10_收件箱
+  - 11_原材料
+  - 11_原材料/书籍
+  - 11_原材料/播客
+  - 11_原材料/文章
+  - 11_原材料/新闻
+  - 11_原材料/研报
+  - 11_原材料/视频
+  - 11_原材料/论文
+  - 20_处理区
+  - 20_处理区/摘录
+  - 20_处理区/摘要
+  - 21_研究
+  - 22_知识库
+  - 23_日记
+  - 24_认知记录
+  - 25_个人操作画像
+  - 30_项目
+  - 31_任务
+  - 40_方法库
+  - 41_Skills
+  - 41_Skills/core
+  - 41_Skills/incubator
+  - 41_Skills/integrations
+  - 41_Skills/personal
+  - 41_Skills/archived
+  - 50_信息雷达
+  - 50_信息雷达/主题监控
+  - 50_信息雷达/公司监控
+  - 50_信息雷达/宏观监控
+  - 50_信息雷达/每日简报
+  - 90_系统
+  - 90_系统/规则
+  - 90_系统/模板
+  - 90_系统/集成
+  - 90_系统/harness
+  - 90_系统/harness/reports
+  - 90_系统/harness/schemas
+  - 90_系统/evals
+  - 90_系统/evals/artifacts
+  - 90_系统/evals/schemas
+  - 90_系统/evals/skills
+  - 90_系统/工作流
+  - 90_系统/工作流/项目启动计划
+  - 90_系统/文档
+forbidden_generated_paths:
+  - 90_系统/harness/reports/health_report.md
+  - 90_系统/evals/artifacts/*.json
+forbidden_parts:
+  - __pycache__
+forbidden_runtime_directories:
+  - dev
+  - local-docs
+runtime_empty_extension_dirs:
+  - 41_Skills/integrations
+  - 41_Skills/personal

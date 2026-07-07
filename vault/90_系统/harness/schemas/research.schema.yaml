@@ -1,0 +1,32 @@
+type: research
+paths:
+  - 21_研究
+required:
+  type:
+    kind: enum
+    values: [research]
+  title:
+    kind: string
+  question:
+    kind: string
+  status:
+    kind: enum
+    values: [draft, reviewed, complete, archived]
+  confidence:
+    kind: enum
+    values: [draft, verified, mature]
+  area:
+    kind: string
+  created:
+    kind: date
+  updated:
+    kind: date
+optional:
+  related_sources:
+    kind: list
+  related_concepts:
+    kind: list
+  related_projects:
+    kind: list
+  tags:
+    kind: list

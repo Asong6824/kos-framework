@@ -1,0 +1,19 @@
+[project]
+name = "kos-framework"
+version = "0.1.0"
+description = "An agent-and-skill-driven personal knowledge operating system framework."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["dev/tests"]
+python_files = ["test_*.py"]

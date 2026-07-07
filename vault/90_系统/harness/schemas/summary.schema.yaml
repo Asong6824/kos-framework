@@ -1,0 +1,19 @@
+type: summary
+paths:
+  - 20_处理区/摘要
+required:
+  type:
+    kind: enum
+    values: [summary]
+  source:
+    kind: string
+  created:
+    kind: date
+  generated_by:
+    kind: enum
+    values: [ai, human, mixed]
+  reviewed:
+    kind: bool
+optional:
+  tags:
+    kind: list
