@@ -17,7 +17,7 @@ Use when creating or revising public repository docs or in-vault runtime documen
 
 - Explain how to use a mechanism and why it exists.
 - Distinguish current implementation from future design.
-- Keep private design reasoning in ignored `local-docs/`.
+- Keep framework development reasoning in `dev/docs/`, and remove private paths, credentials, and personal vault content before committing.
 - Put runtime user documentation in `vault/90_系统/文档/`.
-- Put framework development documentation and design reasoning in `local-docs/`.
+- Put framework development documentation and design reasoning in `dev/docs/`.
 - Verify commands against a freshly initialized vault.

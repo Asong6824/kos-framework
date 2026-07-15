@@ -83,8 +83,7 @@ AGENTS.md or CLAUDE.md
 
 ```text
 vault/                 # Runtime distribution copied to users
-dev/                   # Framework development harness, Skills, evals, and tests
-local-docs/            # Private local development docs, ignored by Git
+dev/                   # Framework development harness, Skills, docs, evals, and tests
 ```
 
 Inside `vault/`:
@@ -103,7 +102,7 @@ Inside `vault/`:
 Documentation has two layers:
 
 - Runtime user documentation ships with the vault under `vault/90_系统/文档/`.
-- Local development documentation lives under `local-docs/` and is intentionally not published.
+- Framework development documentation lives under `dev/docs/` and is not copied into runtime vaults.
 
 Start with:
 

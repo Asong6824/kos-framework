@@ -60,7 +60,6 @@ forbidden_parts:
   - __pycache__
 forbidden_runtime_directories:
   - dev
-  - local-docs
 runtime_empty_extension_dirs:
   - 41_Skills/integrations
   - 41_Skills/personal

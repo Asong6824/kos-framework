@@ -7,4 +7,3 @@ vault/90_系统/harness/reports/
 vault/90_系统/evals/artifacts/*.json
 .env
 *.env
-/local-docs/

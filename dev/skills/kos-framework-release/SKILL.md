@@ -19,7 +19,7 @@ Use before tagging or publishing a kos-framework version.
 2. Run all runtime and development checks.
 3. Initialize a clean vault and run its health report.
 4. Run sensitive-content scanning.
-5. Confirm `dev/` and `local-docs/` are absent from the runtime distribution.
+5. Confirm `dev/` development assets are absent from the runtime distribution.
 
 ## Verification
 
