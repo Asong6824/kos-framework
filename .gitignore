@@ -13,3 +13,8 @@ dev/evals/artifacts/*.json
 ob-plugin/node_modules/
 ob-plugin/main.js
 ob-plugin/data.json
+agent/**/node_modules/
+agent/packages/*/dist/
+agent/packages/*/coverage/
+agent/.artifacts/
+release/

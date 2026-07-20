@@ -1,8 +1,10 @@
-# Harness 与系统检查
+# Runtime Harness 脚本与系统检查
 
-Harness 是 kos 的确定性执行层。Skill 负责理解用户意图和组织流程；Harness 负责路径、frontmatter、状态、权限和评估这类不应靠临场发挥完成的检查。
+本文中的 Runtime Harness 特指当前位于 `90_系统/harness/` 的确定性脚本子集，不代表 Harness Engineering 的全部含义。完整 Agent 中，Harness 是 LLM 以外的模型接入、循环、上下文、工具、Skill、session、UI、验证和反馈系统。
 
-Harness 不绑定 Hermes。Hermes Agent、Codex、Claude Code 都应该通过同一套 harness 操作同一个 vault。
+当前脚本负责路径、frontmatter、状态、权限和评估检查。目标架构会把这些 runtime scripts、schemas 和 machine constraints 迁入 kos-agent，并继续提供不调用 LLM 的 CLI；`dev/harness/` 仍是 framework development Harness。
+
+kos 的官方产品后端是 kos-agent。Hermes、Codex、Claude Code 可以继续操作开放 Markdown Vault，但不再是同等支持的官方 runtime。
 
 ## 为什么需要 Harness
 
@@ -12,7 +14,9 @@ Harness 不绑定 Hermes。Hermes Agent、Codex、Claude Code 都应该通过同
 - 状态流转和人工确认边界容易被跳过。
 - 每次 Agent 执行结果难以复查。
 
-Harness 把这些规则变成可重复运行的脚本。用户不需要理解所有实现，但应把 Harness 结果当作系统健康状态的依据。
+当前 Runtime Harness 把这些规则变成可重复运行的脚本。用户不需要理解所有实现，但应把检查结果当作系统健康状态的依据。
+
+以下命令描述迁移前的当前实现。kos-agent parity migration 完成后，等价命令由 kos-agent CLI 提供，Vault 不再分发 Python 源码。
 
 ## 常用检查
 

@@ -1,0 +1,22 @@
+type: diary
+paths:
+  - 23_日记
+required:
+  type:
+    kind: enum
+    values: [diary]
+  created:
+    kind: date
+  date:
+    kind: date
+optional:
+  day_of_week:
+    kind: string
+  week_number:
+    kind: int
+  mood:
+    kind: string
+  energy:
+    kind: int
+  tags:
+    kind: list

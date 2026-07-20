@@ -845,3 +845,283 @@
   font-size: var(--font-ui-smaller);
   margin-bottom: 6px;
 }
+
+/* ---------- kos Agent sidebar ---------- */
+.kos-agent-view {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  padding: 0;
+  background: var(--background-primary);
+}
+
+.kos-agent-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 8px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.kos-agent-title {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+}
+
+.kos-agent-status {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kos-agent-header-actions {
+  display: flex;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  gap: 2px;
+}
+
+.kos-agent-messages {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 10px 20px;
+}
+
+.kos-agent-empty {
+  padding: 28px 10px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.kos-agent-message {
+  margin-bottom: 14px;
+}
+
+.kos-agent-message-user {
+  margin-left: 24px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+}
+
+.kos-agent-message-role {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+}
+
+.kos-agent-message-body,
+.kos-agent-thinking,
+.kos-agent-tool pre {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  font-size: var(--font-ui-small);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.kos-agent-thinking {
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.kos-agent-tool,
+.kos-agent-question {
+  margin: 8px 0 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+}
+
+.kos-agent-tool summary {
+  padding: 7px 9px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+}
+
+.kos-agent-tool.is-error summary,
+.kos-agent-error {
+  color: var(--text-error);
+}
+
+.kos-agent-tool pre {
+  max-height: 240px;
+  overflow: auto;
+  padding: 8px 9px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+}
+
+.kos-agent-diff {
+  color: var(--text-normal);
+  background: var(--code-background);
+}
+
+.kos-agent-validation {
+  padding: 8px 9px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+}
+
+.kos-agent-validation-summary {
+  color: var(--text-success);
+  font-weight: 600;
+}
+
+.kos-agent-validation.is-failed .kos-agent-validation-summary,
+.kos-agent-validation-error {
+  color: var(--text-error);
+}
+
+.kos-agent-validation-warn {
+  color: var(--text-warning);
+}
+
+.kos-agent-validation-info {
+  color: var(--text-muted);
+}
+
+.kos-agent-validation-finding {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.kos-validation-overview {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--text-success);
+  background: var(--background-secondary);
+  font-weight: 600;
+}
+
+.kos-validation-overview.is-failed {
+  border-left-color: var(--text-error);
+}
+
+.kos-validation-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.kos-validation-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.kos-validation-row-meta {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+}
+
+.kos-validation-path {
+  height: auto;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-accent);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  text-align: left;
+}
+
+.kos-validation-message {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  font-size: var(--font-ui-small);
+}
+
+.kos-agent-question {
+  padding: 10px;
+}
+
+.kos-agent-question-title {
+  font-weight: 600;
+}
+
+.kos-agent-question-message {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.kos-agent-question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.kos-agent-question-input {
+  width: 100%;
+  margin-top: 8px;
+  resize: vertical;
+}
+
+.kos-agent-error {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--text-error);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-small);
+}
+
+.kos-agent-composer {
+  padding: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+}
+
+.kos-agent-context-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  margin-bottom: 6px;
+}
+
+.kos-agent-context-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kos-agent-context-label.is-active {
+  color: var(--text-accent);
+}
+
+.kos-agent-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+  max-height: 220px;
+  resize: vertical;
+}
+
+.kos-agent-send-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.kos-agent-send-row .clickable-icon {
+  width: 32px;
+  height: 32px;
+}

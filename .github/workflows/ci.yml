@@ -12,5 +12,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          cache: npm
+          cache-dependency-path: |
+            agent/package-lock.json
+            ob-plugin/package-lock.json
       - run: pip install -e .[dev]
+      - run: npm ci --prefix agent --ignore-scripts
+      - run: npm ci --prefix ob-plugin --ignore-scripts
       - run: make release-check

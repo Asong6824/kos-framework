@@ -15,9 +15,15 @@ import { legalTransitions } from '../core/transitions';
 import type { KosSettings } from '../settings';
 import { objectTitle } from '../views/view-context';
 import { applyTransition } from './transition';
+import type { TransitionOperation } from './transition';
 
 /** 审核"通过"回调（ReviewView 注入用）；返回是否实际写入 */
-export async function approveReviewObject(app: App, obj: KosObject, settings: KosSettings): Promise<boolean> {
+export async function approveReviewObject(
+  app: App,
+  obj: KosObject,
+  settings: KosSettings,
+  operation?: TransitionOperation,
+): Promise<boolean> {
   if (!isPendingReview(obj)) {
     new Notice(`「${objectTitle(obj)}」当前不在待审核状态`);
     return false;
@@ -29,5 +35,5 @@ export async function approveReviewObject(app: App, obj: KosObject, settings: Ko
     new Notice(`「${objectTitle(obj)}」没有可用的晋升流转`);
     return false;
   }
-  return applyTransition(app, obj, target, settings);
+  return applyTransition(app, obj, target, settings, operation);
 }

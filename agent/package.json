@@ -1,0 +1,35 @@
+{
+  "name": "@kos-framework/agent-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "clean": "npm run clean --workspaces --if-present",
+    "build": "npm run build -w @earendil-works/pi-ai && npm run build -w @earendil-works/pi-agent-core && npm run build -w @kos-framework/kos-agent",
+    "test": "npm run test -w @earendil-works/pi-agent-core && npm run test:core -w @kos-framework/kos-agent",
+    "test:ai": "npm run test -w @earendil-works/pi-ai",
+    "test:harness": "npm run test:harness -w @earendil-works/pi-agent-core",
+    "test:upstream": "npm run test -w @kos-framework/kos-agent",
+    "test:live": "node scripts/live-rpc-smoke.mjs",
+    "check": "npm run build && npm run test"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.4",
+    "@typescript/native-preview": "7.0.0-dev.20260120.1",
+    "shx": "0.4.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.9"
+  },
+  "overrides": {
+    "rimraf": "6.1.2",
+    "gaxios": {
+      "rimraf": "6.1.2"
+    }
+  }
+}

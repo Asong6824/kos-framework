@@ -1,109 +1,95 @@
-# Agent 后端
+# kos-agent 与外部 Agent
 
-kos 最初按 Hermes Agent + Obsidian 的组合设计，但框架本身不应绑定某一个 agent 后端。
+> 状态：kos-agent MVP 已可通过 kos Companion 安装使用。当前 Vault 中的 Python Harness 仍作为迁移期兼容入口保留，迁移计划见 framework 的 `agent/docs/07_Vault能力迁移计划.md`。
 
-更准确的分层是：
+kos 的官方 Agent 后端是 kos-agent。Obsidian 对话、Context、Skill、工具、Session、Validator 和任务反馈都以 kos-agent 为产品基准，不再承诺 Hermes、Codex、Claude Code 等后端具有同等体验。
 
-| 层 | 作用 | 是否绑定后端 |
+这不代表 Vault 被锁定：Markdown、对象规范、模板和 Skill 仍然可读，外部工具仍可以直接操作它们。
+
+## 官方运行分层
+
+| 层 | 作用 | 官方实现 |
 |---|---|---|
-| Obsidian / Markdown 编辑器 | 前端展示、人工阅读、手动编辑 | 否 |
-| Markdown vault | 唯一真相源 | 否 |
-| 对象规范与模板 | 约束 frontmatter、状态、路径和正文结构 | 否 |
-| Harness | 确定性创建、校验、报告和评估 | 否 |
-| kos Skill | Agent 可读的操作流程 | 尽量不绑定 |
-| Agent adapter | 让具体 agent 理解 kos | 是 |
+| Obsidian kos Companion | 看板、对话、上下文引用、工具过程和 diff | kos 插件 |
+| kos-agent Harness | Session、Context、Skills、Tools、YOLO 执行和反馈循环 | kos-agent |
+| Pi 源码基线 | provider、Agent loop、session、compaction、tools 和 RPC/SDK | vendored Pi fork |
+| Markdown Vault | 知识真相源 | 用户可直接访问 |
+| 对象规范与 Validator | 结构和正确性契约 | Vault + kos-agent |
+
+## YOLO 执行
+
+kos-agent 只有 YOLO 一种执行模式。用户给出目标后，Agent 可以直接读取、创建、修改文件和运行命令，不会逐次弹出权限确认。
+
+用户仍然可以：
+
+- 查看每个工具调用、命令、diff、结果和错误。
+- 随时 Stop。
+- 在运行中发送 steering 或 follow-up。
+- 在 Agent 缺少信息或需要业务判断时回答问题。
+
+`ask_question` 用于信息和业务判断，不用于批准工具执行。使用 kos-agent 等于允许它使用宿主进程已经拥有的文件和命令能力。
+
+Agent 可以自主修改对象状态，包括进入 `reviewed`、`complete`、`verified` 或 `mature`。人工审阅不是系统权限门禁；Agent 也可以在研究收尾后挂起一个审阅问题，等用户回答后再更新状态。
 
 ## 通用根标记
 
-`.kos.md` 是 kos vault 的通用根标记。
+`.kos.md` 是 kos Vault 的通用根标记。kos-agent、脚本和人工操作都应把包含 `.kos.md` 的目录视为 Vault root。
 
-Agent、脚本和人工操作都应把包含 `.kos.md` 的目录视为 vault 根目录。历史 Hermes 环境仍兼容 `.hermes.md`，但新的跨后端能力应优先依赖 `.kos.md`。
+历史 Hermes 环境仍兼容 `.hermes.md`，但新的 kos-agent 能力以 `.kos.md`、对象规范、模板和 Skills 为准。
 
-## 支持的后端入口
+## kos-agent 体验
 
-| 文件 | 面向对象 | 作用 |
-|---|---|---|
-| `.kos.md` | 所有 agent 和人工维护者 | 通用 kos 上下文和根规则 |
-| `.hermes.md` | Hermes Agent | Hermes 专用运行入口 |
-| `AGENTS.md` | Codex | Codex 专用运行入口 |
-| `CLAUDE.md` | Claude Code | Claude Code 专用运行入口 |
+官方体验位于同一个 Obsidian 插件中：
 
-这些文件不应该各自定义一套对象规则。对象规则只能以 `90_系统/规则/对象规范.md`、模板和 harness 为准。
+- 独立 Agent 对话视图。
+- 当前文件、选区、图片、看板对象和 `@mention` context。
+- Slash commands 和 kos Skills。
+- 流式回答、thinking、工具卡片、diff 和 Validator。
+- Session 新建、恢复、fork、tree 和 compact。
+- Stop、steering 和 follow-up。
+- 模型、context usage、tokens、cache 和费用。
 
-## Hermes Agent
+交互以 Claude Code 和 Claudian 为参照，但后端始终是 kos-agent。
 
-Hermes 适合长期固定运行 kos，因为它可以通过 Skill 和 profile 建立稳定触发方式。
+Obsidian Desktop 启动独立 kos-agent 子进程，并通过扩展后的 Pi RPC 通信。kos-agent 不支持 MCP。
 
-典型配置：
+Desktop 运行要求 Node.js 22.19+。插件安装包内含 kos-agent host，会自动从 PATH、Homebrew、Volta 等常见位置发现 Node；自动发现失败时在 kos Companion 设置中填写 Node 可执行文件路径。模型 provider、model ID、API key 和可选中转地址在 Agent 侧栏配置，API key 写入 kos-agent 的 `auth.json`（权限 `0600`），不写入 Obsidian `data.json`。
 
-```yaml
-terminal:
-  cwd: /path/to/your/kos
+## Skill 如何运行
 
-skills:
-  external_dirs:
-    - /path/to/your/kos/41_Skills
-```
-
-Hermes 用户可以继续使用 `/kos-*` 命令，例如：
-
-```text
-/kos-system-check
-/kos-start-my-day
-/kos-ingest
-/kos-research
-/kos-create-project
-```
-
-## Codex
-
-Codex 适合用来维护 kos vault、修改 framework、运行 harness、排查结构问题和执行较明确的批量操作。
-
-使用方式：
-
-1. 在 Codex 中打开 kos vault 目录。
-2. 让 Codex 读取 `AGENTS.md`、`.kos.md` 和相关用户文档。
-3. 要求它优先使用 `90_系统/harness/` 中的脚本。
-4. 修改后运行健康检查。
-
-常用命令：
-
-```bash
-python3 90_系统/harness/generate_health_report.py
-```
-
-Codex 不需要 Hermes profile，也不应该把 `.hermes.md` 当作唯一根标记。
-
-## Claude Code
-
-Claude Code 的定位与 Codex 类似：它可以直接在 vault 目录中读写文件、运行 harness、根据文档执行 kos workflow。
-
-使用方式：
-
-1. 在 Claude Code 中打开 kos vault 目录。
-2. 让 Claude Code 读取 `CLAUDE.md`、`.kos.md` 和相关用户文档。
-3. 对创建、检查和批量修复任务，优先调用 harness。
-4. 修改后运行健康检查。
-
-Claude Code 也不需要 Hermes profile。
-
-## Skill 如何跨后端使用
-
-`41_Skills/` 中的 Skill 是 kos 的能力层。它们应该描述：
+`41_Skills/` 是 kos-agent 的领域能力层。Skill 应描述：
 
 - 什么时候使用。
 - 需要读取哪些规则和模板。
-- 如何判断 vault 根目录。
-- 应调用哪些 harness。
-- 哪些状态必须由用户确认。
-- 输出格式和检查方式。
+- 如何判断 Vault root。
+- 应调用哪些工具或确定性程序。
+- 哪些业务事实必须询问用户。
+- 输出格式和完成检查。
 
-Skill 中保留 `metadata.hermes` 是为了兼容 Hermes 的 pinned、tag 和 profile 机制。跨后端治理应以 `metadata.kos` 为准。
+kos-agent 负责 Skill 发现、加载、trace 和 Eval。`metadata.hermes` 暂时保留用于历史兼容；新能力以 `metadata.kos` 和 kos-agent 行为为准。
+
+## 外部 Agent
+
+Codex、Claude Code、Hermes 等仍可作为外部工具：
+
+1. 在 Vault 目录中打开 Agent。
+2. 读取 `.kos.md` 和对应的 `AGENTS.md`、`CLAUDE.md` 或 `.hermes.md`。
+3. 遵守对象规范和模板。
+4. 修改后运行确定性健康检查。
+
+它们不属于 kos 官方日常产品闭环。kos 不为外部 Agent 单独维护：
+
+- Obsidian chat adapter。
+- Session 兼容层。
+- 工具事件和 diff 协议。
+- Skill 自动触发一致性。
+- kos Process Eval 等价保证。
 
 ## 维护原则
 
-- 不为 Hermes、Codex、Claude Code 复制三套 Skill。
-- 不在 adapter 文件里重新发明对象规范。
-- 通用规则写入 `.kos.md`、对象规范、模板、harness 和用户文档。
-- 后端差异只写入 `.hermes.md`、`AGENTS.md`、`CLAUDE.md`。
-- 如果某个 workflow 在不同后端表现不一致，应补 Skill eval 或 harness 检查，而不是靠口头约定。
+- 只维护一个官方 Agent 产品：kos-agent。
+- 不复制多套对象规范和 Skill。
+- 外部 Agent 兼容入口只做开放数据的便利层，不影响 kos-agent 设计。
+- 长期知识必须写入 Markdown，不能只存在 kos-agent session。
+- kos-agent 不可用时，用户仍能阅读、编辑、导出 Vault 并运行确定性检查。
+- `90_系统/harness/` 中的当前 Python runtime 将迁入 kos-agent；迁移后的 Validator 仍可通过无 LLM 的 CLI 运行。

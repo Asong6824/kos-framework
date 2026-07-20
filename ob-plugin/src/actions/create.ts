@@ -25,6 +25,13 @@ export interface CreateExtra {
   format?: SourceFormat;
 }
 
+export type CreateObjectOperation = (
+  kind: CreateKind,
+  title: string,
+  dirs: ObjectDirs,
+  extra: CreateExtra,
+) => Promise<string | null>;
+
 interface CreateSpec {
   label: string;
   /** 模板文件名（TEMPLATE_DIR 下） */
@@ -294,6 +301,7 @@ class CreateModal extends Modal {
     app: App,
     private readonly kind: CreateKind,
     private readonly dirs: ObjectDirs,
+    private readonly operation?: CreateObjectOperation,
   ) {
     super(app);
   }
@@ -336,6 +344,16 @@ class CreateModal extends Modal {
         extra.priority = this.priority;
       }
       if (this.kind === 'source') extra.format = this.format;
+      if (this.operation) {
+        void this.operation(this.kind, this.title, this.dirs, extra)
+          .then((path) => {
+            if (!path) return;
+            this.close();
+            window.setTimeout(() => void this.app.workspace.openLinkText(path, '', false), 100);
+          })
+          .catch((error) => new Notice(error instanceof Error ? error.message : String(error)));
+        return;
+      }
       void createKosFile(this.app, this.kind, this.title, this.dirs, extra).then((file) => {
         if (file) {
           this.close();
@@ -353,8 +371,13 @@ class CreateModal extends Modal {
 }
 
 /** B5 入口：打开创建向导 */
-export function openCreateModal(app: App, kind: CreateKind, dirs: ObjectDirs): void {
-  new CreateModal(app, kind, dirs).open();
+export function openCreateModal(
+  app: App,
+  kind: CreateKind,
+  dirs: ObjectDirs,
+  operation?: CreateObjectOperation,
+): void {
+  new CreateModal(app, kind, dirs, operation).open();
 }
 
 // ---------------------------------------------------------------------------

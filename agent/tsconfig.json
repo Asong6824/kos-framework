@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "paths": {
+      "@earendil-works/pi-ai": ["./packages/ai/src/index.ts"],
+      "@earendil-works/pi-ai/*": ["./packages/ai/src/*.ts", "./packages/ai/src/providers/*.ts"],
+      "@earendil-works/pi-agent-core": ["./packages/agent/src/index.ts"],
+      "@earendil-works/pi-agent-core/*": ["./packages/agent/src/*"],
+      "@kos-framework/kos-agent": ["./packages/kos-agent/src/index.ts"],
+      "@kos-framework/kos-agent/*": ["./packages/kos-agent/src/*"],
+      "typebox": ["./node_modules/typebox"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*",
+    "packages/*/test/**/*"
+  ],
+  "exclude": ["**/dist/**"]
+}

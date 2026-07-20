@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 
@@ -20,16 +21,49 @@ PATTERNS = [
 ]
 ALLOW_PATTERNS = [
     re.compile(r"WEREAD_API_KEY\s*=\s*[\"']?\$WEREAD_API_KEY[\"']?"),
+    re.compile(
+        r"(api[_-]?key|token|secret|password)\s*[:=]\s*[\"']\$\{?[A-Z][A-Z0-9_]*\}?[\"']",
+        re.I,
+    ),
+    re.compile(r"\b([A-Z][A-Z0-9_]*)\s*=\s*[\"']\1[\"']"),
+    re.compile(r"/Users/(badlogic|nicobailon)/"),
+    re.compile(r"/home/user/"),
 ]
+
+
+def repository_files() -> list[Path]:
+    """Return files that could enter a commit, excluding .gitignore output."""
+    try:
+        output = subprocess.check_output(
+            [
+                "git",
+                "-C",
+                str(REPO_ROOT),
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ]
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return [path for path in REPO_ROOT.rglob("*") if path.is_file()]
+    return [REPO_ROOT / item.decode("utf-8") for item in output.split(b"\0") if item]
+
+
+def is_vendored_reference(rel: Path) -> bool:
+    """Pi's fixed snapshot retains upstream tests, docs, examples, and changelog fixtures."""
+    parts = rel.parts
+    if len(parts) < 4 or parts[:2] != ("agent", "packages"):
+        return False
+    return parts[3] in {"test", "docs", "examples", "README.md", "CHANGELOG.md"}
 
 
 def main() -> int:
     findings: list[str] = []
-    for path in sorted(REPO_ROOT.rglob("*")):
-        if not path.is_file():
-            continue
+    for path in sorted(repository_files()):
         rel = path.relative_to(REPO_ROOT)
-        if rel in SKIP_FILES or any(part in SKIP_PARTS for part in rel.parts):
+        if rel in SKIP_FILES or is_vendored_reference(rel) or any(part in SKIP_PARTS for part in rel.parts):
             continue
         try:
             text = path.read_text(encoding="utf-8")

@@ -2,14 +2,19 @@ import { Notice, Plugin } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import { openCaptureModal } from './actions/capture';
 import { createTodayDiary, openCreateModal } from './actions/create';
+import type { CreateExtra, CreateKind, CreateObjectOperation } from './actions/create';
 import { BadgeWatcher } from './actions/badges';
 import { openReportModal } from './actions/report';
 import type { ReportDeps } from './actions/report';
 import { approveReviewObject } from './actions/review';
 import { openTransitionModal, statusBadgeProcessor } from './actions/transition';
+import type { TransitionOperation } from './actions/transition';
 import { isHarnessAvailable, runHealthCheck } from './bridge/harness';
+import { createKosAgentClient, isKosAgentSupported } from './bridge/kos-agent';
+import { runAgentValidation } from './bridge/agent-validation';
+import type { KosAgentClient } from './agent/client';
 import { pendingReviewCount, projectProgress } from './core/metrics';
-import type { KosObject } from './core/model';
+import type { KosObject, ObjectDirs } from './core/model';
 import { buildSnapshot } from './core/snapshot';
 import { KosIndex } from './data/index';
 import { KosDataStore, localToday } from './data/store';
@@ -19,6 +24,7 @@ import { DashboardView, DASHBOARD_VIEW_TYPE } from './views/dashboard-view';
 import { HeatmapView, HEATMAP_VIEW_TYPE } from './views/heatmap-view';
 import { ReviewView, REVIEW_VIEW_TYPE } from './views/review-view';
 import { TasksView, TASKS_VIEW_TYPE } from './views/tasks-view';
+import { AgentView, AGENT_VIEW_TYPE } from './views/agent-view';
 import { KosView } from './views/view-context';
 import type { ViewContext } from './views/view-context';
 
@@ -28,6 +34,7 @@ const VIEW_LOCATIONS: Record<string, 'tab' | 'right'> = {
   [HEATMAP_VIEW_TYPE]: 'right',
   [REVIEW_VIEW_TYPE]: 'right',
   [TASKS_VIEW_TYPE]: 'right',
+  [AGENT_VIEW_TYPE]: 'right',
 };
 
 /** 跨天检测间隔（02 文档第 4 节：本地日期变化时先落昨日终态再开新一天） */
@@ -40,6 +47,8 @@ export default class KosCompanionPlugin extends Plugin {
   private badges!: BadgeWatcher;
   private pendingStatusEl: HTMLElement | null = null;
   private staleStatusEl: HTMLElement | null = null;
+  private agentClient: KosAgentClient | null = null;
+  private agentConnection: Promise<KosAgentClient> | null = null;
   /** 当前计数的本地日期（跨天检测基准） */
   private currentDate = '';
 
@@ -63,9 +72,20 @@ export default class KosCompanionPlugin extends Plugin {
     this.registerView(HEATMAP_VIEW_TYPE, (leaf) => new HeatmapView(leaf, this.viewContext()));
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => new ReviewView(leaf, this.viewContext(), this.onApprove));
     this.registerView(TASKS_VIEW_TYPE, (leaf) => new TasksView(leaf, this.viewContext()));
+    if (isKosAgentSupported(this.app)) {
+      this.registerView(
+        AGENT_VIEW_TYPE,
+        (leaf) => new AgentView(leaf, {
+          autoStart: () => this.settings.agentAutoStart,
+          connect: () => this.connectAgent(),
+        }),
+      );
+    }
 
     // 阅读模式状态徽章（B4：类型 + 当前状态 + 下一状态按钮组）
-    this.registerMarkdownPostProcessor(statusBadgeProcessor(this.app, () => this.settings));
+    this.registerMarkdownPostProcessor(
+      statusBadgeProcessor(this.app, () => this.settings, this.agentTransitionOperation()),
+    );
 
     // 视图命令
     this.addCommand({
@@ -88,6 +108,13 @@ export default class KosCompanionPlugin extends Plugin {
       name: '打开聚合任务',
       callback: () => void this.activateView(TASKS_VIEW_TYPE),
     });
+    if (isKosAgentSupported(this.app)) {
+      this.addCommand({
+        id: 'open-agent',
+        name: '打开 kos Agent',
+        callback: () => void this.activateView(AGENT_VIEW_TYPE),
+      });
+    }
 
     // B1 快速捕获（全局命令，不强制热键）+ ribbon
     this.addCommand({
@@ -101,15 +128,15 @@ export default class KosCompanionPlugin extends Plugin {
     this.addCommand({
       id: 'transition-current-file',
       name: '流转当前文件状态',
-      callback: () => openTransitionModal(this.app, this.settings),
+      callback: () => openTransitionModal(this.app, this.settings, this.agentTransitionOperation()),
     });
 
     // B5 创建向导
-    this.addCommand({ id: 'create-project', name: '新建项目', callback: () => openCreateModal(this.app, 'project', this.settings.objectDirs) });
-    this.addCommand({ id: 'create-concept', name: '新建概念', callback: () => openCreateModal(this.app, 'concept', this.settings.objectDirs) });
-    this.addCommand({ id: 'create-method', name: '新建方法', callback: () => openCreateModal(this.app, 'method', this.settings.objectDirs) });
-    this.addCommand({ id: 'create-task', name: '新建任务', callback: () => openCreateModal(this.app, 'task', this.settings.objectDirs) });
-    this.addCommand({ id: 'create-source', name: '新建输入源', callback: () => openCreateModal(this.app, 'source', this.settings.objectDirs) });
+    this.addCommand({ id: 'create-project', name: '新建项目', callback: () => this.openCreate('project') });
+    this.addCommand({ id: 'create-concept', name: '新建概念', callback: () => this.openCreate('concept') });
+    this.addCommand({ id: 'create-method', name: '新建方法', callback: () => this.openCreate('method') });
+    this.addCommand({ id: 'create-task', name: '新建任务', callback: () => this.openCreate('task') });
+    this.addCommand({ id: 'create-source', name: '新建输入源', callback: () => this.openCreate('source') });
     this.addCommand({ id: 'create-diary', name: '创建今日日记', callback: () => void createTodayDiary(this.app, this.settings.objectDirs) });
 
     // A7 周报 / 月报（M14）
@@ -125,7 +152,13 @@ export default class KosCompanionPlugin extends Plugin {
     });
 
     // C1/D1 健康检查（仅桌面端 + Node 可用时注册，移动端无此命令）
-    if (isHarnessAvailable()) {
+    if (isKosAgentSupported(this.app)) {
+      this.addCommand({
+        id: 'health-check',
+        name: '运行系统健康检查',
+        callback: () => void this.connectAgent().then((client) => runAgentValidation(this.app, client)),
+      });
+    } else if (isHarnessAvailable()) {
       this.addCommand({
         id: 'health-check',
         name: '运行系统健康检查',
@@ -134,6 +167,9 @@ export default class KosCompanionPlugin extends Plugin {
     }
 
     this.addRibbonIcon('gauge', '打开 kos 驾驶舱', () => void this.activateView(DASHBOARD_VIEW_TYPE));
+    if (isKosAgentSupported(this.app)) {
+      this.addRibbonIcon('message-square', '打开 kos Agent', () => void this.activateView(AGENT_VIEW_TYPE));
+    }
 
     // C2 状态栏：待审核数（M9）+ 停滞项目数（M10）
     this.pendingStatusEl = this.addStatusBarItem();
@@ -168,9 +204,65 @@ export default class KosCompanionPlugin extends Plugin {
 
   onunload(): void {
     this.index?.dispose();
+    void this.agentClient?.stop();
     for (const type of Object.keys(VIEW_LOCATIONS)) {
       this.app.workspace.detachLeavesOfType(type);
     }
+  }
+
+  private connectAgent(): Promise<KosAgentClient> {
+    if (this.agentClient?.isRunning) return Promise.resolve(this.agentClient);
+    if (this.agentConnection) return this.agentConnection;
+
+    const client = createKosAgentClient(this.app, this.settings);
+    this.agentConnection = client.start()
+      .then(() => {
+        this.agentClient = client;
+        return client;
+      })
+      .catch(async (error) => {
+        await client.stop();
+        throw error;
+      })
+      .finally(() => {
+        this.agentConnection = null;
+      });
+    return this.agentConnection;
+  }
+
+  private openCreate(kind: CreateKind): void {
+    openCreateModal(this.app, kind, this.settings.objectDirs, this.agentCreateOperation());
+  }
+
+  private agentCreateOperation(): CreateObjectOperation | undefined {
+    if (!isKosAgentSupported(this.app)) return undefined;
+    return async (kind: CreateKind, title: string, dirs: ObjectDirs, extra: CreateExtra) => {
+      const client = await this.connectAgent();
+      const result = await client.createObject({
+        kind,
+        title,
+        directories: {
+          project: dirs.project,
+          concept: dirs.concept,
+          method: dirs.method,
+          task: dirs.task,
+          source: dirs.source,
+        },
+        extra,
+      });
+      new Notice(`已创建：${result.path}`);
+      return result.path;
+    };
+  }
+
+  private agentTransitionOperation(): TransitionOperation | undefined {
+    if (!isKosAgentSupported(this.app)) return undefined;
+    return async (path: string, target: string) => {
+      const client = await this.connectAgent();
+      const result = await client.transitionStatus({ path, target });
+      new Notice(`已流转：${result.path} · ${result.from} → ${result.to}`);
+      return true;
+    };
   }
 
   /** 设置页保存入口：设置与指标数据同存 data.json，走 store 统一落盘 */
@@ -200,7 +292,9 @@ export default class KosCompanionPlugin extends Plugin {
 
   /** B3 审核"通过"回调：按状态机走到下一个已确认态（actions/review.ts） */
   private readonly onApprove = (obj: KosObject): void => {
-    void approveReviewObject(this.app, obj, this.settings);
+    void approveReviewObject(this.app, obj, this.settings, this.agentTransitionOperation()).catch((error) =>
+      new Notice(error instanceof Error ? error.message : String(error)),
+    );
   };
 
   /** 索引变更后的统一动作：视图 + 状态栏 + 当日快照 + 徽章 */

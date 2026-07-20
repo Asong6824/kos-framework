@@ -20,6 +20,8 @@ import { localToday } from '../data/store';
 import type { KosSettings } from '../settings';
 import { TYPE_LABELS, objectTitle } from '../views/view-context';
 
+export type TransitionOperation = (path: string, target: string) => Promise<boolean>;
+
 /** 流转确认对话框：展示规范依据（TransitionRule.note），返回用户是否确认 */
 class TransitionConfirmModal extends Modal {
   private resolved = false;
@@ -76,6 +78,7 @@ export async function applyTransition(
   obj: KosObject,
   target: string,
   settings: KosSettings,
+  operation?: TransitionOperation,
 ): Promise<boolean> {
   if (!canTransition(obj, target)) {
     new Notice(`非法流转：${TYPE_LABELS[obj.type]}「${objectTitle(obj)}」不能转到 ${target}`);
@@ -86,6 +89,8 @@ export async function applyTransition(
     const ok = await confirmTransition(app, obj, rule);
     if (!ok) return false;
   }
+
+  if (operation) return operation(obj.filePath, target);
 
   const file = app.vault.getAbstractFileByPath(obj.filePath);
   if (!(file instanceof TFile)) {
@@ -116,6 +121,7 @@ class TransitionPickerModal extends Modal {
     app: App,
     private readonly obj: KosObject,
     private readonly settings: KosSettings,
+    private readonly operation?: TransitionOperation,
   ) {
     super(app);
   }
@@ -142,7 +148,9 @@ class TransitionPickerModal extends Modal {
       if (t.note) btn.title = t.note;
       btn.addEventListener('click', () => {
         this.close();
-        void applyTransition(this.app, this.obj, t.to, this.settings);
+        void applyTransition(this.app, this.obj, t.to, this.settings, this.operation).catch((error) =>
+          new Notice(error instanceof Error ? error.message : String(error)),
+        );
       });
     }
   }
@@ -153,7 +161,7 @@ class TransitionPickerModal extends Modal {
 }
 
 /** 命令入口：对当前文件弹状态选择 Modal */
-export function openTransitionModal(app: App, settings: KosSettings): void {
+export function openTransitionModal(app: App, settings: KosSettings, operation?: TransitionOperation): void {
   const file = app.workspace.getActiveFile();
   if (!(file instanceof TFile)) {
     new Notice('当前没有打开的文件');
@@ -169,7 +177,7 @@ export function openTransitionModal(app: App, settings: KosSettings): void {
     new Notice(`${TYPE_LABELS[obj.type]}没有状态机，不支持流转`);
     return;
   }
-  new TransitionPickerModal(app, obj, settings).open();
+  new TransitionPickerModal(app, obj, settings, operation).open();
 }
 
 /**
@@ -177,7 +185,11 @@ export function openTransitionModal(app: App, settings: KosSettings): void {
  * （类型中文名 + 当前状态 + 下一状态按钮组，按钮走 applyTransition）。
  * 只改渲染 DOM，绝不触碰笔记内容与 `<!-- 人手动添加 -->` 块。
  */
-export function statusBadgeProcessor(app: App, getSettings: () => KosSettings): MarkdownPostProcessor {
+export function statusBadgeProcessor(
+  app: App,
+  getSettings: () => KosSettings,
+  operation?: TransitionOperation,
+): MarkdownPostProcessor {
   return (el, ctx) => {
     const fm = ctx.frontmatter;
     if (!fm) return;
@@ -203,7 +215,11 @@ export function statusBadgeProcessor(app: App, getSettings: () => KosSettings): 
           text: `→ ${t.to}`,
         });
         if (t.note) btn.title = t.note;
-        btn.addEventListener('click', () => void applyTransition(app, obj, t.to, getSettings()));
+        btn.addEventListener('click', () => {
+          void applyTransition(app, obj, t.to, getSettings(), operation).catch((error) =>
+            new Notice(error instanceof Error ? error.message : String(error)),
+          );
+        });
       }
     }
     el.prepend(banner);

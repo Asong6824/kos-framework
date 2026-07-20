@@ -1,0 +1,25 @@
+type: task
+paths:
+  - 31_任务
+required:
+  type:
+    kind: enum
+    values: [task]
+  title:
+    kind: string
+  status:
+    kind: enum
+    values: [todo, doing, done, blocked, cancelled]
+  project:
+    kind: string
+  priority:
+    kind: enum
+    values: [P0, P1, P2, P3, P4]
+  due:
+    kind: string
+  created:
+    kind: date
+  completed:
+    kind: string
+  tags:
+    kind: list

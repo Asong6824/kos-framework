@@ -1,0 +1,31 @@
+type: topic_watch
+paths:
+  - 50_信息雷达/主题监控
+required:
+  type:
+    kind: enum
+    values: [topic_watch]
+  title:
+    kind: string
+  status:
+    kind: enum
+    values: [active, paused, archived]
+  created:
+    kind: date
+  updated:
+    kind: date
+optional:
+  keywords:
+    kind: list
+  tracked_sources:
+    kind: list
+  related_projects:
+    kind: list
+  related_research:
+    kind: list
+  related_concepts:
+    kind: list
+  last_reviewed_at:
+    kind: string
+  tags:
+    kind: list

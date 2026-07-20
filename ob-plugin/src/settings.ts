@@ -19,6 +19,12 @@ export interface KosSettings {
   reviewConfirmDialog: boolean;
   /** harness 桥接的 Python 路径（D1，仅桌面端），默认 python3 */
   pythonPath: string;
+  /** kos-agent 可执行文件或 rpc-entry.js；空值时自动发现 */
+  agentHostPath: string;
+  /** 运行脚本 host 的 Node 可执行文件；空值时自动发现外部 Node */
+  agentNodePath: string;
+  /** 打开 Agent 视图时自动启动本地 host */
+  agentAutoStart: boolean;
   /** 周起始日：0=周日 1=周一，默认 1 */
   weekStart: number;
   /** 目录映射（个性化布局）：各对象目录的 vault 相对路径，默认标准布局 */
@@ -31,6 +37,9 @@ export const DEFAULT_SETTINGS: KosSettings = {
   enableBadges: true,
   reviewConfirmDialog: true,
   pythonPath: 'python3',
+  agentHostPath: '',
+  agentNodePath: '',
+  agentAutoStart: true,
   weekStart: 1,
   objectDirs: { ...DEFAULT_OBJECT_DIRS },
 };
@@ -132,6 +141,43 @@ export class KosSettingTab extends PluginSettingTab {
               await this.plugin.saveSettings();
             }
           }),
+      );
+
+    containerEl.createEl('h3', { text: 'kos Agent' });
+    new Setting(containerEl)
+      .setName('Agent host 路径')
+      .setDesc('kos-agent 可执行文件或 rpc-entry.mjs 的绝对路径。留空时优先使用插件内置 host。')
+      .addText((text) =>
+        text
+          .setPlaceholder('自动发现')
+          .setValue(this.plugin.settings.agentHostPath)
+          .onChange(async (value) => {
+            this.plugin.settings.agentHostPath = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName('Node 路径')
+      .setDesc('可选。自动发现失败时，填写 Node.js 22.19+ 可执行文件的绝对路径。')
+      .addText((text) =>
+        text
+          .setPlaceholder('自动发现 Node.js 22.19+')
+          .setValue(this.plugin.settings.agentNodePath)
+          .onChange(async (value) => {
+            this.plugin.settings.agentNodePath = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName('自动启动 Agent')
+      .setDesc('打开 kos Agent 侧栏时启动子进程并续接该 vault 的最近会话。')
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.agentAutoStart).onChange(async (value) => {
+          this.plugin.settings.agentAutoStart = value;
+          await this.plugin.saveSettings();
+        }),
       );
 
     new Setting(containerEl)

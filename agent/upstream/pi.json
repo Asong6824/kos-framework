@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/earendil-works/pi.git",
+  "commit": "9e7fce70a3186e3a25074784b1db00facc816299",
+  "commitDate": "2026-07-20T11:09:12Z",
+  "importedAt": "2026-07-20",
+  "license": "MIT",
+  "packages": {
+    "packages/ai": "agent/packages/ai",
+    "packages/agent": "agent/packages/agent",
+    "packages/coding-agent": "agent/packages/kos-agent"
+  },
+  "notes": [
+    "packages/coding-agent is renamed to packages/kos-agent after import",
+    "pi-tui remains an npm dependency and is not exposed as a kos product entry"
+  ]
+}
