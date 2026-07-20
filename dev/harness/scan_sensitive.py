@@ -10,7 +10,7 @@ SKIP_FILES = {
     Path("SECURITY.md"),
     Path("dev/harness/scan_sensitive.py"),
 }
-SKIP_PARTS = {".git", "__pycache__"}
+SKIP_PARTS = {".git", "__pycache__", "node_modules"}
 PATTERNS = [
     re.compile(r"/Users/[A-Za-z0-9._-]+/"),
     re.compile(r"/home/[A-Za-z0-9._-]+/"),

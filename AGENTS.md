@@ -4,8 +4,10 @@
 
 - `vault/` is the runtime distribution delivered to kos users.
 - `dev/` contains framework development harness, development Skills, release evals, distribution specifications, and development documentation.
+- `ob-plugin/` contains the Obsidian plugin project (source, docs, tests), which consumes the vault object spec as a read-only contract and stays out of the framework distribution.
 - Runtime user documentation belongs under `vault/90_系统/文档/`.
 - Development documentation and design reasoning belong under `dev/docs/`.
+- Obsidian plugin documentation belongs under `ob-plugin/docs/`.
 
 Never place framework development tooling under `vault/`.
 

@@ -7,3 +7,6 @@ vault/90_系统/harness/reports/
 vault/90_系统/evals/artifacts/*.json
 .env
 *.env
+ob-plugin/node_modules/
+ob-plugin/main.js
+ob-plugin/data.json
