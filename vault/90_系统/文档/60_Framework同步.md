@@ -27,6 +27,7 @@ README.md
 90_系统/模板/
 90_系统/harness/
 90_系统/evals/README.md
+90_系统/evals/contracts/
 90_系统/evals/schemas/
 90_系统/evals/skills/
 90_系统/工作流/

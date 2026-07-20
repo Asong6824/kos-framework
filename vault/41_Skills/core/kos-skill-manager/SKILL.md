@@ -1,7 +1,7 @@
 ---
 name: kos-skill-manager
 description: 管理 kos Skill 的分类、孵化、晋升、合并和归档，确保 Agent 新建能力先进入 incubator。
-version: 1.0.0
+version: 1.1.0
 metadata:
   hermes:
     tags: [kos, skill, governance]
@@ -95,6 +95,7 @@ metadata:
 - 是否应该只是 `Method`，而不是可执行 Skill。
 - 是否存在 `90_系统/evals/skills/<skill-name>.prompts.csv`。
 - eval 是否覆盖正例、负例和关键防腐规则。
+- 如果 Skill 会创建或修改产物，是否存在 `90_系统/evals/contracts/<skill-name>/*.task.yaml` 并定义最大迭代次数。
 
 ### Step 4: 晋升或归档
 

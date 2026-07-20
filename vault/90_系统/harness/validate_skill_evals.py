@@ -7,6 +7,7 @@ from pathlib import Path
 
 from harness_common import Finding, find_vault_root, has_errors, parse_args, print_findings, relpath
 from skill_eval_common import EVAL_SKILL_DIR, build_checkers, find_skill_file, load_eval_cases
+from task_eval_common import TaskContractError, load_task_contract
 
 
 REQUIRED_COLUMNS = ["id", "skill", "should_trigger", "prompt", "expected_checks", "notes"]
@@ -19,15 +20,23 @@ def main() -> int:
 
     eval_root = root / "90_系统/evals"
     skill_dir = root / EVAL_SKILL_DIR
-    schema_path = eval_root / "schemas/skill_eval_result.schema.json"
+    contract_dir = eval_root / "contracts"
+    schema_paths = [
+        eval_root / "schemas/skill_eval_result.schema.json",
+        eval_root / "schemas/task_contract.schema.json",
+        eval_root / "schemas/task_eval_result.schema.json",
+    ]
 
     if not eval_root.is_dir():
         findings.append(Finding("ERROR", "90_系统/evals", "缺少 Skill eval 根目录"))
     if not skill_dir.is_dir():
         findings.append(Finding("ERROR", relpath(skill_dir, root), "缺少 skills prompt 目录"))
-    if not schema_path.is_file():
-        findings.append(Finding("ERROR", relpath(schema_path, root), "缺少 skill eval 结果 schema"))
-    else:
+    if not contract_dir.is_dir():
+        findings.append(Finding("ERROR", relpath(contract_dir, root), "缺少 Task Contract 目录"))
+    for schema_path in schema_paths:
+        if not schema_path.is_file():
+            findings.append(Finding("ERROR", relpath(schema_path, root), "缺少 eval schema"))
+            continue
         try:
             json.loads(schema_path.read_text(encoding="utf-8"))
         except Exception as exc:
@@ -72,8 +81,29 @@ def main() -> int:
 
     cases = load_eval_cases(root)
     skills_with_evals = sorted({case.skill for case in cases})
+    contract_files = sorted(contract_dir.rglob("*.task.yaml")) if contract_dir.is_dir() else []
+    contract_ids: set[str] = set()
+    contract_skills: set[str] = set()
+    for path in contract_files:
+        rel = relpath(path, root)
+        try:
+            contract = load_task_contract(path)
+        except (TaskContractError, OSError, ValueError) as exc:
+            findings.append(Finding("ERROR", rel, f"Task Contract 非法：{exc}"))
+            continue
+        contract_id = str(contract["id"])
+        if contract_id in contract_ids:
+            findings.append(Finding("ERROR", rel, f"Task Contract id 重复：{contract_id}"))
+        contract_ids.add(contract_id)
+        skill = str(contract["skill"])
+        contract_skills.add(skill)
+        if find_skill_file(root, skill) is None:
+            findings.append(Finding("ERROR", rel, f"目标 Skill 不存在：{skill}"))
+
     findings.append(Finding("INFO", "90_系统/evals", f"共发现 {len(csv_files)} 个 eval suite，{case_count} 个 case"))
     findings.append(Finding("INFO", "90_系统/evals", f"覆盖 Skill：{', '.join(skills_with_evals) if skills_with_evals else '无'}"))
+    findings.append(Finding("INFO", "90_系统/evals/contracts", f"共发现 {len(contract_files)} 个 Task Contract"))
+    findings.append(Finding("INFO", "90_系统/evals/contracts", f"覆盖 Skill：{', '.join(sorted(contract_skills)) if contract_skills else '无'}"))
 
     print_findings(findings, "Skill Eval 定义检查报告", markdown=args.format == "markdown")
     return 1 if has_errors(findings) else 0

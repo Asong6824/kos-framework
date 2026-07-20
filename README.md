@@ -33,6 +33,22 @@ kos-framework/        # source repo: framework, tests, release tooling
 
 This keeps the framework maintainable while still letting users consume only the runtime vault content. A future release process can publish `vault/` as a generated archive or template mirror, but this repository remains the authoritative project because the runtime, harness, evals, and release checks need to evolve together.
 
+Framework development can use a separate disposable `kos-test` vault driven by Pi:
+
+```bash
+make kos-test-build  # create or refresh ../kos-test
+make kos-test        # launch Pi from the kos-test root
+```
+
+Use `make kos-test-reset` only when all test-vault artifacts should be discarded. The command refuses to rebuild a directory that lacks the framework-generated `.kos-test.json` safety marker. See `dev/docs/Pi驱动kos-test.md` for the layer boundaries and workflow.
+
+Run checked-in Pi Process Evals against disposable test-vault fixtures:
+
+```bash
+make process-eval-validate  # contracts and schemas only; no model call
+make process-eval           # real Pi traces and protocol evaluation
+```
+
 ## Quick Start
 
 Create a new vault:

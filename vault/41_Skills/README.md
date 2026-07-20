@@ -34,12 +34,19 @@ Agent 新建 Skill 默认只能写入：
 90_系统/evals/skills/<skill-name>.prompts.csv
 ```
 
+会创建文件、修改对象或执行可验证任务的 Skill，还应提供：
+
+```text
+90_系统/evals/contracts/<skill-name>/<case-id>.task.yaml
+```
+
 至少覆盖：
 
 - 显式触发。
 - 隐式触发。
 - 一个负例，防止误触发。
 - 该 Skill 最容易腐化的关键步骤或输出约束。
+- 至少一个可验证的任务完成条件；语义条件必须要求 evidence。
 
 ## 元数据
 

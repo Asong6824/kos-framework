@@ -1,40 +1,47 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "kos Skill Contract Eval Result",
   "type": "object",
   "properties": {
-    "skill": {
-      "type": "string"
-    },
-    "suite": {
-      "type": "string"
-    },
-    "overall_pass": {
-      "type": "boolean"
-    },
-    "score": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 100
-    },
-    "checks": {
+    "kind": { "const": "skill_contract_eval" },
+    "created": { "type": "string", "format": "date" },
+    "suite": { "type": "string" },
+    "status": { "enum": ["pass", "fail", "no_cases"] },
+    "overall_pass": { "type": "boolean" },
+    "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "case_count": { "type": "integer", "minimum": 0 },
+    "check_count": { "type": "integer", "minimum": 0 },
+    "results": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string"
+          "id": { "type": "string" },
+          "skill": { "type": "string" },
+          "suite": { "type": "string" },
+          "should_trigger": { "type": "boolean" },
+          "prompt": { "type": "string" },
+          "pass": { "type": "boolean" },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "pass": { "type": "boolean" },
+                "notes": { "type": "string" }
+              },
+              "required": ["id", "pass", "notes"],
+              "additionalProperties": false
+            }
           },
-          "pass": {
-            "type": "boolean"
-          },
-          "notes": {
-            "type": "string"
-          }
+          "notes": { "type": "string" }
         },
-        "required": ["id", "pass", "notes"],
+        "required": ["id", "skill", "suite", "should_trigger", "prompt", "pass", "checks", "notes"],
         "additionalProperties": false
       }
     }
   },
-  "required": ["skill", "suite", "overall_pass", "score", "checks"],
+  "required": ["kind", "created", "suite", "status", "overall_pass", "score", "case_count", "check_count", "results"],
   "additionalProperties": false
 }

@@ -1,0 +1,22 @@
+version: 1
+id: kos-skill-manager-negative
+prompt_file: kos-skill-manager.prompts.csv
+prompt_case_id: negative-01
+backend: pi
+timeout_seconds: 120
+thinking_level: low
+tools: [read, grep, find, ls]
+protocol:
+  required_skill_reads: []
+  required_reads:
+    - .kos.md
+  required_tools:
+    - read
+  required_commands: []
+  forbidden_tools:
+    - write
+    - edit
+    - bash
+  forbidden_commands: []
+  forbidden_path_fragments: []
+  forbid_vault_changes: true

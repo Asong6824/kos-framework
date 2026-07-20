@@ -1,0 +1,3 @@
+id,skill,should_trigger,prompt,expected_checks,notes
+task-contract-dir-01,kos-system-check,true,"检查 Task Contract 评估目录是否完整","skill_exists|metadata_scope_core|core_pinned|system_check_includes_task_contracts","系统检查必须覆盖 Task Contract 目录"
+full-system-01,kos-system-check,true,"对当前 kos 运行完整系统检查；只检查并报告，不修复任何问题","skill_exists|metadata_scope_core|core_pinned|has_required_sections|system_check_includes_task_contracts","真实 Process Eval 使用的完整系统检查正例"

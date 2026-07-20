@@ -25,6 +25,7 @@ MANAGED_PATHS = [
     Path("90_系统/模板"),
     Path("90_系统/harness"),
     Path("90_系统/evals/README.md"),
+    Path("90_系统/evals/contracts"),
     Path("90_系统/evals/schemas"),
     Path("90_系统/evals/skills"),
     Path("90_系统/工作流"),

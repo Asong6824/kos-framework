@@ -55,11 +55,14 @@ def main() -> int:
             }
         )
 
-    overall_pass = all(item["pass"] for item in results) if results else True
+    overall_pass = bool(results) and all(item["pass"] for item in results)
+    status = "pass" if overall_pass else ("fail" if results else "no_cases")
     score = round((passed_checks / total_checks) * 100) if total_checks else 0
     payload = {
+        "kind": "skill_contract_eval",
         "created": dt.date.today().isoformat(),
         "suite": args.suite or "all",
+        "status": status,
         "overall_pass": overall_pass,
         "score": score,
         "case_count": len(results),
@@ -80,7 +83,7 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(f"Skill Eval: {payload['suite']}")
-        print(f"Overall: {'PASS' if overall_pass else 'FAIL'}")
+        print(f"Overall: {status.upper()}")
         print(f"Score: {score}")
         print(f"Cases: {len(results)}")
         if not results:
@@ -91,7 +94,7 @@ def main() -> int:
                 if not check["pass"]:
                     print(f"  - FAIL {check['id']}: {check['notes']}")
 
-    return 0 if overall_pass else 1
+    return 0 if overall_pass else (2 if not results else 1)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "kos Normalized Agent Trace",
+  "type": "object",
+  "properties": {
+    "kind": { "const": "kos_agent_trace" },
+    "version": { "const": 1 },
+    "backend": { "type": "string" },
+    "provider": { "type": "string" },
+    "model": { "type": "string" },
+    "api": { "type": "string" },
+    "exit_code": { "type": "integer" },
+    "parse_errors": { "type": "array", "items": { "type": "string" } },
+    "stderr": { "type": "string" },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "enum": ["tool_call", "tool_result"] },
+          "id": { "type": "string" },
+          "tool": { "type": "string" },
+          "args": { "type": "object" },
+          "is_error": { "type": "boolean" }
+        },
+        "required": ["type", "id", "tool"],
+        "additionalProperties": false
+      }
+    },
+    "final_text": { "type": "string" }
+  },
+  "required": [
+    "kind",
+    "version",
+    "backend",
+    "provider",
+    "model",
+    "api",
+    "exit_code",
+    "parse_errors",
+    "stderr",
+    "events",
+    "final_text"
+  ],
+  "additionalProperties": false
+}

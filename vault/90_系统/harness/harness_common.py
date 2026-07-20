@@ -61,6 +61,7 @@ REQUIRED_DIRS = (
     "90_系统/harness/reports",
     "90_系统/harness/schemas",
     "90_系统/evals",
+    "90_系统/evals/contracts",
     "90_系统/evals/skills",
     "90_系统/evals/schemas",
     "90_系统/evals/artifacts",

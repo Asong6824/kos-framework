@@ -5,7 +5,7 @@
 - 文档性质：内部设计文档
 - 适用范围：kos-framework core 和个人 kos 的 Skill 机制
 - 当前版本：0.1
-- 设计状态：部分已实现，behavior eval 和自动晋升报告仍在完善
+- 设计状态：Contract Gate、Task Completion Loop 和 Pi Process Eval runner 已实现；跨后端覆盖和自动晋升报告仍在完善
 
 ## 2. 问题背景
 
@@ -192,7 +192,7 @@ metadata:
 -> incubator
 -> 补充 contract eval
 -> 真实使用
--> 补充 behavior eval
+-> 补充 process eval 与 task completion contract
 -> 人工评审
 -> core / integrations / personal
 -> 持续优化和回归
@@ -286,24 +286,30 @@ Agent 不可以：
 
 Contract eval 低成本、稳定，但不能证明 Agent 真的会正确触发。
 
-### 12.2 Behavior Eval
+### 12.2 Process Eval
 
-检查实际 Agent run：
+检查实际 Agent run 的调用与过程：
 
 - 显式调用是否触发。
 - 自然语言隐式意图是否触发。
 - 相邻但不相同的意图是否不触发。
 - 是否执行预期命令。
-- 是否产生正确路径和 frontmatter。
 - 是否保留人工确认边界。
 - 是否发生无效循环或过度执行。
 
-### 12.3 为什么两层都需要
+### 12.3 Task Completion
+
+在任务执行前用 Task Contract 固定目标、完成条件、语义 rubric 和最大迭代次数。执行后由 Harness 检查确定性证据，由 Agent 提交带证据的 rubric 自评；失败时只对当前任务产物做最小修正。
+
+Task Completion 必须分别报告 `pass@1`、`pass@k`、迭代次数和失败项，不能让反复修补掩盖首次执行质量。
+
+### 12.4 为什么三部分都需要
 
 - 只有 contract eval：可能“文件看起来正确，Agent 实际不触发”。
-- 只有 behavior eval：可能测试成本高、结果波动，且难以快速定位结构缺陷。
+- 只有 process eval：可能正确调用和执行了流程，但任务产物仍不可用。
+- 只有 task completion：可能任务偶然完成，但 Skill 路由错误、越权或过程不可控。
 
-因此 contract eval 作为快速门禁，behavior eval 作为真实行为验证。
+因此 Contract Gate 作为快速结构门禁，Process Eval 保护调用与执行协议，Task Completion 保护任务结果与迭代收敛。
 
 ## 13. Framework 和个人 kos 的关系
 
@@ -405,15 +411,17 @@ personal kos = 个人运行实例 + 需求发现 + 实验环境
 - `kos-eval-skill`。
 - `validate_skills.py`。
 - `validate_skill_evals.py`。
-- 18/18 core Skill contract eval 覆盖。
+- 19/19 core Skill contract eval 覆盖。
+- Task Contract schema、证据判定和 `pass@1` / `pass@k` 迭代状态。
+- Pi Process Eval 合同、标准化 Agent trace、路由 precision / recall 和协议步骤覆盖率。
 - framework 到个人 kos 的单向同步。
 - 同步前 dry-run、本地修改备份和版本记录。
 
 ## 18. 尚未完成
 
-- 全部 core Skill 的真实 Hermes behavior eval。
-- 触发 precision / recall 统计。
-- Agent trace 和命令轨迹检查。
+- 扩展全部 core Skill 的 Process Eval，并增加 Codex、Claude Code、Hermes adapter。
+- core Skill 的 checked-in Task Contract 与干净 fixture vault 执行。
+- 人工确认事件和工具调用先后顺序约束。
 - Skill 修改前后的自动对比报告。
 - incubator 晋升报告自动生成。
 - framework release 版本与 Skill 独立版本的关系。

@@ -37,7 +37,7 @@ def load_eval_cases(root: Path, suite: str | None = None) -> list[EvalCase]:
         target = skill_dir / suite
         if target.suffix != ".csv":
             target = skill_dir / f"{suite}.prompts.csv"
-        files = [target]
+        files = [target] if target.is_file() else []
 
     cases: list[EvalCase] = []
     for path in files:
@@ -172,4 +172,16 @@ def build_checkers(root: Path) -> dict[str, Callable[[EvalCase], CheckResult]]:
         "no_fabrication_rule": body_contains("no_fabrication_rule", ["不可虚构"]),
         "incubator_promotion_requires_human": body_contains("incubator_promotion_requires_human", ["用户明确确认", "晋升"]),
         "promotion_requires_eval": body_contains("promotion_requires_eval", ["eval", "晋升"]),
+        "promotion_requires_task_contract": body_contains(
+            "promotion_requires_task_contract",
+            ["evals/contracts", "最大迭代次数"],
+        ),
+        "system_check_includes_task_contracts": body_contains(
+            "system_check_includes_task_contracts",
+            ["90_系统/evals/contracts"],
+        ),
+        "task_completion_loop": body_contains(
+            "task_completion_loop",
+            ["Task Contract", "pass@1", "pass@k", "最大迭代"],
+        ),
     }

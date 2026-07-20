@@ -1,7 +1,7 @@
 ---
 name: kos-system-check
 description: 检查 kos 目录、模板、对象规范和核心 kos Skills 是否齐全。
-version: 1.0.0
+version: 1.0.1
 metadata:
   hermes:
     tags: [kos, harness, validation]
@@ -111,6 +111,7 @@ python3 90_系统/harness/generate_health_report.py
 - `90_系统/harness/reports`
 - `90_系统/harness/schemas`
 - `90_系统/evals`
+- `90_系统/evals/contracts`
 - `90_系统/evals/skills`
 - `90_系统/evals/schemas`
 - `90_系统/evals/artifacts`

@@ -1,10 +1,13 @@
 .DS_Store
 __pycache__/
 *.pyc
-90_系统/harness/reports/
+90_系统/harness/reports/*
+!90_系统/harness/reports/.gitkeep
 90_系统/evals/artifacts/*.json
-vault/90_系统/harness/reports/
+vault/90_系统/harness/reports/*
+!vault/90_系统/harness/reports/.gitkeep
 vault/90_系统/evals/artifacts/*.json
+dev/evals/artifacts/*.json
 .env
 *.env
 ob-plugin/node_modules/

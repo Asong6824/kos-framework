@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "kos Task Completion Run",
+  "type": "object",
+  "properties": {
+    "kind": { "const": "task_completion_run" },
+    "run_id": { "type": "string" },
+    "contract_id": { "type": "string" },
+    "contract_sha256": { "type": "string" },
+    "skill": { "type": "string" },
+    "objective": { "type": "string" },
+    "max_iterations": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["pass", "retryable", "needs_user", "exhausted"] },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "pass_at_1": { "type": "boolean" },
+        "pass_at_k": { "type": "boolean" },
+        "iterations": { "type": "integer", "minimum": 1 },
+        "best_score": { "type": "integer", "minimum": 0, "maximum": 100 }
+      },
+      "required": ["pass_at_1", "pass_at_k", "iterations", "best_score"],
+      "additionalProperties": false
+    },
+    "attempts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "iteration",
+          "pass",
+          "score",
+          "deterministic_score",
+          "semantic_score",
+          "checks",
+          "rubric",
+          "failures",
+          "assessment_summary",
+          "next_action",
+          "needs_user"
+        ]
+      }
+    }
+  },
+  "required": [
+    "kind",
+    "run_id",
+    "contract_id",
+    "contract_sha256",
+    "skill",
+    "objective",
+    "max_iterations",
+    "status",
+    "metrics",
+    "attempts"
+  ],
+  "additionalProperties": false
+}

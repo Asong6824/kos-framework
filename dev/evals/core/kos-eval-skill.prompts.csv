@@ -1,0 +1,2 @@
+id,skill,should_trigger,prompt,expected_checks,notes
+task-loop-01,kos-eval-skill,true,"评估这个 Skill 是否完成任务；失败后根据证据迭代，但最多三轮","skill_exists|metadata_scope_core|core_pinned|task_completion_loop","Task Completion Loop 必须保留合同、首轮与收敛指标和迭代上限"

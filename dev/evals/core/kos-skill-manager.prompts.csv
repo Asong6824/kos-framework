@@ -1,4 +1,4 @@
 id,skill,should_trigger,prompt,expected_checks,notes
-explicit-01,kos-skill-manager,true,"使用 /kos-skill-manager review 这个 incubator skill 是否能晋升","skill_exists|metadata_scope_core|core_pinned|promotion_requires_eval|incubator_promotion_requires_human","显式管理 Skill 必须坚持晋升门槛"
-implicit-01,kos-skill-manager,true,"帮我看看新生成的 skill 应该放 core 还是 personal","skill_exists|incubator_promotion_requires_human|promotion_requires_eval","隐式治理请求应触发"
+explicit-01,kos-skill-manager,true,"使用 /kos-skill-manager review 这个 incubator skill 是否能晋升","skill_exists|metadata_scope_core|core_pinned|promotion_requires_eval|promotion_requires_task_contract|incubator_promotion_requires_human","显式管理 Skill 必须坚持晋升门槛"
+implicit-01,kos-skill-manager,true,"帮我看看新生成的 skill 应该放 core 还是 personal","skill_exists|incubator_promotion_requires_human|promotion_requires_eval|promotion_requires_task_contract","隐式治理请求应触发"
 negative-01,kos-skill-manager,false,"帮我创建一个普通项目计划","skill_exists|metadata_scope_core","普通项目计划不应触发 Skill 管理"

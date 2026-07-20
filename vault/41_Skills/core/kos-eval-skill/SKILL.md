@@ -1,7 +1,7 @@
 ---
 name: kos-eval-skill
-description: 运行和维护 kos Skill eval，用 prompt 集、确定性检查和 artifacts 防止 Skill 触发边界和行为腐化。
-version: 1.0.0
+description: 运行和维护 kos Skill eval，用 prompt 集、Task Contract、证据判定和受控迭代防止 Skill 调用与任务结果腐化。
+version: 1.1.0
 metadata:
   hermes:
     tags: [kos, skill, eval, anti-corruption]
@@ -41,9 +41,10 @@ metadata:
 
 1. 校验 eval 定义。
 2. 定位 `90_系统/evals/skills/<skill-name>.prompts.csv`。
-3. 运行 `run_skill_evals.py` 做轻量确定性检查。
-4. 需要留档时写入 `90_系统/evals/artifacts/`。
-5. 输出分数、失败 case 和建议修复方向。
+3. 运行 `run_skill_evals.py` 做轻量 Contract Gate。
+4. 用 Task Contract 定义任务完成条件，再执行任务。
+5. 用确定性证据和 Agent rubric 评估；失败时只在安全范围内迭代。
+6. 输出 `pass@1`、`pass@k`、迭代次数、失败项和 artifact。
 
 ## Procedure
 
@@ -55,7 +56,7 @@ python3 90_系统/harness/validate_skill_evals.py --format markdown
 
 如果这里失败，先修复 eval 定义，不要继续解释 Skill 已通过。
 
-### Step 2: 运行指定 Skill Eval
+### Step 2: 运行指定 Skill Contract Gate
 
 ```bash
 python3 90_系统/harness/run_skill_evals.py --suite <skill-name> --write-artifact
@@ -67,13 +68,86 @@ python3 90_系统/harness/run_skill_evals.py --suite <skill-name> --write-artifa
 python3 90_系统/harness/run_skill_evals.py --suite kos-bilibili-to-source --write-artifact
 ```
 
-### Step 3: 运行全部 Eval
+没有 case 时结果是 `NO_CASES`，不能解释为 eval 通过。
+
+### Step 3: 定义 Task Contract
+
+需要评估实际任务完成度时，先在执行任务之前创建：
+
+```text
+90_系统/evals/contracts/<skill-name>/<case-id>.task.yaml
+```
+
+Task Contract 至少定义目标、最大迭代次数和确定性检查；有语义质量要求时再增加 rubric：
+
+```yaml
+version: 1
+id: create-project-basic
+skill: kos-create-project
+objective: 创建结构完整且可继续推进的 Project
+max_iterations: 3
+checks:
+  - id: project_exists
+    type: path_exists
+    path: 30_项目/示例项目.md
+  - id: schema_valid
+    type: harness_passes
+    script: validate_schema.py
+rubric:
+  - id: actionability
+    description: 下一步行动具体且可执行
+    min_score: 3
+    weight: 1
+```
+
+完成条件必须在任务执行前冻结；不要因为本轮失败而降低阈值或删除检查。
+
+### Step 4: 证据驱动评估与受控迭代
+
+Agent 先执行任务，再把语义 rubric 的分数和证据写到临时 YAML。分数没有证据时按失败处理：
+
+```yaml
+contract_id: create-project-basic
+summary: Project 已创建，但下一步行动仍不够具体
+next_action: 仅补充下一步行动，不扩大修改范围
+needs_user: false
+rubric:
+  actionability:
+    score: 2
+    evidence:
+      - 30_项目/示例项目.md#当前任务
+```
+
+运行评估并累计状态：
+
+```bash
+python3 90_系统/harness/evaluate_task_contract.py \
+  --contract 90_系统/evals/contracts/kos-create-project/create-project-basic.task.yaml \
+  --self-assessment /tmp/create-project-basic.assessment.yaml \
+  --state 90_系统/evals/artifacts/create-project-basic-run.json \
+  --run-id create-project-basic-run
+```
+
+状态含义：
+
+- `PASS`：确定性检查和 rubric 全部通过。
+- `RETRYABLE`：未通过但仍低于最大迭代次数；按失败证据做最小修正后重评。
+- `NEEDS_USER`：需要新权限或人工判断；暂停自动迭代并请求用户输入。
+- `EXHAUSTED`：达到最大迭代次数仍未通过；停止并报告。
+
+必须同时报告：
+
+- `pass@1`：第一次是否通过。
+- `pass@k`：最大迭代范围内是否收敛。
+- 实际迭代次数和每轮失败项。
+
+### Step 5: 运行全部 Contract Eval
 
 ```bash
 python3 90_系统/harness/run_skill_evals.py --write-artifact
 ```
 
-### Step 4: 解读结果
+### Step 6: 解读结果
 
 输出重点：
 
@@ -82,6 +156,7 @@ python3 90_系统/harness/run_skill_evals.py --write-artifact
 - 失败的 case id
 - 失败的 check id
 - artifact 路径
+- Task Completion Run 的 `pass@1`、`pass@k` 和迭代状态
 
 失败时按以下顺序判断：
 
@@ -97,6 +172,9 @@ python3 90_系统/harness/run_skill_evals.py --write-artifact
 - 不要只写正例；至少保留一个负例防止误触发。
 - 不要让失败 case 消失；真实失败应变成长期回归测试。
 - 不要在 eval 脚本里执行高风险外部操作，除非用户明确确认。
+- 不要自动重试发送消息、付款、发布、删除或其他不可逆外部操作。
+- Task Contract 评估的是本次任务产物；不能由被修改的 Skill 作为修改自身的唯一验证器。
+- 自迭代默认只修复本次任务产物。修改 `SKILL.md`、Harness 或受保护状态必须进入独立回归和人工确认流程。
 
 ## Verification
 
@@ -104,3 +182,5 @@ python3 90_系统/harness/run_skill_evals.py --write-artifact
 - 指定 suite 或全部 suite 有明确 PASS/FAIL 和 score。
 - artifact 写入 `90_系统/evals/artifacts/`。
 - 失败项能定位到具体 check 和具体 Skill 内容。
+- Task Contract 在执行前定义，失败后没有降低完成标准。
+- 迭代不超过最大迭代次数，且明确区分 `pass@1` 与 `pass@k`。
