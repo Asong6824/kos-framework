@@ -92,4 +92,4 @@ Codex、Claude Code、Hermes 等仍可作为外部工具：
 - 外部 Agent 兼容入口只做开放数据的便利层，不影响 kos-agent 设计。
 - 长期知识必须写入 Markdown，不能只存在 kos-agent session。
 - kos-agent 不可用时，用户仍能阅读、编辑、导出 Vault 并运行确定性检查。
-- `90_系统/harness/` 中的当前 Python runtime 将迁入 kos-agent；迁移后的 Validator 仍可通过无 LLM 的 CLI 运行。
+- kos-agent 安装包提供无 LLM 的 `kos-harness` CLI，用于 Validator、Eval 和确定性工作流。

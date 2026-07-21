@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RUNNER = REPO_ROOT / "vault/90_系统/harness/run_skill_evals.py"
+RUNNER = REPO_ROOT / "agent/packages/kos-agent/dist/kos-cli.js"
 
 
 class SkillEvalRunnerTests(unittest.TestCase):
@@ -21,7 +20,7 @@ class SkillEvalRunnerTests(unittest.TestCase):
             (root / "90_系统/evals/skills").mkdir(parents=True)
 
             completed = subprocess.run(
-                [sys.executable, str(RUNNER), "--root", str(root), "--format", "json"],
+                ["node", str(RUNNER), "skill-eval", "--root", str(root), "--format", "json"],
                 text=True,
                 capture_output=True,
                 check=False,

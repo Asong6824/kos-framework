@@ -39,10 +39,10 @@ metadata:
 ## Quick Reference
 
 1. 判断输入是文件路径还是内联项目想法。
-2. 调用 `90_系统/harness/create_kickoff_plan.py` 创建启动计划。
+2. 调用 `kos-harness` 创建启动计划。
 3. 启动计划写入 `90_系统/工作流/项目启动计划/`。
 4. 返回计划路径，让用户确认或修改。
-5. 用户确认后，再调用 `create_project.py` 创建 Project。
+5. 用户确认后，再调用 `kos-harness create --kind project` 创建 Project。
 
 ## Procedure
 
@@ -62,33 +62,13 @@ kos/90_系统/工作流/项目启动计划/...
 
 ### Step 1: 创建启动计划
 
-优先调用确定性脚本：
+启动计划是语义产物，由 Agent 使用文件工具写入固定路径：
 
-```bash
-python3 90_系统/harness/create_kickoff_plan.py "项目想法" \
-  --title "项目名" \
-  --category other \
-  --priority P2 \
-  --area "[[领域]]" \
-  --goal "项目目标" \
-  --why "为什么做" \
-  --phase "阶段 1" \
-  --task "第一步行动" \
-  --success "成功指标" \
-  --risk "主要风险"
+```text
+90_系统/工作流/项目启动计划/Plan_YYYY-MM-DD_Kickoff_<项目名>.md
 ```
 
-如果来源是文件：
-
-```bash
-python3 90_系统/harness/create_kickoff_plan.py --source "10_收件箱/某想法.md"
-```
-
-预览时使用：
-
-```bash
-python3 90_系统/harness/create_kickoff_plan.py "项目想法" --dry-run
-```
+计划必须包含目标、范围、阶段、首批任务、成功指标、约束、风险和待确认问题。来源是收件箱文件时先读取原文并保留 wikilink。写入后运行 `kos-harness validate`。
 
 ### Step 2: 等待人工确认
 
@@ -105,7 +85,7 @@ python3 90_系统/harness/create_kickoff_plan.py "项目想法" --dry-run
 用户确认后，根据启动计划调用：
 
 ```bash
-python3 90_系统/harness/create_project.py "项目名" \
+kos-harness create --kind project --title "项目名" \
   --status idea \
   --category other \
   --priority P2 \
@@ -124,12 +104,8 @@ python3 90_系统/harness/create_project.py "项目名" \
 ### Step 4: 运行 Harness
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ## Pitfalls

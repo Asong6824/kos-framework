@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "kos Task Contract",
+  "type": "object",
+  "properties": {
+    "version": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "skill": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "max_iterations": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": {
+            "enum": [
+              "path_exists",
+              "path_not_exists",
+              "glob_count",
+              "text_contains",
+              "text_not_contains",
+              "frontmatter",
+              "harness_passes"
+            ]
+          },
+          "required": { "type": "boolean" },
+          "path": { "type": "string", "minLength": 1 },
+          "pattern": { "type": "string", "minLength": 1 },
+          "min": { "type": "integer", "minimum": 0 },
+          "max": { "type": "integer", "minimum": 0 },
+          "values": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "field": { "type": "string", "minLength": 1 },
+          "operator": { "enum": ["nonempty", "equals", "contains"] },
+          "expected": {},
+          "validator": {
+            "enum": [
+              "paths",
+              "schema",
+              "state",
+              "yolo",
+              "skills",
+              "skill_evals"
+            ]
+          }
+        },
+        "required": ["id", "type"],
+        "additionalProperties": false
+      }
+    },
+    "rubric": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "min_score": { "type": "number", "minimum": 0, "maximum": 4 },
+          "weight": { "type": "number", "exclusiveMinimum": 0 }
+        },
+        "required": ["id", "description", "min_score"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["version", "id", "skill", "objective", "checks"],
+  "additionalProperties": false
+}

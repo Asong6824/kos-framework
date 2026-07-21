@@ -17,8 +17,6 @@ export interface KosSettings {
   enableBadges: boolean;
   /** 人工确认流转是否弹确认框（B3/B4），默认 true */
   reviewConfirmDialog: boolean;
-  /** harness 桥接的 Python 路径（D1，仅桌面端），默认 python3 */
-  pythonPath: string;
   /** kos-agent 可执行文件或 rpc-entry.js；空值时自动发现 */
   agentHostPath: string;
   /** 运行脚本 host 的 Node 可执行文件；空值时自动发现外部 Node */
@@ -36,7 +34,6 @@ export const DEFAULT_SETTINGS: KosSettings = {
   heatmapIncludeDiary: true,
   enableBadges: true,
   reviewConfirmDialog: true,
-  pythonPath: 'python3',
   agentHostPath: '',
   agentNodePath: '',
   agentAutoStart: true,
@@ -125,22 +122,6 @@ export class KosSettingTab extends PluginSettingTab {
           this.plugin.settings.reviewConfirmDialog = value;
           await this.plugin.saveSettings();
         }),
-      );
-
-    new Setting(containerEl)
-      .setName('Python 路径')
-      .setDesc('D1 harness 桥接使用的 Python 解释器路径（仅桌面端），默认 python3。')
-      .addText((text) =>
-        text
-          .setPlaceholder(DEFAULT_SETTINGS.pythonPath)
-          .setValue(this.plugin.settings.pythonPath)
-          .onChange(async (value) => {
-            const v = value.trim();
-            if (v.length > 0) {
-              this.plugin.settings.pythonPath = v;
-              await this.plugin.saveSettings();
-            }
-          }),
       );
 
     containerEl.createEl('h3', { text: 'kos Agent' });

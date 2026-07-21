@@ -54,13 +54,14 @@ class FrameworkSyncTests(unittest.TestCase):
         self.assertIsNotNone(backup)
         self.assertTrue((self.target / "90_系统/framework.yaml").is_file())
 
-    def test_target_only_harness_extension_is_not_deleted(self) -> None:
+    def test_target_only_legacy_harness_extension_is_deleted(self) -> None:
         extension = self.target / "90_系统/harness/personal_integration.py"
+        extension.parent.mkdir(parents=True)
         extension.write_text("integration", encoding="utf-8")
 
         diff = compare(self.target)
 
-        self.assertNotIn(Path("90_系统/harness/personal_integration.py"), diff.deleted)
+        self.assertIn(Path("90_系统/harness/personal_integration.py"), diff.deleted)
 
     def test_sync_accepts_kos_marker_without_hermes_marker(self) -> None:
         (self.target / ".hermes.md").unlink()

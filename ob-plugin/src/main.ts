@@ -1,7 +1,7 @@
-import { Notice, Plugin } from 'obsidian';
+import { Notice, Plugin, TFile } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import { openCaptureModal } from './actions/capture';
-import { createTodayDiary, openCreateModal } from './actions/create';
+import { openCreateModal } from './actions/create';
 import type { CreateExtra, CreateKind, CreateObjectOperation } from './actions/create';
 import { BadgeWatcher } from './actions/badges';
 import { openReportModal } from './actions/report';
@@ -9,7 +9,6 @@ import type { ReportDeps } from './actions/report';
 import { approveReviewObject } from './actions/review';
 import { openTransitionModal, statusBadgeProcessor } from './actions/transition';
 import type { TransitionOperation } from './actions/transition';
-import { isHarnessAvailable, runHealthCheck } from './bridge/harness';
 import { createKosAgentClient, isKosAgentSupported } from './bridge/kos-agent';
 import { runAgentValidation } from './bridge/agent-validation';
 import type { KosAgentClient } from './agent/client';
@@ -83,9 +82,11 @@ export default class KosCompanionPlugin extends Plugin {
     }
 
     // 阅读模式状态徽章（B4：类型 + 当前状态 + 下一状态按钮组）
-    this.registerMarkdownPostProcessor(
-      statusBadgeProcessor(this.app, () => this.settings, this.agentTransitionOperation()),
-    );
+    if (isKosAgentSupported(this.app)) {
+      this.registerMarkdownPostProcessor(
+        statusBadgeProcessor(this.app, () => this.settings, this.agentTransitionOperation()!, (path) => void this.openAgentFrom(path)),
+      );
+    }
 
     // 视图命令
     this.addCommand({
@@ -125,19 +126,33 @@ export default class KosCompanionPlugin extends Plugin {
     this.addRibbonIcon('pencil', '快速捕获到收件箱', () => openCaptureModal(this.app, this.settings.objectDirs));
 
     // B4 状态流转
-    this.addCommand({
-      id: 'transition-current-file',
-      name: '流转当前文件状态',
-      callback: () => openTransitionModal(this.app, this.settings, this.agentTransitionOperation()),
-    });
+    if (isKosAgentSupported(this.app)) {
+      this.addCommand({
+        id: 'transition-current-file',
+        name: '流转当前文件状态',
+        callback: () => openTransitionModal(this.app, this.settings, this.agentTransitionOperation()!),
+      });
 
-    // B5 创建向导
-    this.addCommand({ id: 'create-project', name: '新建项目', callback: () => this.openCreate('project') });
-    this.addCommand({ id: 'create-concept', name: '新建概念', callback: () => this.openCreate('concept') });
-    this.addCommand({ id: 'create-method', name: '新建方法', callback: () => this.openCreate('method') });
-    this.addCommand({ id: 'create-task', name: '新建任务', callback: () => this.openCreate('task') });
-    this.addCommand({ id: 'create-source', name: '新建输入源', callback: () => this.openCreate('source') });
-    this.addCommand({ id: 'create-diary', name: '创建今日日记', callback: () => void createTodayDiary(this.app, this.settings.objectDirs) });
+      // B5 创建向导
+      this.addCommand({ id: 'create-project', name: '新建项目', callback: () => this.openCreate('project') });
+      this.addCommand({ id: 'create-concept', name: '新建概念', callback: () => this.openCreate('concept') });
+      this.addCommand({ id: 'create-method', name: '新建方法', callback: () => this.openCreate('method') });
+      this.addCommand({ id: 'create-task', name: '新建任务', callback: () => this.openCreate('task') });
+      this.addCommand({ id: 'create-source', name: '新建输入源', callback: () => this.openCreate('source') });
+      this.addCommand({
+        id: 'create-diary',
+        name: '创建今日日记',
+        callback: () => void this.connectAgent().then((client) => client.runDailyWorkflow('diary')).then((result) => {
+          new Notice(`已生成：${result.path}`);
+          return this.app.workspace.openLinkText(result.path, '', false);
+        }),
+      });
+      this.addCommand({
+        id: 'inline-edit-selection',
+        name: '用 kos Agent 编辑当前选区',
+        editorCallback: () => void this.openAgentForInlineEdit(),
+      });
+    }
 
     // A7 周报 / 月报（M14）
     this.addCommand({
@@ -157,12 +172,6 @@ export default class KosCompanionPlugin extends Plugin {
         id: 'health-check',
         name: '运行系统健康检查',
         callback: () => void this.connectAgent().then((client) => runAgentValidation(this.app, client)),
-      });
-    } else if (isHarnessAvailable()) {
-      this.addCommand({
-        id: 'health-check',
-        name: '运行系统健康检查',
-        callback: () => runHealthCheck(this.app, this.settings),
       });
     }
 
@@ -231,7 +240,7 @@ export default class KosCompanionPlugin extends Plugin {
   }
 
   private openCreate(kind: CreateKind): void {
-    openCreateModal(this.app, kind, this.settings.objectDirs, this.agentCreateOperation());
+    openCreateModal(this.app, kind, this.settings.objectDirs, this.agentCreateOperation()!);
   }
 
   private agentCreateOperation(): CreateObjectOperation | undefined {
@@ -277,7 +286,20 @@ export default class KosCompanionPlugin extends Plugin {
       index: this.index,
       store: this.store,
       metricSettings: () => toMetricSettings(this.settings),
+      openAgent: (path, prompt) => this.openAgentFrom(path, prompt),
     };
+  }
+
+  private async openAgentFrom(path?: string, prompt?: string): Promise<void> {
+    await this.activateView(AGENT_VIEW_TYPE);
+    const view = this.app.workspace.getLeavesOfType(AGENT_VIEW_TYPE)[0]?.view;
+    if (view instanceof AgentView) await view.beginConversation(path, prompt);
+  }
+
+  private async openAgentForInlineEdit(): Promise<void> {
+    await this.activateView(AGENT_VIEW_TYPE);
+    const view = this.app.workspace.getLeavesOfType(AGENT_VIEW_TYPE)[0]?.view;
+    if (view instanceof AgentView) await view.beginInlineEdit();
   }
 
   /** 报告命令注入上下文 */
@@ -286,13 +308,24 @@ export default class KosCompanionPlugin extends Plugin {
       index: this.index,
       store: this.store,
       metricSettings: () => toMetricSettings(this.settings),
-      objectDirs: () => this.settings.objectDirs,
+      ensureDiary: async (date: string) => {
+        const client = await this.connectAgent();
+        const result = await client.runDailyWorkflow('diary', date);
+        const file = this.app.vault.getAbstractFileByPath(result.path);
+        if (!(file instanceof TFile)) throw new Error(`kos-agent 未生成日记：${result.path}`);
+        return file;
+      },
     };
   }
 
   /** B3 审核"通过"回调：按状态机走到下一个已确认态（actions/review.ts） */
   private readonly onApprove = (obj: KosObject): void => {
-    void approveReviewObject(this.app, obj, this.settings, this.agentTransitionOperation()).catch((error) =>
+    const operation = this.agentTransitionOperation();
+    if (!operation) {
+      new Notice('审核状态更新需要桌面端 kos-agent');
+      return;
+    }
+    void approveReviewObject(this.app, obj, this.settings, operation).catch((error) =>
       new Notice(error instanceof Error ? error.message : String(error)),
     );
   };

@@ -14,6 +14,8 @@
     "test:harness": "npm run test:harness -w @earendil-works/pi-agent-core",
     "test:upstream": "npm run test -w @kos-framework/kos-agent",
     "test:live": "node scripts/live-rpc-smoke.mjs",
+    "test:live:web": "node scripts/live-web-fetch.mjs",
+    "test:live:search": "node scripts/live-web-search.mjs",
     "check": "npm run build && npm run test"
   },
   "engines": {

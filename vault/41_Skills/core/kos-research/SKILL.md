@@ -46,7 +46,7 @@ metadata:
 
 1. 明确研究问题和所属领域。
 2. 搜索已有 Source、Summary、Research、Concept、Project，避免重复。
-3. 调用 `90_系统/harness/create_research.py` 创建 Research draft。
+3. 调用 `kos-harness` 创建 Research draft。
 4. 将可沉淀内容写为“候选 Concept”，不要自动创建 verified Concept。
 5. 运行今日工作台和 Harness。
 6. 输出研究文件路径、关联来源、候选 Concept 和待人工确认事项。
@@ -101,7 +101,7 @@ kos/21_研究/<领域>/<研究主题>.md
 优先调用确定性脚本：
 
 ```bash
-python3 90_系统/harness/create_research.py "研究问题" \
+kos-harness create --kind research --title "研究问题" \
   --title "研究标题" \
   --area "[[领域]]" \
   --goal "研究目标" \
@@ -115,7 +115,7 @@ python3 90_系统/harness/create_research.py "研究问题" \
 如果需要先预览，使用：
 
 ```bash
-python3 90_系统/harness/create_research.py "研究问题" --dry-run
+kos-harness create --kind research --title "研究问题" --dry-run
 ```
 
 脚本会：
@@ -149,11 +149,8 @@ python3 90_系统/harness/create_research.py "研究问题" --dry-run
 生成后运行：
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ### Step 6: 输出结果

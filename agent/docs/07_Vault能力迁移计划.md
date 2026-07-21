@@ -46,7 +46,7 @@ agent/packages/kos-agent/src/kos/
 | 插件状态流转 | `ob-plugin/src/actions/transition.ts` | 调用 kos-agent operations | 看板只发送用户意图并刷新索引 |
 | 插件 health bridge | `ob-plugin/src/bridge/harness.ts` | kos-agent RPC | 删除 Python child process bridge |
 
-### 当前实现状态（2026-07-20）
+### 实现状态（2026-07-20）
 
 - 15 份对象 schema（含补齐的 task schema）已复制到 `src/kos/validation/schemas/` 并作为 kos-agent 构建资产分发。
 - `paths/schema/state` 已用 TypeScript 实现；状态检查不包含 legacy 人工审批警告。
@@ -54,10 +54,10 @@ agent/packages/kos-agent/src/kos/
 - `edit/write` 成功后自动运行相关对象、Skill 或 Eval validator；ERROR 会把 tool result 标记失败并返回模型修正。
 - kos-agent RPC 已增加系统级 `validate` command。它不是模型 tool；Obsidian 健康检查和 Agent 侧栏使用该 command 展示结构化结果。
 - `create_object` 与 `transition_status` deterministic operations 已进入 kos-agent RPC，包含路径限制、模板读取、原子写入、合法状态图、证据要求、写后验证和失败回滚。
-- Obsidian Desktop 的创建向导、状态徽章、流转命令和审核中心已调用 kos-agent operations；移动端因无法运行本地 host，暂保留 Obsidian API fallback。
+- Obsidian Desktop 的创建向导、状态徽章、流转命令和审核中心调用 kos-agent operations。
 - kos-agent 默认加载 Vault 根 `.kos.md` 与 `41_Skills/`，产品 system prompt 已从 Pi coding assistant 语义改为 kos Harness 语义。
-- Python 与 TypeScript parity fixture 已覆盖路径、字段、状态错误。预期差异包括：移除人工审核警告，以及去除旧 schema validator 对非法 required 值的重复报错。
-- 旧 Python 仍保留并参与 `release-check`，待 operations/eval runtime 迁移和更多 fixture 完成后统一删除。
+- TypeScript fixture 覆盖路径、字段、状态、对象创建、跨文件回链、每日工作流、Task Completion 和 Skill Eval。
+- legacy Python、Vault machine schema 和 Obsidian Python bridge 已退出 runtime distribution。
 
 ## 4. YOLO 对 legacy 权限的处理
 
@@ -74,21 +74,21 @@ agent/packages/kos-agent/src/kos/
 ## 5. 迁移顺序
 
 1. 导入并跑通 Pi 三个 package，建立 `packages/kos-agent`。
-2. 在 kos-agent 中建立 contracts、operations、validation 和 CLI 边界。（validation、create/transition operations 与 RPC 已完成首版）
-3. 逐个移植 Validator，以同一 fixture 对比 Python 与 TypeScript 结果。（paths/schema/state/skills/skill_evals 已完成首版）
-4. 移植 create/update/generate operations，处理现有语义逻辑混入脚本的问题。（create 与通用状态流转已完成；generate workflows 待迁移）
-5. 移植 Task Contract 和用户 Skill Eval runtime。
+2. 在 kos-agent 中建立 contracts、operations、validation 和 CLI 边界。（已完成）
+3. 逐个移植 Validator，以同一 fixture 对比 Python 与 TypeScript 结果。（已完成）
+4. 移植 create/update/generate operations，处理现有语义逻辑混入脚本的问题。（已完成首版）
+5. 移植 Task Contract 和用户 Skill Eval runtime。（已完成）
 6. 修改对象规范和 Skills，取消强制人工确认，加入可选 review/`ask_question` 语义。
 7. 让 Obsidian 看板和 Agent UI 统一调用 kos-agent。
-8. parity tests 全部通过后，从 runtime distribution 删除 `vault/90_系统/harness/`。
-9. 删除插件中的重复 TypeScript operations 和 legacy Python bridge。
+8. parity tests 全部通过后，从 runtime distribution 删除 `vault/90_系统/harness/`。（已完成）
+9. 删除插件中的重复 TypeScript operations 和 legacy Python bridge。（Python bridge 已删除）
 
-## 6. 迁移期间的兼容规则
+## 6. 下游迁移规则
 
-- 在 kos-agent 对应能力尚未通过 parity test 前，现有 Python runtime 继续工作。
-- 同一能力切换后只能有一个写入实现；旧入口转发到 kos-agent 或移除，不能长期双写。
-- Vault schema 和模板变更必须同时验证旧 fixture 与新 kos-agent operation。
-- 迁移期间文档要标明 current implementation 与 target implementation，避免把 legacy 权限当成新产品要求。
+- framework 同步会备份并删除个人 Vault 中的旧 `90_系统/harness/` 与 `90_系统/evals/schemas/`。
+- 同一能力只能有一个写入实现；插件和 Skill 统一调用 kos-agent。
+- Vault 规则和模板变更必须由 kos-agent operation、Validator 和 release eval 共同验证。
+- 旧 Python 命令不提供兼容转发，避免双实现继续漂移。
 
 ## 7. 完成标准
 

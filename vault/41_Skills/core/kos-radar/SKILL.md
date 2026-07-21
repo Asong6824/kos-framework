@@ -40,7 +40,7 @@ metadata:
 ## Quick Reference
 
 1. 明确信号标题、类型、来源、事实、解释、影响、重要性和是否需要研究。
-2. 调用 `90_系统/harness/create_signal.py` 创建 Signal。
+2. 调用 `kos-harness` 创建 Signal。
 3. 关联 Project / Research / Concept。
 4. 不给出投资买卖、仓位或行动指令。
 5. 生成每日信息雷达简报并刷新今日工作台。
@@ -84,7 +84,7 @@ kos/50_信息雷达/<分类>/YYYY-MM-DD_<标题>.md
 优先调用确定性脚本：
 
 ```bash
-python3 90_系统/harness/create_signal.py "信号标题" \
+kos-harness create --kind signal --title "信号标题" \
   --signal-type "news" \
   --source-name "来源名称" \
   --source-url "https://example.com" \
@@ -102,19 +102,15 @@ python3 90_系统/harness/create_signal.py "信号标题" \
 预览时使用：
 
 ```bash
-python3 90_系统/harness/create_signal.py "信号标题" --dry-run
+kos-harness create --kind signal --title "信号标题" --dry-run
 ```
 
 ### Step 3: 刷新简报和工作台
 
 ```bash
-python3 90_系统/harness/generate_daily_brief.py
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-brief
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ## Pitfalls

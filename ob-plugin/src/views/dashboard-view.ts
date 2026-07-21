@@ -123,6 +123,11 @@ export class DashboardView extends KosView {
     const refreshBtn = side.createEl('button', { cls: 'kos-icon-button', attr: { 'aria-label': '刷新' } });
     setIcon(refreshBtn, 'refresh-cw');
     refreshBtn.addEventListener('click', () => this.render());
+    if (this.ctx.openAgent) {
+      const agentBtn = side.createEl('button', { cls: 'kos-icon-button', attr: { 'aria-label': '在 Agent 中分析工作台' } });
+      setIcon(agentBtn, 'message-square');
+      agentBtn.addEventListener('click', () => void this.ctx.openAgent?.('00_工作台/今日工作台.md', '分析当前工作台并建议下一步行动'));
+    }
 
     // ---------- KPI 卡片行 ----------
     const kpiGrid = contentEl.createDiv({ cls: 'kos-kpi-grid' });

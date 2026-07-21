@@ -6,11 +6,6 @@ import { skillNames } from "./skills.ts";
 import type { ValidationFinding, ValidationReport } from "./types.ts";
 
 const REQUIRED_COLUMNS = ["id", "skill", "should_trigger", "prompt", "expected_checks", "notes"];
-const REQUIRED_SCHEMAS = [
-	"skill_eval_result.schema.json",
-	"task_contract.schema.json",
-	"task_eval_result.schema.json",
-];
 const CHECKER_IDS = new Set([
 	"skill_exists",
 	"metadata_scope_core",
@@ -46,7 +41,7 @@ const CHECK_TYPES = new Set([
 ]);
 const CONTRACT_FIELDS = new Set(["version", "id", "skill", "objective", "max_iterations", "checks", "rubric"]);
 const CHECK_FIELDS = new Set([
-	"id", "type", "required", "path", "pattern", "min", "max", "values", "field", "operator", "expected", "script",
+	"id", "type", "required", "path", "pattern", "min", "max", "values", "field", "operator", "expected", "validator", "script",
 ]);
 const RUBRIC_FIELDS = new Set(["id", "description", "min_score", "weight"]);
 
@@ -81,7 +76,7 @@ function unknownFields(value: Record<string, unknown>, allowed: Set<string>): st
 	return Object.keys(value).filter((key) => !allowed.has(key)).sort();
 }
 
-function validateTaskContract(contract: Record<string, unknown>): string[] {
+export function validateTaskContract(contract: Record<string, unknown>): string[] {
 	const errors: string[] = [];
 	const unknown = unknownFields(contract, CONTRACT_FIELDS);
 	if (unknown.length) errors.push(`未知顶层字段：${JSON.stringify(unknown)}`);
@@ -133,6 +128,11 @@ function validateTaskContract(contract: Record<string, unknown>): string[] {
 			if (!["nonempty", "equals", "contains"].includes(String(operator))) errors.push(`${label}.operator 不受支持`);
 			if (["equals", "contains"].includes(String(operator)) && !("expected" in check)) errors.push(`${label} 必须声明 expected`);
 		}
+		if (check.type === "harness_passes") {
+			const validator = check.validator ?? check.script;
+			const supported = ["paths", "schema", "state", "skills", "skill_evals", "yolo", "validate_paths.py", "validate_schema.py", "validate_state.py", "validate_permissions.py", "validate_skills.py", "validate_skill_evals.py"];
+			if (!nonEmpty(validator) || !supported.includes(String(validator))) errors.push(`${label}.validator 不受支持`);
+		}
 	}
 	const rubric = contract.rubric ?? [];
 	if (!Array.isArray(rubric)) errors.push("rubric 必须是数组");
@@ -169,7 +169,6 @@ export function validateSkillEvals(root: string): ValidationReport {
 	const evalRoot = resolve(resolvedRoot, "90_系统/evals");
 	const skillDir = resolve(evalRoot, "skills");
 	const contractDir = resolve(evalRoot, "contracts");
-	const schemaDir = resolve(evalRoot, "schemas");
 	const findings: ValidationFinding[] = [];
 	const add = (level: ValidationFinding["level"], path: string, message: string): void => {
 		findings.push({ level, validator: "skill_evals", path, message });
@@ -178,19 +177,6 @@ export function validateSkillEvals(root: string): ValidationReport {
 		if (!existsSync(path)) add("ERROR", relpath(path, resolvedRoot), `缺少 ${label}`);
 	}
 	const files: string[] = [];
-	for (const name of REQUIRED_SCHEMAS) {
-		const path = resolve(schemaDir, name);
-		if (!existsSync(path)) {
-			add("ERROR", relpath(path, resolvedRoot), "缺少 eval schema");
-			continue;
-		}
-		files.push(path);
-		try {
-			JSON.parse(readFileSync(path, "utf8"));
-		} catch (error) {
-			add("ERROR", relpath(path, resolvedRoot), `schema 不是合法 JSON：${error instanceof Error ? error.message : String(error)}`);
-		}
-	}
 	const availableSkills = skillNames(resolvedRoot);
 	const csvFiles = filesUnder(skillDir, ".prompts.csv");
 	files.push(...csvFiles);

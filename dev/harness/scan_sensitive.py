@@ -62,6 +62,8 @@ def is_vendored_reference(rel: Path) -> bool:
 def main() -> int:
     findings: list[str] = []
     for path in sorted(repository_files()):
+        if not path.is_file():
+            continue
         rel = path.relative_to(REPO_ROOT)
         if rel in SKIP_FILES or is_vendored_reference(rel) or any(part in SKIP_PARTS for part in rel.parts):
             continue

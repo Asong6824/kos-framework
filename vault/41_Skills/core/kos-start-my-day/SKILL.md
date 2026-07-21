@@ -39,7 +39,7 @@ metadata:
 ## Quick Reference
 
 1. 确认今天日期。
-2. 调用 `90_系统/harness/generate_daily_dashboard.py` 生成或更新工作台。
+2. 调用 `kos-harness` 生成或更新工作台。
 3. 调用 Harness 校验工作台和系统结构。
 4. 输出今日建议和需要用户确认的问题。
 5. 不替用户确认今日主线。
@@ -53,14 +53,14 @@ metadata:
 - `.hermes.md`
 - `90_系统/规则/对象规范.md`
 - `90_系统/模板/Dashboard_工作台模板.md`
-- `90_系统/harness/generate_daily_dashboard.py`
+- `kos-harness`
 
 ### Step 2: 生成或更新工作台
 
 优先调用确定性脚本，不要手工重写聚合逻辑：
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
+kos-harness daily-dashboard
 ```
 
 脚本会：
@@ -76,10 +76,7 @@ python3 90_系统/harness/generate_daily_dashboard.py
 生成工作台后运行：
 
 ```bash
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness validate
 ```
 
 如果 Harness 报错，必须在输出中说明错误，不要假装生成成功。
@@ -116,7 +113,7 @@ python3 90_系统/harness/generate_health_report.py
 - `00_工作台/今日工作台.md` 存在。
 - frontmatter 包含 `type: dashboard`。
 - 用户手动填写区被保留。
-- `python3 90_系统/harness/validate_schema.py` 通过。
-- `python3 90_系统/harness/validate_paths.py` 通过。
+- `kos-harness validate
+- `kos-harness validate
 - 不存在嵌套 `kos/` 目录。
 - 输出中列出已扫描的对象数量和主要建议。

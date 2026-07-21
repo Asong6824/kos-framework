@@ -22,7 +22,7 @@ export async function approveReviewObject(
   app: App,
   obj: KosObject,
   settings: KosSettings,
-  operation?: TransitionOperation,
+  operation: TransitionOperation,
 ): Promise<boolean> {
   if (!isPendingReview(obj)) {
     new Notice(`「${objectTitle(obj)}」当前不在待审核状态`);

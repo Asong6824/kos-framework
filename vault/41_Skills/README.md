@@ -2,7 +2,7 @@
 
 `41_Skills/` 存放 kos Skill。这里不是普通资料库，而是 Agent 操作 kos 对象系统的能力层。
 
-kos Skill 是 agent-readable procedure：Hermes Agent、Codex、Claude Code 等后端都可以读取这些过程说明，再结合 `90_系统/harness/` 执行确定性操作。`metadata.hermes` 是为了兼容 Hermes profile 和 pinned 机制，不代表 Skill 只能由 Hermes 使用。
+kos Skill 是 kos-agent Harness 加载的 agent-readable procedure。确定性操作由 kos-agent 内置的 `kos-harness` 执行；`metadata.hermes` 仅是历史兼容字段，不构成另一套官方 runtime。
 
 ## 目录分层
 

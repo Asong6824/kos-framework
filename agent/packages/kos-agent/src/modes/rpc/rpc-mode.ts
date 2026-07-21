@@ -14,6 +14,7 @@
 import * as crypto from "node:crypto";
 import { getModelsPath } from "../../config.ts";
 import type { AgentSessionRuntime } from "../../core/agent-session-runtime.ts";
+import { SessionManager } from "../../core/session-manager.ts";
 import type {
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
@@ -30,6 +31,7 @@ import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { validateChangedFiles, validateVault } from "../../kos/validation/validate.ts";
 import { createObject } from "../../kos/operations/create-object.ts";
 import { transitionStatus } from "../../kos/operations/transition-status.ts";
+import { generateDailyBrief, generateDailyDashboard, generateDiary } from "../../kos/operations/daily-workflows.ts";
 import { normalizeModelConfiguration, writeModelConfiguration } from "../../kos/model-configuration.ts";
 import { type Theme, theme } from "../interactive/theme/theme.ts";
 import { attachJsonlLineReader, serializeJsonLine } from "./jsonl.ts";
@@ -41,6 +43,7 @@ import type {
 	RpcSessionState,
 	RpcSlashCommand,
 } from "./rpc-types.ts";
+import { getWebSearchConfigurationState, webSearchCredentialId } from "../../kos/web-configuration.ts";
 
 // Re-export types for consumers
 export type {
@@ -449,6 +452,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 
 			case "get_state": {
 				const state: RpcSessionState = {
+					protocolVersion: 1,
 					model: session.model,
 					thinkingLevel: session.thinkingLevel,
 					isStreaming: session.isStreaming,
@@ -481,6 +485,16 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			case "transition_status": {
 				const result = transitionStatus(session.sessionManager.getCwd(), command);
 				return success(id, "transition_status", result);
+			}
+
+			case "daily_workflow": {
+				const cwd = session.sessionManager.getCwd();
+				const now = command.date ? new Date(`${command.date}T12:00:00`) : new Date();
+				if (Number.isNaN(now.getTime())) throw new Error(`Invalid workflow date: ${String(command.date)}`);
+				const result = command.workflow === "dashboard"
+					? generateDailyDashboard(cwd, now)
+					: command.workflow === "brief" ? generateDailyBrief(cwd, now) : generateDiary(cwd, now);
+				return success(id, "daily_workflow", result);
 			}
 
 			// =================================================================
@@ -521,6 +535,17 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				if (!model) throw new Error(`Configured model is not available: ${input.provider}/${input.modelId}`);
 				await session.setModel(model);
 				return success(id, "configure_model", model);
+			}
+
+			case "configure_web_search": {
+				const apiKey = command.apiKey.trim();
+				if (!apiKey) return error(id, "configure_web_search", "Search API key cannot be empty");
+				await session.modelRuntime.saveApiKey(webSearchCredentialId(command.provider), apiKey);
+				return success(id, "configure_web_search", { provider: command.provider });
+			}
+
+			case "get_web_search_state": {
+				return success(id, "get_web_search_state", getWebSearchConfigurationState());
 			}
 
 			// =================================================================
@@ -605,6 +630,16 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			case "get_session_stats": {
 				const stats = session.getSessionStats();
 				return success(id, "get_session_stats", stats);
+			}
+
+			case "list_sessions": {
+				const cwd = session.sessionManager.getCwd();
+				const sessionDir = session.sessionManager.getSessionDir();
+				const query = command.query?.trim().toLowerCase() ?? "";
+				const sessions = (await SessionManager.list(cwd, sessionDir))
+					.filter((item) => !query || `${item.name ?? ""}\n${item.firstMessage}\n${item.allMessagesText}`.toLowerCase().includes(query))
+					.map((item) => ({ ...item, created: item.created.toISOString(), modified: item.modified.toISOString() }));
+				return success(id, "list_sessions", { sessions });
 			}
 
 			case "export_html": {

@@ -40,7 +40,7 @@ metadata:
 ## Quick Reference
 
 1. 明确反思主题、触发背景、原有想法、变化、原因、影响和后续验证。
-2. 调用 `90_系统/harness/create_reflection.py` 创建 Reflection raw。
+2. 调用 `kos-harness` 创建 Reflection raw。
 3. 关联 Diary / Project / Source / Research / Concept / Method。
 4. 不把 AI 整理写成用户原始想法。
 5. 运行 Harness 和今日工作台。
@@ -85,7 +85,7 @@ kos/24_认知记录/<分类>/<主题>_反思.md
 优先调用确定性脚本：
 
 ```bash
-python3 90_系统/harness/create_reflection.py "反思主题" \
+kos-harness create --kind reflection --title "反思主题" \
   --category "项目反思" \
   --source-diary "2026-05-28" \
   --trigger "触发背景" \
@@ -101,7 +101,7 @@ python3 90_系统/harness/create_reflection.py "反思主题" \
 预览时使用：
 
 ```bash
-python3 90_系统/harness/create_reflection.py "反思主题" --dry-run
+kos-harness create --kind reflection --title "反思主题" --dry-run
 ```
 
 ### Step 3: 运行 Harness
@@ -109,12 +109,8 @@ python3 90_系统/harness/create_reflection.py "反思主题" --dry-run
 创建后运行：
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ### Step 4: 输出结果

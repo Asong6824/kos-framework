@@ -9,7 +9,8 @@
 		"configDir": ".kos-agent"
 	},
 	"bin": {
-		"kos-agent": "dist/rpc-entry.js"
+		"kos-agent": "dist/rpc-entry.js",
+		"kos-harness": "dist/kos-cli.js"
 	},
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -24,6 +25,7 @@
 	},
 	"files": [
 		"dist",
+		"THIRD_PARTY_NOTICES.md",
 		"docs",
 		"examples",
 		"containerization.md",
@@ -32,14 +34,15 @@
 	],
 	"scripts": {
 		"clean": "shx rm -rf dist",
-		"build": "tsgo -p tsconfig.build.json && shx chmod +x dist/rpc-entry.js && npm run copy-assets",
-		"copy-assets": "shx mkdir -p dist/modes/interactive/theme && shx cp src/modes/interactive/theme/*.json dist/modes/interactive/theme/ && shx mkdir -p dist/modes/interactive/assets && shx cp src/modes/interactive/assets/*.png dist/modes/interactive/assets/ && shx mkdir -p dist/core/export-html/vendor && shx cp src/core/export-html/template.html src/core/export-html/template.css src/core/export-html/template.js dist/core/export-html/ && shx cp src/core/export-html/vendor/*.js dist/core/export-html/vendor/ && shx mkdir -p dist/kos/validation/schemas && shx cp src/kos/validation/schemas/*.yaml dist/kos/validation/schemas/",
+		"build": "tsgo -p tsconfig.build.json && shx chmod +x dist/rpc-entry.js dist/kos-cli.js && npm run copy-assets",
+		"copy-assets": "shx mkdir -p dist/modes/interactive/theme && shx cp src/modes/interactive/theme/*.json dist/modes/interactive/theme/ && shx mkdir -p dist/modes/interactive/assets && shx cp src/modes/interactive/assets/*.png dist/modes/interactive/assets/ && shx mkdir -p dist/core/export-html/vendor && shx cp src/core/export-html/template.html src/core/export-html/template.css src/core/export-html/template.js dist/core/export-html/ && shx cp src/core/export-html/vendor/*.js dist/core/export-html/vendor/ && shx mkdir -p dist/kos/validation/schemas && shx cp src/kos/validation/schemas/*.yaml dist/kos/validation/schemas/ && shx mkdir -p dist/kos/evals/schemas && shx cp src/kos/evals/schemas/*.json dist/kos/evals/schemas/",
 		"copy-binary-assets": "shx cp package.json dist/ && shx cp README.md dist/ && shx cp CHANGELOG.md dist/ && shx mkdir -p dist/theme && shx cp src/modes/interactive/theme/*.json dist/theme/ && shx mkdir -p dist/assets && shx cp src/modes/interactive/assets/*.png dist/assets/ && shx mkdir -p dist/export-html/vendor && shx cp src/core/export-html/template.html dist/export-html/ && shx cp src/core/export-html/vendor/*.js dist/export-html/vendor/ && shx cp -r docs dist/ && shx cp -r examples dist/ && shx cp ../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm dist/",
 		"test": "vitest --run",
-		"test:core": "vitest --run test/kos-product-baseline.test.ts test/kos-context.test.ts test/kos-rpc-process.test.ts test/ask-question-extension.test.ts test/kos-validation.test.ts test/kos-operations.test.ts test/kos-model-configuration.test.ts test/rpc-jsonl.test.ts test/rpc-prompt-response-semantics.test.ts test/session-manager/custom-session-id.test.ts test/session-manager/file-operations.test.ts test/session-manager/save-entry.test.ts test/agent-session-dynamic-tools.test.ts test/agent-session-runtime-events.test.ts test/edit-tool-legacy-input.test.ts",
+		"test:core": "vitest --run test/kos-product-baseline.test.ts test/kos-context.test.ts test/kos-rpc-process.test.ts test/ask-question-extension.test.ts test/web-security.test.ts test/web-fetch.test.ts test/web-search.test.ts test/web-extension.test.ts test/kos-validation.test.ts test/kos-operations.test.ts test/kos-task-evals.test.ts test/kos-skill-evals.test.ts test/kos-model-configuration.test.ts test/rpc-jsonl.test.ts test/rpc-prompt-response-semantics.test.ts test/session-manager/custom-session-id.test.ts test/session-manager/file-operations.test.ts test/session-manager/save-entry.test.ts test/agent-session-dynamic-tools.test.ts test/agent-session-runtime-events.test.ts test/edit-tool-legacy-input.test.ts",
 		"prepublishOnly": "npm run clean && npm run build"
 	},
 	"dependencies": {
+		"@mozilla/readability": "0.6.0",
 		"@earendil-works/pi-agent-core": "^0.80.10",
 		"@earendil-works/pi-ai": "^0.80.10",
 		"@earendil-works/pi-tui": "^0.80.10",
@@ -53,10 +56,13 @@
 		"hosted-git-info": "9.0.3",
 		"ignore": "7.0.5",
 		"jiti": "2.7.0",
+		"linkedom": "0.16.11",
 		"minimatch": "10.2.5",
 		"proper-lockfile": "4.1.2",
 		"semver": "7.8.0",
+		"turndown": "7.2.1",
 		"typebox": "1.1.38",
+		"unpdf": "1.6.2",
 		"undici": "8.5.0",
 		"yaml": "2.9.0"
 	},
@@ -77,6 +83,7 @@
 		"@types/node": "24.12.4",
 		"@types/proper-lockfile": "4.1.4",
 		"@types/semver": "7.7.1",
+		"@types/turndown": "5.0.5",
 		"shx": "0.4.0",
 		"typescript": "5.9.3",
 		"vitest": "4.1.9"

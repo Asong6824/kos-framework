@@ -40,7 +40,7 @@ metadata:
 ## Quick Reference
 
 1. 明确方法解决的问题、适用场景、不适用场景、前置条件、步骤、判断标准、常见坑和验证方式。
-2. 调用 `90_系统/harness/create_method.py` 创建 Method candidate。
+2. 调用 `kos-harness` 创建 Method candidate。
 3. 关联来源 Project / Reflection / Concept。
 4. 不把 Method 自动标记为 `usable` 或 `trusted`。
 5. 运行 Harness 和今日工作台。
@@ -88,7 +88,7 @@ kos/40_方法库/<分类>/<方法名>.md
 优先调用确定性脚本：
 
 ```bash
-python3 90_系统/harness/create_method.py "方法名" \
+kos-harness create --kind method --title "方法名" \
   --category "项目管理方法" \
   --problem "方法解决什么问题" \
   --scenario "适用场景" \
@@ -107,7 +107,7 @@ python3 90_系统/harness/create_method.py "方法名" \
 预览时使用：
 
 ```bash
-python3 90_系统/harness/create_method.py "方法名" --dry-run
+kos-harness create --kind method --title "方法名" --dry-run
 ```
 
 ### Step 3: 运行 Harness
@@ -115,12 +115,8 @@ python3 90_系统/harness/create_method.py "方法名" --dry-run
 创建后运行：
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ### Step 4: 输出结果

@@ -25,16 +25,14 @@ README.md
 41_Skills/core/
 90_系统/规则/
 90_系统/模板/
-90_系统/harness/
 90_系统/evals/README.md
 90_系统/evals/contracts/
-90_系统/evals/schemas/
 90_系统/evals/skills/
 90_系统/工作流/
 90_系统/文档/
 ```
 
-其中只有 `41_Skills/core/` 是权威删除路径。其他目录会更新 framework 文件，但保留目标 vault 里的额外文件。
+`41_Skills/core/` 是常规权威删除路径。迁移时，`90_系统/harness/` 和 `90_系统/evals/schemas/` 也会被备份并删除，因为它们已经下沉到 kos-agent。
 
 ## 不会同步或不应覆盖的内容
 
@@ -45,7 +43,6 @@ README.md
 - `21_研究/`、`22_知识库/`、`23_日记/`、`24_认知记录/`、`30_项目/`、`31_任务/`、`40_方法库/`。
 - `25_个人操作画像/` 中的画像内容。
 - `41_Skills/integrations/`、`41_Skills/personal/`、`41_Skills/incubator/`、`41_Skills/archived/`。
-- `90_系统/harness/reports/`。
 - `90_系统/evals/artifacts/`。
 
 根目录的 `.kos.md`、`.hermes.md`、`AGENTS.md` 和 `CLAUDE.md` 是 runtime adapter 入口，由 framework 管理。个人后端配置、账号、profile 或长期偏好不要写进这些入口文件，应放在对应 agent 的外部配置或个人 vault 内容中。

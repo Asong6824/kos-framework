@@ -40,7 +40,7 @@ metadata:
 ## Quick Reference
 
 1. 明确概念名、定义、所属领域和来源。
-2. 调用 `90_系统/harness/create_concept.py` 创建 Concept draft。
+2. 调用 `kos-harness` 创建 Concept draft。
 3. 关联 Source / Summary / Research / Project。
 4. 不把 Concept 自动标记为 `verified` 或 `mature`。
 5. 运行 Harness 和今日工作台。
@@ -85,7 +85,7 @@ kos/22_知识库/<领域>/<概念名>.md
 优先调用确定性脚本：
 
 ```bash
-python3 90_系统/harness/create_concept.py "概念名" \
+kos-harness create --kind concept --title "概念名" \
   --area "[[领域]]" \
   --definition "定义" \
   --problem "解决什么问题" \
@@ -99,7 +99,7 @@ python3 90_系统/harness/create_concept.py "概念名" \
 预览时使用：
 
 ```bash
-python3 90_系统/harness/create_concept.py "概念名" --dry-run
+kos-harness create --kind concept --title "概念名" --dry-run
 ```
 
 ### Step 3: 运行 Harness
@@ -107,12 +107,8 @@ python3 90_系统/harness/create_concept.py "概念名" --dry-run
 创建后运行：
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ### Step 4: 输出结果

@@ -10,7 +10,7 @@ import type { ImageContent, Model } from "@earendil-works/pi-ai";
 import type { SessionStats } from "../../core/agent-session.ts";
 import type { BashResult } from "../../core/bash-executor.ts";
 import type { CompactionResult } from "../../core/compaction/index.ts";
-import type { SessionEntry, SessionTreeNode } from "../../core/session-manager.ts";
+import type { SessionEntry, SessionInfo, SessionTreeNode } from "../../core/session-manager.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
 import type { ValidationReport } from "../../kos/validation/types.ts";
 import type { ConfigureModelInput } from "../../kos/model-configuration.ts";
@@ -38,12 +38,15 @@ export type RpcCommand =
 	| { id?: string; type: "validate"; paths?: string[] }
 	| ({ id?: string; type: "create_object" } & CreateObjectInput)
 	| ({ id?: string; type: "transition_status" } & TransitionStatusInput)
+	| { id?: string; type: "daily_workflow"; workflow: "dashboard" | "brief" | "diary"; date?: string }
 
 	// Model
 	| { id?: string; type: "set_model"; provider: string; modelId: string }
 	| { id?: string; type: "cycle_model" }
 	| { id?: string; type: "get_available_models" }
 	| ({ id?: string; type: "configure_model" } & ConfigureModelInput)
+	| { id?: string; type: "configure_web_search"; provider: "brave" | "exa"; apiKey: string }
+	| { id?: string; type: "get_web_search_state" }
 
 	// Thinking
 	| { id?: string; type: "set_thinking_level"; level: ThinkingLevel }
@@ -67,6 +70,7 @@ export type RpcCommand =
 
 	// Session
 	| { id?: string; type: "get_session_stats" }
+	| { id?: string; type: "list_sessions"; query?: string }
 	| { id?: string; type: "export_html"; outputPath?: string }
 	| { id?: string; type: "switch_session"; sessionPath: string }
 	| { id?: string; type: "fork"; entryId: string }
@@ -104,6 +108,7 @@ export interface RpcSlashCommand {
 // ============================================================================
 
 export interface RpcSessionState {
+	protocolVersion: 1;
 	model?: Model<any>;
 	thinkingLevel: ThinkingLevel;
 	isStreaming: boolean;
@@ -136,6 +141,7 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "validate"; success: true; data: ValidationReport }
 	| { id?: string; type: "response"; command: "create_object"; success: true; data: OperationResult }
 	| { id?: string; type: "response"; command: "transition_status"; success: true; data: TransitionStatusResult }
+	| { id?: string; type: "response"; command: "daily_workflow"; success: true; data: OperationResult }
 
 	// Model
 	| {
@@ -160,6 +166,8 @@ export type RpcResponse =
 			data: { models: Model<any>[] };
 	  }
 	| { id?: string; type: "response"; command: "configure_model"; success: true; data: Model<any> }
+	| { id?: string; type: "response"; command: "configure_web_search"; success: true; data: { provider: "brave" | "exa" } }
+	| { id?: string; type: "response"; command: "get_web_search_state"; success: true; data: { brave: boolean; exa: boolean } }
 
 	// Thinking
 	| { id?: string; type: "response"; command: "set_thinking_level"; success: true }
@@ -189,6 +197,7 @@ export type RpcResponse =
 
 	// Session
 	| { id?: string; type: "response"; command: "get_session_stats"; success: true; data: SessionStats }
+	| { id?: string; type: "response"; command: "list_sessions"; success: true; data: { sessions: SessionInfo[] } }
 	| { id?: string; type: "response"; command: "export_html"; success: true; data: { path: string } }
 	| { id?: string; type: "response"; command: "switch_session"; success: true; data: { cancelled: boolean } }
 	| { id?: string; type: "response"; command: "fork"; success: true; data: { text: string; cancelled: boolean } }

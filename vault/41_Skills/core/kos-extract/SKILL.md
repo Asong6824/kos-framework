@@ -40,7 +40,7 @@ metadata:
 ## Quick Reference
 
 1. 定位 Source。
-2. 调用 `90_系统/harness/create_extract.py` 生成 Extract。
+2. 调用 `kos-harness` 生成 Extract。
 3. `review_status` 设为 `pending`。
 4. 更新 Source 的 `extract_file`。
 5. Source 正文不足时，不要把 Source 状态改成 `extracted`。
@@ -57,13 +57,13 @@ metadata:
 优先调用确定性脚本：
 
 ```bash
-python3 90_系统/harness/create_extract.py "<Source 文件路径或标题>"
+kos-harness process-source --kind extract --query "<Source 文件路径或标题>"
 ```
 
 预览时使用：
 
 ```bash
-python3 90_系统/harness/create_extract.py "<Source 文件路径或标题>" --dry-run
+kos-harness process-source --kind extract --query "<Source 文件路径或标题>" --dry-run
 ```
 
 脚本会：
@@ -103,12 +103,8 @@ python3 90_系统/harness/create_extract.py "<Source 文件路径或标题>" --d
 生成后运行：
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ## Pitfalls

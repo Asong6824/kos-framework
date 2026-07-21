@@ -43,24 +43,21 @@ required_paths:
   - 90_系统/规则
   - 90_系统/模板
   - 90_系统/集成
-  - 90_系统/harness
-  - 90_系统/harness/reports
-  - 90_系统/harness/schemas
   - 90_系统/evals
   - 90_系统/evals/artifacts
   - 90_系统/evals/contracts
-  - 90_系统/evals/schemas
   - 90_系统/evals/skills
   - 90_系统/工作流
   - 90_系统/工作流/项目启动计划
   - 90_系统/文档
 forbidden_generated_paths:
-  - 90_系统/harness/reports/health_report.md
   - 90_系统/evals/artifacts/*.json
 forbidden_parts:
   - __pycache__
 forbidden_runtime_directories:
   - dev
+  - 90_系统/harness
+  - 90_系统/evals/schemas
 runtime_empty_extension_dirs:
   - 41_Skills/integrations
   - 41_Skills/personal

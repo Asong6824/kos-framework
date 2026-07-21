@@ -52,7 +52,7 @@ metadata:
 1. 区分证据来源：测评、自我反思、真实行为、Agent 交互观察、他人反馈。
 2. 不把任何单一来源当成最终解释权。
 3. 把结论写成可验证、可推翻的协作假设。
-4. 调用 `90_系统/harness/create_personal_profile.py` 创建 draft。
+4. 调用 `kos-harness` 创建 draft。
 5. 明确哪些内容仍需验证，哪些旧判断已被推翻。
 6. 不自动把 draft 标记为 reviewed 或 active。
 7. 运行 Harness 检查。
@@ -119,7 +119,7 @@ kos/25_个人操作画像/<分类>/<画像标题>.md
 优先调用确定性脚本：
 
 ```bash
-python3 90_系统/harness/create_personal_profile.py "个人操作画像" \
+kos-harness create --kind personal_operating_profile --title "个人操作画像" \
   --category "默认" \
   --source "盖洛普优势结果" \
   --related-reflection "近期项目复盘" \
@@ -134,7 +134,7 @@ python3 90_系统/harness/create_personal_profile.py "个人操作画像" \
 预览时使用：
 
 ```bash
-python3 90_系统/harness/create_personal_profile.py "个人操作画像" --dry-run
+kos-harness create --kind personal_operating_profile --title "个人操作画像" --dry-run
 ```
 
 ### Step 4: 人工确认边界
@@ -168,11 +168,7 @@ human_confirmed: true
 创建或修改后运行：
 
 ```bash
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness validate
 ```
 
 ### Step 6: 输出结果

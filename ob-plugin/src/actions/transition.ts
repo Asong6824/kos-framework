@@ -10,13 +10,12 @@
  * - frontmatter 已有 updated 字段时同步更新（M10 停滞判定依赖该字段）。
  */
 
-import { App, Modal, Notice, TFile } from 'obsidian';
+import { App, Modal, Notice, TFile, setIcon } from 'obsidian';
 import type { MarkdownPostProcessor } from 'obsidian';
 import { currentState, legalTransitions, canTransition } from '../core/transitions';
 import type { TransitionTarget } from '../core/transitions';
 import type { KosObject } from '../core/model';
 import { parseKosObject } from '../core/parse';
-import { localToday } from '../data/store';
 import type { KosSettings } from '../settings';
 import { TYPE_LABELS, objectTitle } from '../views/view-context';
 
@@ -78,7 +77,7 @@ export async function applyTransition(
   obj: KosObject,
   target: string,
   settings: KosSettings,
-  operation?: TransitionOperation,
+  operation: TransitionOperation,
 ): Promise<boolean> {
   if (!canTransition(obj, target)) {
     new Notice(`非法流转：${TYPE_LABELS[obj.type]}「${objectTitle(obj)}」不能转到 ${target}`);
@@ -90,29 +89,7 @@ export async function applyTransition(
     if (!ok) return false;
   }
 
-  if (operation) return operation(obj.filePath, target);
-
-  const file = app.vault.getAbstractFileByPath(obj.filePath);
-  if (!(file instanceof TFile)) {
-    new Notice(`找不到文件：${obj.filePath}`);
-    return false;
-  }
-
-  const today = localToday();
-  await app.fileManager.processFrontMatter(file, (fm) => {
-    if (obj.type === 'summary') {
-      fm.reviewed = target === 'true';
-    } else if (obj.type === 'extract') {
-      fm.review_status = target;
-    } else {
-      fm.status = target;
-    }
-    // 簿记字段：任务完成时间、updated 最后更新（见文件头说明）
-    if (obj.type === 'task' && target === 'done') fm.completed = today;
-    if ('updated' in fm) fm.updated = today;
-  });
-  new Notice(`已流转：${objectTitle(obj)} → ${target}`);
-  return true;
+  return operation(obj.filePath, target);
 }
 
 /** 状态选择 Modal（命令 transition-current-file 用） */
@@ -121,7 +98,7 @@ class TransitionPickerModal extends Modal {
     app: App,
     private readonly obj: KosObject,
     private readonly settings: KosSettings,
-    private readonly operation?: TransitionOperation,
+    private readonly operation: TransitionOperation,
   ) {
     super(app);
   }
@@ -161,7 +138,7 @@ class TransitionPickerModal extends Modal {
 }
 
 /** 命令入口：对当前文件弹状态选择 Modal */
-export function openTransitionModal(app: App, settings: KosSettings, operation?: TransitionOperation): void {
+export function openTransitionModal(app: App, settings: KosSettings, operation: TransitionOperation): void {
   const file = app.workspace.getActiveFile();
   if (!(file instanceof TFile)) {
     new Notice('当前没有打开的文件');
@@ -188,7 +165,8 @@ export function openTransitionModal(app: App, settings: KosSettings, operation?:
 export function statusBadgeProcessor(
   app: App,
   getSettings: () => KosSettings,
-  operation?: TransitionOperation,
+  operation: TransitionOperation,
+  openAgent?: (path: string) => void,
 ): MarkdownPostProcessor {
   return (el, ctx) => {
     const fm = ctx.frontmatter;
@@ -206,6 +184,11 @@ export function statusBadgeProcessor(
     banner.className = 'kos-status-banner';
     banner.createSpan({ cls: 'kos-tag', text: TYPE_LABELS[obj.type] });
     banner.createSpan({ cls: 'kos-status-banner-state', text: `状态：${state}` });
+    if (openAgent) {
+      const chat = banner.createEl('button', { cls: 'kos-status-banner-btn', attr: { 'aria-label': '在 Agent 中讨论此对象' } });
+      setIcon(chat, 'message-square');
+      chat.addEventListener('click', () => openAgent(obj.filePath));
+    }
     const targets = legalTransitions(obj);
     if (targets.length > 0) {
       const btnGroup = banner.createSpan({ cls: 'kos-status-banner-actions' });

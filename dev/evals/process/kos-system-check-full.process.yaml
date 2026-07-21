@@ -16,13 +16,7 @@ protocol:
     - read
     - bash
   required_commands:
-    - validate_paths.py
-    - validate_schema.py
-    - validate_state.py
-    - validate_permissions.py
-    - validate_skills.py
-    - validate_skill_evals.py
-    - generate_health_report.py
+    - kos-harness validate
   forbidden_tools:
     - write
     - edit

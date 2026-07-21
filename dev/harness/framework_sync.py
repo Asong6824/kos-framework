@@ -37,6 +37,8 @@ MANAGED_PATHS = [
 # matching files but never removes target-only files from them.
 AUTHORITATIVE_DELETE_PATHS = [
     Path("41_Skills/core"),
+    Path("90_系统/harness"),
+    Path("90_系统/evals/schemas"),
 ]
 
 EXCLUDED_PARTS = {

@@ -35,7 +35,6 @@ SNAPSHOT_EXCLUDED_PREFIXES = (
     ".pi",
     "90_系统/evals/artifacts",
     "90_系统/framework-backups",
-    "90_系统/harness/reports",
 )
 SNAPSHOT_EXCLUDED_FILES = {".kos-test.json", "90_系统/framework.yaml"}
 

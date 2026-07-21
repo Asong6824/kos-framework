@@ -40,7 +40,7 @@ metadata:
 ## Quick Reference
 
 1. 从用户输入中提取项目名、目标、类别、优先级、阶段、问题、成功指标和下一步任务。
-2. 调用 `90_系统/harness/create_project.py` 创建 Project。
+2. 调用 `kos-harness` 创建 Project。
 3. 默认 `status: idea`，只有用户明确要开始执行时才设为 `active`。
 4. 创建后运行 Harness 和今日工作台生成脚本。
 5. 输出项目路径和下一步建议。
@@ -86,7 +86,7 @@ kos/30_项目/项目名.md
 优先调用确定性脚本：
 
 ```bash
-python3 90_系统/harness/create_project.py "项目名" \
+kos-harness create --kind project --title "项目名" \
   --status idea \
   --category other \
   --priority P2 \
@@ -102,7 +102,7 @@ python3 90_系统/harness/create_project.py "项目名" \
 如果需要先预览，使用：
 
 ```bash
-python3 90_系统/harness/create_project.py "项目名" --dry-run
+kos-harness create --kind project --title "项目名" --dry-run
 ```
 
 ### Step 3: 运行 Harness
@@ -110,11 +110,8 @@ python3 90_系统/harness/create_project.py "项目名" --dry-run
 创建后运行：
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ### Step 4: 输出结果

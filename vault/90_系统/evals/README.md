@@ -71,7 +71,7 @@ checks:
     path: 30_项目/示例项目.md
   - id: schema_valid
     type: harness_passes
-    script: validate_schema.py
+    validator: schema
 rubric:
   - id: actionability
     description: 下一步行动具体且可执行
@@ -81,7 +81,7 @@ rubric:
 Agent 执行任务后提交 rubric 分数和具体证据。运行：
 
 ```bash
-python3 90_系统/harness/evaluate_task_contract.py \
+kos-harness task-eval \
   --contract 90_系统/evals/contracts/kos-create-project/create-project-basic.task.yaml \
   --self-assessment /tmp/create-project-basic.assessment.yaml \
   --state 90_系统/evals/artifacts/create-project-basic-run.json \

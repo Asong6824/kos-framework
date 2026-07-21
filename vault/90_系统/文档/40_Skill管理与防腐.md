@@ -73,18 +73,18 @@ Agent 可以新建 incubator Skill 和 eval 草稿，但不能自行晋升到正
 ## 运行 Eval
 
 ```bash
-python3 90_系统/harness/validate_skill_evals.py --format markdown
-python3 90_系统/harness/run_skill_evals.py --write-artifact
+kos-harness validate
+kos-harness skill-eval --write-artifact
 ```
 
 指定单个 Skill：
 
 ```bash
-python3 90_系统/harness/run_skill_evals.py --suite <skill-name> --write-artifact
+kos-harness skill-eval --suite <skill-name> --write-artifact
 ```
 
 ## 系统检查
 
 ```bash
-python3 90_系统/harness/generate_health_report.py
+kos-harness validate
 ```

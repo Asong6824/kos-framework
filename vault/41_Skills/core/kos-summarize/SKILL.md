@@ -39,7 +39,7 @@ metadata:
 ## Quick Reference
 
 1. 定位 Source。
-2. 调用 `90_系统/harness/summarize_source.py` 生成 Summary。
+2. 调用 `kos-harness` 生成 Summary。
 3. `reviewed` 设为 `false`。
 4. 更新 Source 的 `summary_file`。
 5. 如果 Source 正文不足，不要把 Source 状态改成 `summarized`。
@@ -56,19 +56,19 @@ metadata:
 优先调用确定性脚本：
 
 ```bash
-python3 90_系统/harness/summarize_source.py "<Source 文件路径或标题>"
+kos-harness process-source --kind summary --query "<Source 文件路径或标题>"
 ```
 
 预览时使用：
 
 ```bash
-python3 90_系统/harness/summarize_source.py "<Source 文件路径或标题>" --dry-run
+kos-harness process-source --kind summary --query "<Source 文件路径或标题>" --dry-run
 ```
 
 如果用户未指定 Source，且系统中只有一个 `status: captured` 的 Source，可以省略参数：
 
 ```bash
-python3 90_系统/harness/summarize_source.py
+kos-harness process-source --kind summary --query
 ```
 
 脚本会：
@@ -128,10 +128,7 @@ frontmatter 必须包含：
 生成后运行：
 
 ```bash
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness validate
 ```
 
 ### Step 6: 输出结果

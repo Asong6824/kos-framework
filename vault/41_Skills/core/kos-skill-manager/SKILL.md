@@ -136,11 +136,7 @@ metadata:
 晋升、合并或归档后运行：
 
 ```bash
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness validate
 ```
 
 ## Pitfalls

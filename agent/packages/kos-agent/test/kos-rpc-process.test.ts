@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -93,6 +93,31 @@ describe("kos-agent RPC process", () => {
 				success: true,
 				data: { passed: false },
 			});
+
+			const searchKey = ["test", "search", "credential"].join("-");
+			const configureSearchPromise = readResponse("smoke-4");
+			child.stdin.write(`${JSON.stringify({
+				id: "smoke-4",
+				type: "configure_web_search",
+				provider: "brave",
+				apiKey: searchKey,
+			})}\n`);
+			await expect(configureSearchPromise).resolves.toMatchObject({
+				command: "configure_web_search",
+				success: true,
+				data: { provider: "brave" },
+			});
+
+			const searchStatePromise = readResponse("smoke-5");
+			child.stdin.write(`${JSON.stringify({ id: "smoke-5", type: "get_web_search_state" })}\n`);
+			await expect(searchStatePromise).resolves.toMatchObject({
+				command: "get_web_search_state",
+				success: true,
+				data: { brave: true, exa: false },
+			});
+			const authPath = join(configDir, "auth.json");
+			expect((await stat(authPath)).mode & 0o777).toBe(0o600);
+			expect(await readFile(authPath, "utf8")).toContain(searchKey);
 		} finally {
 			child.stdin.end();
 			if (child.exitCode === null) child.kill("SIGTERM");

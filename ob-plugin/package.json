@@ -1,6 +1,6 @@
 {
   "name": "kos-companion",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Obsidian companion plugin for kos vaults: real-time dashboards, metrics and review workflows.",
   "license": "MIT",

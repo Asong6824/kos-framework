@@ -147,7 +147,7 @@ class ProcessEvalTests(unittest.TestCase):
                 required_skill_reads=["kos-system-check"],
                 required_reads=[".kos.md"],
                 required_tools=["bash"],
-                required_commands=["validate_paths.py"],
+                required_commands=["kos-harness validate"],
                 forbidden_tools=["write", "edit"],
             )
         )
@@ -164,7 +164,7 @@ class ProcessEvalTests(unittest.TestCase):
                     "type": "tool_call",
                     "id": "3",
                     "tool": "bash",
-                    "args": {"command": "python3 90_系统/harness/validate_paths.py"},
+                    "args": {"command": "kos-harness validate"},
                 },
                 {"type": "tool_result", "id": "3", "tool": "bash", "is_error": False},
             ]
@@ -185,7 +185,7 @@ class ProcessEvalTests(unittest.TestCase):
         current_contract = contract(
             protocol=protocol(
                 required_skill_reads=["kos-system-check"],
-                required_commands=["validate_paths.py"],
+                required_commands=["kos-harness validate"],
                 forbidden_tools=["write"],
             )
         )
@@ -217,7 +217,7 @@ class ProcessEvalTests(unittest.TestCase):
         self.assertFalse(result["route_pass"])
         self.assertFalse(result["protocol_pass"])
         self.assertIn("required_skill:kos-system-check", failures)
-        self.assertIn("required_command:validate_paths.py", failures)
+        self.assertIn("required_command:kos-harness validate", failures)
         self.assertIn("forbidden_tool:write", failures)
         self.assertIn("vault_unchanged", failures)
 
@@ -251,9 +251,9 @@ class ProcessEvalTests(unittest.TestCase):
             before = snapshot_vault(root)
             (root / ".pi").mkdir()
             (root / ".pi/settings.json").write_text("{}", encoding="utf-8")
-            report = root / "90_系统/harness/reports/health_report.md"
-            report.parent.mkdir(parents=True)
-            report.write_text("generated", encoding="utf-8")
+            artifact = root / "90_系统/evals/artifacts/health.json"
+            artifact.parent.mkdir(parents=True)
+            artifact.write_text("generated", encoding="utf-8")
             (root / ".kos.md").write_text("changed", encoding="utf-8")
             after = snapshot_vault(root)
 

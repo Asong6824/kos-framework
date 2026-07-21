@@ -342,6 +342,31 @@ export type {
 export { createObject, sanitizeFileName } from "./kos/operations/create-object.ts";
 export { legalTargets, STATE_MACHINES as KOS_STATE_MACHINES } from "./kos/operations/state-machines.ts";
 export { transitionStatus } from "./kos/operations/transition-status.ts";
+export { processSource, type ProcessSourceInput } from "./kos/operations/process-source.ts";
+export { updateProject, type UpdateProjectInput } from "./kos/operations/update-project.ts";
+export { generateDailyBrief, generateDailyDashboard, generateDiary } from "./kos/operations/daily-workflows.ts";
+export {
+	loadSkillEvalCases,
+	runSkillEvals,
+	type RunSkillEvalsOptions,
+	type SkillEvalCase,
+	type SkillEvalCaseResult,
+	type SkillEvalCheckResult,
+	type SkillEvalResult,
+} from "./kos/evals/skill-evals.ts";
+export {
+	contractDigest,
+	evaluateTaskContract,
+	loadSelfAssessment,
+	loadTaskContract,
+	TaskContractError,
+	updateTaskRunState,
+	type TaskAttempt,
+	type TaskCheckDefinition,
+	type TaskContract,
+	type TaskRunState,
+	type TaskSelfAssessment,
+} from "./kos/evals/task-contract.ts";
 export type {
 	CreateObjectInput,
 	CreateObjectKind,

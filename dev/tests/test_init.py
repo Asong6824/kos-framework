@@ -9,6 +9,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INIT_SCRIPT = REPO_ROOT / "dev/harness/init_vault.py"
+HARNESS_CLI = REPO_ROOT / "agent/packages/kos-agent/dist/kos-cli.js"
 
 
 class InitVaultTests(unittest.TestCase):
@@ -23,12 +24,13 @@ class InitVaultTests(unittest.TestCase):
             )
 
             self.assertEqual(init_result.returncode, 0, init_result.stdout + init_result.stderr)
-            self.assertTrue((target / "90_系统/harness/reports").is_dir())
+            self.assertFalse((target / "90_系统/harness").exists())
 
             validation_result = subprocess.run(
                 [
-                    sys.executable,
-                    str(target / "90_系统/harness/validate_paths.py"),
+                    "node",
+                    str(HARNESS_CLI),
+                    "validate",
                     "--root",
                     str(target),
                 ],

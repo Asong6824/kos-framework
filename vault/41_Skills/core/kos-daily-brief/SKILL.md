@@ -38,7 +38,7 @@ metadata:
 
 ## Quick Reference
 
-1. 调用 `90_系统/harness/generate_daily_brief.py`。
+1. 调用 `kos-harness`。
 2. 生成或更新 `50_信息雷达/每日简报/YYYY-MM-DD.md`。
 3. 汇总 high / critical / requires_research 的信号。
 4. 保留 `<!-- 人手动添加 -->` 区块。
@@ -49,7 +49,7 @@ metadata:
 ### Step 1: 生成每日简报
 
 ```bash
-python3 90_系统/harness/generate_daily_brief.py
+kos-harness daily-brief
 ```
 
 脚本会：
@@ -62,17 +62,13 @@ python3 90_系统/harness/generate_daily_brief.py
 ### Step 2: 刷新工作台
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
+kos-harness daily-dashboard
 ```
 
 ### Step 3: 运行 Harness
 
 ```bash
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness validate
 ```
 
 ## Pitfalls

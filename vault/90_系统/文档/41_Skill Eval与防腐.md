@@ -52,19 +52,19 @@ id,skill,should_trigger,prompt,expected_checks,notes
 先检查 eval 定义：
 
 ```bash
-python3 90_系统/harness/validate_skill_evals.py --format markdown
+kos-harness validate
 ```
 
 运行全部 eval：
 
 ```bash
-python3 90_系统/harness/run_skill_evals.py --write-artifact
+kos-harness skill-eval --write-artifact
 ```
 
 运行单个 suite：
 
 ```bash
-python3 90_系统/harness/run_skill_evals.py --suite <skill-name> --write-artifact
+kos-harness skill-eval --suite <skill-name> --write-artifact
 ```
 
 没有 case 时 runner 返回 `NO_CASES`，不能视为通过。
@@ -85,7 +85,7 @@ checks:
     path: 30_项目/示例项目.md
   - id: schema_valid
     type: harness_passes
-    script: validate_schema.py
+    validator: schema
 rubric:
   - id: actionability
     description: 下一步行动具体且可执行
@@ -95,7 +95,7 @@ rubric:
 Agent 完成任务后提交带证据的 rubric 自评，再运行：
 
 ```bash
-python3 90_系统/harness/evaluate_task_contract.py \
+kos-harness task-eval \
   --contract 90_系统/evals/contracts/kos-create-project/create-project-basic.task.yaml \
   --self-assessment /tmp/create-project-basic.assessment.yaml \
   --state 90_系统/evals/artifacts/create-project-basic-run.json \

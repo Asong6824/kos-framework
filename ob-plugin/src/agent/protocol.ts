@@ -1,15 +1,31 @@
 export type KosRpcCommand =
   | { type: 'get_state' }
   | { type: 'get_messages' }
-  | { type: 'prompt'; message: string; streamingBehavior?: 'steer' | 'followUp' }
+  | { type: 'prompt'; message: string; images?: KosImageContent[]; streamingBehavior?: 'steer' | 'followUp' }
+  | { type: 'steer'; message: string; images?: KosImageContent[] }
+  | { type: 'follow_up'; message: string; images?: KosImageContent[] }
   | { type: 'abort' }
   | { type: 'new_session'; parentSession?: string }
   | { type: 'validate'; paths?: string[] }
   | ({ type: 'create_object' } & KosCreateObjectInput)
   | ({ type: 'transition_status' } & KosTransitionStatusInput)
+  | { type: 'daily_workflow'; workflow: 'dashboard' | 'brief' | 'diary'; date?: string }
   | { type: 'get_available_models' }
+  | { type: 'cycle_thinking_level' }
+  | { type: 'get_session_stats' }
+  | { type: 'list_sessions'; query?: string }
+  | { type: 'switch_session'; sessionPath: string }
+  | { type: 'set_session_name'; name: string }
+  | { type: 'compact'; customInstructions?: string }
+  | { type: 'clone' }
+  | { type: 'get_fork_messages' }
+  | { type: 'fork'; entryId: string }
+  | { type: 'get_tree' }
+  | { type: 'get_commands' }
   | { type: 'set_model'; provider: string; modelId: string }
-  | ({ type: 'configure_model' } & KosConfigureModelInput);
+  | ({ type: 'configure_model' } & KosConfigureModelInput)
+  | { type: 'configure_web_search'; provider: 'brave' | 'exa'; apiKey: string }
+  | { type: 'get_web_search_state' };
 
 export type KosModelApi =
   | 'openai-responses'
@@ -58,6 +74,7 @@ export interface KosTransitionStatusResult extends KosOperationResult {
 }
 
 export interface KosRpcState {
+  protocolVersion: 1;
   model?: KosModelInfo;
   thinkingLevel: string;
   isStreaming: boolean;
@@ -68,12 +85,59 @@ export interface KosRpcState {
   pendingMessageCount: number;
 }
 
+export interface KosSessionInfo {
+  path: string;
+  id: string;
+  cwd: string;
+  name?: string;
+  parentSessionPath?: string;
+  created: string;
+  modified: string;
+  messageCount: number;
+  firstMessage: string;
+  allMessagesText: string;
+}
+
+export interface KosForkMessage {
+  entryId: string;
+  text: string;
+}
+
+export interface KosSessionTreeNode {
+  entry: { id: string; type: string; timestamp?: string; [key: string]: unknown };
+  children: KosSessionTreeNode[];
+  label?: string;
+  labelTimestamp?: string;
+}
+
+export interface KosSlashCommand {
+  name: string;
+  description?: string;
+  source: 'extension' | 'prompt' | 'skill';
+  sourceInfo?: { path?: string; [key: string]: unknown };
+}
+
+export interface KosSessionStats {
+  sessionId: string;
+  totalMessages: number;
+  toolCalls: number;
+  tokens: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number };
+  cost: number;
+  contextUsage?: { tokens: number | null; contextWindow: number; percent: number | null };
+}
+
 export interface KosContentBlock {
   type: string;
   text?: string;
   thinking?: string;
   name?: string;
   arguments?: unknown;
+}
+
+export interface KosImageContent {
+  type: 'image';
+  data: string;
+  mimeType: string;
 }
 
 export interface KosMessage {

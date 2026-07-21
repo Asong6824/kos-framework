@@ -9,24 +9,21 @@
  * 上期快照缺失 / estimated（补落）时在报告中按 03 文档通用约定 6 标注。
  */
 
-import { App, Component, MarkdownRenderer, Modal, Notice } from 'obsidian';
+import { App, Component, MarkdownRenderer, Modal, Notice, TFile } from 'obsidian';
 import { monthlyReport, weeklyReport } from '../core/metrics';
 import type { MetricSettings, PeriodReport } from '../core/metrics';
-import type { ObjectDirs } from '../core/model';
 import { addDays, startOfMonth, startOfWeek } from '../core/snapshot';
 import type { KosIndex } from '../data/index';
 import { KosDataStore, localToday } from '../data/store';
 import { BADGE_NAMES } from '../views/components';
 import type { BadgeId } from '../core/metrics';
-import { ensureDiary } from './create';
 
 /** 报告生成所需依赖（main.ts 注入，避免反向依赖插件类） */
 export interface ReportDeps {
   index: KosIndex;
   store: KosDataStore;
   metricSettings: () => MetricSettings;
-  /** 目录映射（日记写入目标根目录随配置） */
-  objectDirs: () => ObjectDirs;
+  ensureDiary: (date: string) => Promise<TFile>;
 }
 
 /** 环比文案：+N（+X%）；上期为 0（pct null）时只显示绝对值 */
@@ -132,7 +129,7 @@ async function writeToDiary(app: App, r: PeriodReport, deps: ReportDeps, today: 
   const weekStart = deps.metricSettings().weekStart ?? 1;
   const date = reportDiaryDate(r, today, weekStart);
   const section = r.period === 'week' ? '周复盘' : '月复盘';
-  const file = await ensureDiary(app, date, deps.objectDirs());
+  const file = await deps.ensureDiary(date);
   const content = await app.vault.read(file);
   await app.vault.modify(file, appendToSection(content, section, diaryBlock(r)));
   new Notice(`已写入 ${date} 日记的「${section}」章节`);

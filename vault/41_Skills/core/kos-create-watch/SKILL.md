@@ -41,7 +41,7 @@ metadata:
 ## Quick Reference
 
 1. 判断是主题监控还是公司监控。
-2. 调用 `90_系统/harness/create_watch.py` 创建 Watch。
+2. 调用 `kos-harness` 创建 Watch。
 3. Topic Watch 写入 `50_信息雷达/主题监控/`。
 4. Company Watch 写入 `50_信息雷达/公司监控/`。
 5. 创建后运行 Daily Brief、今日工作台和 Harness。
@@ -91,7 +91,7 @@ Company Watch 字段：
 创建 Topic Watch：
 
 ```bash
-python3 90_系统/harness/create_watch.py "AI Agent" \
+kos-harness create --kind topic_watch --title "AI Agent" \
   --kind topic \
   --why "长期关注 AI Agent 的产品、框架和基础设施变化" \
   --question "哪些变化会影响当前研究和项目判断？" \
@@ -105,7 +105,7 @@ python3 90_系统/harness/create_watch.py "AI Agent" \
 创建 Company Watch：
 
 ```bash
-python3 90_系统/harness/create_watch.py "NVIDIA" \
+kos-harness create --kind topic_watch --title "NVIDIA" \
   --kind company \
   --ticker "NVDA" \
   --market "US" \
@@ -122,13 +122,9 @@ python3 90_系统/harness/create_watch.py "NVIDIA" \
 ### Step 3: 运行 Harness
 
 ```bash
-python3 90_系统/harness/generate_daily_brief.py
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-brief
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ## Pitfalls

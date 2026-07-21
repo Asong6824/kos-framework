@@ -1,5 +1,4 @@
-import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,9 +19,6 @@ function tempVault(): string {
 	tempDirs.push(root);
 	writeFileSync(join(root, ".kos.md"), "# kos\n");
 	for (const directory of REQUIRED_VAULT_DIRS) mkdirSync(join(root, directory), { recursive: true });
-	for (const name of ["skill_eval_result.schema.json", "task_contract.schema.json", "task_eval_result.schema.json"]) {
-		copyFileSync(join(repoRoot, "vault/90_系统/evals/schemas", name), join(root, "90_系统/evals/schemas", name));
-	}
 	return root;
 }
 
@@ -30,21 +26,6 @@ function writeObject(root: string, path: string, frontmatter: string): void {
 	const target = join(root, path);
 	mkdirSync(dirname(target), { recursive: true });
 	writeFileSync(target, `---\n${frontmatter.trim()}\n---\n\nBody\n`);
-}
-
-function pythonFindings(root: string, validator: "paths" | "schema" | "state"): string[] {
-	try {
-		return execFileSync(
-			"python3",
-			[join(repoRoot, `vault/90_系统/harness/validate_${validator}.py`), "--root", root],
-			{ encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } },
-		)
-			.split("\n")
-			.filter((line) => line.startsWith("["));
-	} catch (error) {
-		const stdout = (error as { stdout?: string }).stdout ?? "";
-		return stdout.split("\n").filter((line) => line.startsWith("["));
-	}
 }
 
 afterEach(() => {
@@ -73,7 +54,7 @@ updated: 2026-07-20`,
 		expect(report.passed).toBe(true);
 	});
 
-	it("matches legacy ERROR categories while intentionally dropping human-review warnings", () => {
+	it("reports path, schema and state errors without model judgment", () => {
 		const root = tempVault();
 		writeObject(
 			root,
@@ -113,15 +94,10 @@ updated: 2026-07-20`,
 				report.findings.filter((item) => item.level === "ERROR" && item.validator === name).length,
 			]),
 		);
-		const legacyCounts = {
-			paths: pythonFindings(root, "paths").filter((line) => line.startsWith("[ERROR]")).length,
-			schema: new Set(pythonFindings(root, "schema").filter((line) => line.startsWith("[ERROR]"))).size,
-			state: pythonFindings(root, "state").filter((line) => line.startsWith("[ERROR]")).length,
-		};
-
-		expect(counts).toEqual(legacyCounts);
+		expect(counts.paths).toBeGreaterThan(0);
+		expect(counts.schema).toBeGreaterThan(0);
+		expect(counts.state).toBeGreaterThan(0);
 		expect(report.warningCount).toBe(0);
-		expect(pythonFindings(root, "state").some((line) => line.includes("人工审核"))).toBe(true);
 	});
 
 	it("validates only changed object files", () => {

@@ -18,6 +18,7 @@ export interface ViewContext {
   index: KosIndex;
   store: KosDataStore;
   metricSettings(): MetricSettings;
+  openAgent?(path?: string, prompt?: string): Promise<void>;
 }
 
 /** 对象类型中文名（与 vault 文档术语对齐） */

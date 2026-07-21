@@ -26,7 +26,7 @@ metadata:
 
 - 当前工作目录应为包含 `.kos.md`（或兼容的 `.hermes.md`）的 kos vault 根目录。
 - 必须读取 `90_系统/evals/README.md`。
-- 必须先运行 `90_系统/harness/validate_skill_evals.py`。
+- 必须先运行 `kos-harness`。
 - 运行 eval 不代表自动修复或自动晋升 Skill；任何正式修改仍需用户确认。
 
 ## How to Run
@@ -41,7 +41,7 @@ metadata:
 
 1. 校验 eval 定义。
 2. 定位 `90_系统/evals/skills/<skill-name>.prompts.csv`。
-3. 运行 `run_skill_evals.py` 做轻量 Contract Gate。
+3. 运行 `kos-harness skill-eval` 做轻量 Contract Gate。
 4. 用 Task Contract 定义任务完成条件，再执行任务。
 5. 用确定性证据和 Agent rubric 评估；失败时只在安全范围内迭代。
 6. 输出 `pass@1`、`pass@k`、迭代次数、失败项和 artifact。
@@ -51,7 +51,7 @@ metadata:
 ### Step 1: 校验 Eval 定义
 
 ```bash
-python3 90_系统/harness/validate_skill_evals.py --format markdown
+kos-harness validate
 ```
 
 如果这里失败，先修复 eval 定义，不要继续解释 Skill 已通过。
@@ -59,13 +59,13 @@ python3 90_系统/harness/validate_skill_evals.py --format markdown
 ### Step 2: 运行指定 Skill Contract Gate
 
 ```bash
-python3 90_系统/harness/run_skill_evals.py --suite <skill-name> --write-artifact
+kos-harness skill-eval --suite <skill-name> --write-artifact
 ```
 
 例如：
 
 ```bash
-python3 90_系统/harness/run_skill_evals.py --suite kos-bilibili-to-source --write-artifact
+kos-harness skill-eval --suite kos-bilibili-to-source --write-artifact
 ```
 
 没有 case 时结果是 `NO_CASES`，不能解释为 eval 通过。
@@ -92,7 +92,7 @@ checks:
     path: 30_项目/示例项目.md
   - id: schema_valid
     type: harness_passes
-    script: validate_schema.py
+    validator: schema
 rubric:
   - id: actionability
     description: 下一步行动具体且可执行
@@ -121,7 +121,7 @@ rubric:
 运行评估并累计状态：
 
 ```bash
-python3 90_系统/harness/evaluate_task_contract.py \
+kos-harness task-eval \
   --contract 90_系统/evals/contracts/kos-create-project/create-project-basic.task.yaml \
   --self-assessment /tmp/create-project-basic.assessment.yaml \
   --state 90_系统/evals/artifacts/create-project-basic-run.json \
@@ -144,7 +144,7 @@ python3 90_系统/harness/evaluate_task_contract.py \
 ### Step 5: 运行全部 Contract Eval
 
 ```bash
-python3 90_系统/harness/run_skill_evals.py --write-artifact
+kos-harness skill-eval --write-artifact
 ```
 
 ### Step 6: 解读结果
@@ -178,7 +178,7 @@ python3 90_系统/harness/run_skill_evals.py --write-artifact
 
 ## Verification
 
-- `validate_skill_evals.py` 通过。
+- `kos-harness validate` 通过。
 - 指定 suite 或全部 suite 有明确 PASS/FAIL 和 score。
 - artifact 写入 `90_系统/evals/artifacts/`。
 - 失败项能定位到具体 check 和具体 Skill 内容。

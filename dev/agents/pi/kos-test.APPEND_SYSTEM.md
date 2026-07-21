@@ -9,7 +9,7 @@ user `kos` vault.
   vault root for this session.
 - Read `.kos.md`, the relevant runtime documentation, object rules, template,
   and kos Skill before changing vault objects.
-- Prefer deterministic scripts under `90_系统/harness/` and run the relevant
+- Prefer the deterministic `kos-harness` CLI and run the relevant
   validation after changes.
 - `AGENTS.md` may describe itself as a Codex adapter. Its operating rules are
   backend-agnostic here; Pi is the active backend.

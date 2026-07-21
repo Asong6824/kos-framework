@@ -37,7 +37,7 @@ metadata:
 ## Quick Reference
 
 1. 定位 Project。
-2. 调用 `90_系统/harness/update_project.py`。
+2. 调用 `kos-harness`。
 3. 追加进展、当前任务、决策、复盘、最终成果或最终沉淀。
 4. 更新 `updated` 日期。
 5. 运行工作台和 Harness。
@@ -47,7 +47,7 @@ metadata:
 ### Step 1: 调用脚本
 
 ```bash
-python3 90_系统/harness/update_project.py "项目名" \
+kos-harness update-project --query "项目名" \
   --progress "完成了某项推进" \
   --task "下一步行动" \
   --decision "记录一个关键决策" \
@@ -59,7 +59,7 @@ python3 90_系统/harness/update_project.py "项目名" \
 受保护状态变更必须显式确认：
 
 ```bash
-python3 90_系统/harness/update_project.py "项目名" --status completed --human-confirmed
+kos-harness update-project --query "项目名" --status completed --human-confirmed
 ```
 
 脚本会在 `## 状态变更记录` 中记录状态变化。
@@ -67,12 +67,8 @@ python3 90_系统/harness/update_project.py "项目名" --status completed --hum
 ### Step 2: 运行 Harness
 
 ```bash
-python3 90_系统/harness/generate_daily_dashboard.py
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness daily-dashboard
+kos-harness validate
 ```
 
 ## Pitfalls

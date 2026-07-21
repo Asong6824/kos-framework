@@ -1,89 +1,70 @@
-# Runtime Harness 脚本与系统检查
+# kos-agent Harness 与系统检查
 
-本文中的 Runtime Harness 特指当前位于 `90_系统/harness/` 的确定性脚本子集，不代表 Harness Engineering 的全部含义。完整 Agent 中，Harness 是 LLM 以外的模型接入、循环、上下文、工具、Skill、session、UI、验证和反馈系统。
+kos-agent 是 kos 的官方 Agent 产品。Agent = LLM + Harness；模型以外的模型接入、agent loop、上下文、工具、Skill、session、权限策略、验证、Eval、反馈和 Obsidian UI 都属于 Harness。
 
-当前脚本负责路径、frontmatter、状态、权限和评估检查。目标架构会把这些 runtime scripts、schemas 和 machine constraints 迁入 kos-agent，并继续提供不调用 LLM 的 CLI；`dev/harness/` 仍是 framework development Harness。
+Vault 只保存用户数据、规则、模板、Skill 和 Eval 定义，不分发可执行脚本。所有 runtime validator、对象操作、Task Completion 和 Skill Eval 执行器均由 kos-agent 提供。
 
-kos 的官方产品后端是 kos-agent。Hermes、Codex、Claude Code 可以继续操作开放 Markdown Vault，但不再是同等支持的官方 runtime。
+## 执行策略
 
-## 为什么需要 Harness
+kos-agent 只有 YOLO 模式。读写文件和执行命令不需要逐步审批；需要用户判断时，Agent 使用 `ask_question` 暂停并在对话框中等待回答。
 
-只靠 Skill 文本执行会有三个问题：
+系统负责可确定判断：
 
-- 路径和字段容易漂移。
-- 状态流转和人工确认边界容易被跳过。
-- 每次 Agent 执行结果难以复查。
+- Vault 边界和路径合法性。
+- frontmatter schema 与状态机。
+- 原子写入、回滚和跨文件回链。
+- Skill/Eval 合同结构。
+- Task Contract 的确定性检查、迭代状态和 pass@k。
 
-当前 Runtime Harness 把这些规则变成可重复运行的脚本。用户不需要理解所有实现，但应把检查结果当作系统健康状态的依据。
+模型负责语义判断：
 
-以下命令描述迁移前的当前实现。kos-agent parity migration 完成后，等价命令由 kos-agent CLI 提供，Vault 不再分发 Python 源码。
+- 内容理解、研究、摘要和表达。
+- rubric 自评与证据说明。
+- 何时需要用户审阅或补充信息。
 
-## 常用检查
+## CLI
 
-在 vault 根目录运行：
-
-```bash
-python3 90_系统/harness/generate_health_report.py
-```
-
-它会汇总路径、schema、状态、权限、Skill 和 Skill eval 定义检查，并写入：
-
-```text
-90_系统/harness/reports/health_report.md
-```
-
-也可以单独运行：
+`kos-harness` 是 kos-agent 随包提供的无 LLM CLI，可用于 CI、自动化和故障排查。
 
 ```bash
-python3 90_系统/harness/validate_paths.py --format markdown
-python3 90_系统/harness/validate_schema.py --format markdown
-python3 90_系统/harness/validate_state.py --format markdown
-python3 90_系统/harness/validate_permissions.py --format markdown
-python3 90_系统/harness/validate_skills.py --format markdown
-python3 90_系统/harness/validate_skill_evals.py --format markdown
+kos-harness validate
+kos-harness skill-eval --suite <skill-name> --write-artifact
+kos-harness task-eval --contract <contract.task.yaml> --state <run.json>
 ```
 
-## 创建类 Harness
+对象和工作流命令：
 
-以下脚本用于创建或更新 kos 对象：
+```bash
+kos-harness create --kind project --title "项目名"
+kos-harness transition --path "30_项目/项目名.md" --target active
+kos-harness update-project --query "项目名" --input '{"progress":["完成一项工作"]}'
+kos-harness process-source --kind extract --query "来源标题"
+kos-harness process-source --kind summary --query "来源标题"
+kos-harness daily-dashboard
+kos-harness daily-brief
+kos-harness diary
+```
+
+命令失败时返回非零退出码；结构化集成使用 `--format json`。
+
+## Eval 数据
+
+用户 Eval 数据继续位于 Vault：
 
 ```text
-create_concept.py
-create_extract.py
-create_method.py
-create_project.py
-create_reflection.py
-create_research.py
-create_signal.py
-create_watch.py
-generate_daily_dashboard.py
-generate_diary.py
-summarize_source.py
-update_project.py
+90_系统/evals/contracts/   # Task Contract
+90_系统/evals/skills/      # Skill prompt cases
+90_系统/evals/artifacts/   # 执行结果
 ```
 
-优先让 Skill 或 agent adapter 调用这些脚本，而不是让 Agent 自己拼路径和 frontmatter。
+Eval schema 和执行器属于 kos-agent 安装包，不在 Vault 中复制。
 
-## Runtime 与开发 Harness
+## 故障处理
 
-用户 vault 里只有 runtime Harness：
+1. 运行 `kos-harness validate --format json`。
+2. 按 finding 中的 validator、path 和 message 定位文件。
+3. 修复单个对象或 Skill，不批量重写整个 Vault。
+4. 重新运行对应 Task/Skill Eval。
+5. 确定性检查通过后，再由用户审阅语义质量。
 
-```text
-90_系统/harness/
-```
-
-它负责检查和操作当前 kos vault。
-
-kos-framework 源仓库里的 `dev/` 是开发框架用的 Harness、测试和发布检查，不属于用户 runtime vault，也不会复制到用户 vault。
-
-## 失败时怎么处理
-
-处理顺序：
-
-1. 先读 health report 的错误区。
-2. 如果是路径缺失，运行或补齐框架预置目录。
-3. 如果是 schema 错误，修正对应笔记 frontmatter。
-4. 如果是权限错误，检查是否存在 AI 不应自动推进的状态。
-5. 如果是 Skill 错误，先修 `SKILL.md` metadata，再运行 Skill eval。
-
-不要在检查失败时继续让 Agent 批量改写整个 vault。先定位具体文件，再局部修复。
+框架开发、发布检查和 release eval 位于 kos-framework 的 `dev/`，不属于用户 runtime。

@@ -22,5 +22,5 @@ Start here:
 Run the health check from this directory:
 
 ```bash
-python3 90_系统/harness/generate_health_report.py
+kos-harness validate
 ```

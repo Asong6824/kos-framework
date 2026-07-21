@@ -1,9 +1,9 @@
 {
   "id": "kos-companion",
   "name": "kos Companion",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "1.5.0",
-  "description": "kos vault 的实时驾驶舱：知识资产统计、活动热力图、待审核中心、状态流转与快速捕获。",
+  "description": "kos vault 驾驶舱与 Agent：知识工作流、研究对话、Vault context 和 Web 工具。",
   "author": "kos-framework",
   "authorUrl": "https://github.com/hanruochong/kos-framework",
   "isDesktopOnly": false

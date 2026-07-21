@@ -38,7 +38,7 @@ metadata:
 
 ## Quick Reference
 
-1. 调用 `90_系统/harness/generate_diary.py`。
+1. 调用 `kos-harness`。
 2. 在 `23_日记/YYYY/MM/YYYY-MM-DD.md` 生成或更新当天日记。
 3. 保留 `<!-- 人手动添加 -->` 区块。
 4. 运行 Harness。
@@ -49,7 +49,7 @@ metadata:
 ### Step 1: 生成日记
 
 ```bash
-python3 90_系统/harness/generate_diary.py
+kos-harness diary
 ```
 
 脚本会：
@@ -62,11 +62,7 @@ python3 90_系统/harness/generate_diary.py
 ### Step 2: 运行 Harness
 
 ```bash
-python3 90_系统/harness/validate_paths.py
-python3 90_系统/harness/validate_schema.py
-python3 90_系统/harness/validate_state.py
-python3 90_系统/harness/validate_permissions.py
-python3 90_系统/harness/generate_health_report.py
+kos-harness validate
 ```
 
 ## Pitfalls

@@ -2,11 +2,17 @@ import type {
   KosCreateObjectInput,
   KosConfigureModelInput,
   KosMessage,
+  KosImageContent,
   KosModelInfo,
   KosOperationResult,
   KosRpcCommand,
   KosRpcEvent,
   KosRpcState,
+  KosSessionStats,
+  KosSessionInfo,
+  KosSessionTreeNode,
+  KosForkMessage,
+  KosSlashCommand,
   KosTransitionStatusInput,
   KosTransitionStatusResult,
   KosValidationReport,
@@ -48,6 +54,7 @@ export class KosAgentClient {
   private requestId = 0;
   private readonly pending = new Map<string, PendingRequest>();
   private readonly eventListeners = new Set<(event: KosRpcEvent) => void>();
+  private readonly pendingQuestions = new Map<string, Extract<KosRpcEvent, { type: 'extension_ui_request' }>>();
   private readonly errorListeners = new Set<(error: Error) => void>();
   private decoder = new TextDecoder();
   private stderrDecoder = new TextDecoder();
@@ -84,7 +91,12 @@ export class KosAgentClient {
       this.handleExit(new Error(`kos-agent 已退出 (code=${String(code)}, signal=${String(signal ?? '')})`));
     });
 
-    return this.getState();
+    const state = await this.getState();
+    if (state.protocolVersion !== 1) {
+      await this.stop();
+      throw new Error(`不兼容的 kos-agent RPC 协议：${String(state.protocolVersion)}（插件需要 1）`);
+    }
+    return state;
   }
 
   async stop(): Promise<void> {
@@ -106,6 +118,7 @@ export class KosAgentClient {
 
   onEvent(listener: (event: KosRpcEvent) => void): () => void {
     this.eventListeners.add(listener);
+    for (const question of this.pendingQuestions.values()) listener(question);
     return () => this.eventListeners.delete(listener);
   }
 
@@ -123,8 +136,16 @@ export class KosAgentClient {
     return data.messages;
   }
 
-  prompt(message: string, streamingBehavior?: 'steer' | 'followUp'): Promise<void> {
-    return this.send<void>({ type: 'prompt', message, streamingBehavior });
+  prompt(message: string, streamingBehavior?: 'steer' | 'followUp', images?: KosImageContent[]): Promise<void> {
+    return this.send<void>({ type: 'prompt', message, streamingBehavior, images });
+  }
+
+  steer(message: string, images?: KosImageContent[]): Promise<void> {
+    return this.send<void>({ type: 'steer', message, images });
+  }
+
+  followUp(message: string, images?: KosImageContent[]): Promise<void> {
+    return this.send<void>({ type: 'follow_up', message, images });
   }
 
   abort(): Promise<void> {
@@ -147,6 +168,10 @@ export class KosAgentClient {
     return this.send<KosTransitionStatusResult>({ type: 'transition_status', ...input });
   }
 
+  runDailyWorkflow(workflow: 'dashboard' | 'brief' | 'diary', date?: string): Promise<KosOperationResult> {
+    return this.send({ type: 'daily_workflow', workflow, date });
+  }
+
   async getAvailableModels(): Promise<KosModelInfo[]> {
     const data = await this.send<{ models: KosModelInfo[] }>({ type: 'get_available_models' });
     return data.models;
@@ -160,8 +185,65 @@ export class KosAgentClient {
     return this.send<KosModelInfo>({ type: 'configure_model', ...input });
   }
 
+  configureWebSearch(provider: 'brave' | 'exa', apiKey: string): Promise<{ provider: 'brave' | 'exa' }> {
+    return this.send({ type: 'configure_web_search', provider, apiKey });
+  }
+
+  getWebSearchState(): Promise<{ brave: boolean; exa: boolean }> {
+    return this.send({ type: 'get_web_search_state' });
+  }
+
+  async cycleThinkingLevel(): Promise<string | null> {
+    const data = await this.send<{ level: string } | null>({ type: 'cycle_thinking_level' });
+    return data?.level ?? null;
+  }
+
+  getSessionStats(): Promise<KosSessionStats> {
+    return this.send<KosSessionStats>({ type: 'get_session_stats' });
+  }
+
+  async listSessions(query?: string): Promise<KosSessionInfo[]> {
+    const data = await this.send<{ sessions: KosSessionInfo[] }>({ type: 'list_sessions', query });
+    return data.sessions;
+  }
+
+  switchSession(sessionPath: string): Promise<{ cancelled: boolean }> {
+    return this.send({ type: 'switch_session', sessionPath });
+  }
+
+  setSessionName(name: string): Promise<void> {
+    return this.send<void>({ type: 'set_session_name', name });
+  }
+
+  compact(customInstructions?: string): Promise<unknown> {
+    return this.send({ type: 'compact', customInstructions });
+  }
+
+  cloneSession(): Promise<{ cancelled: boolean }> {
+    return this.send({ type: 'clone' });
+  }
+
+  async getForkMessages(): Promise<KosForkMessage[]> {
+    const data = await this.send<{ messages: KosForkMessage[] }>({ type: 'get_fork_messages' });
+    return data.messages;
+  }
+
+  fork(entryId: string): Promise<{ text: string; cancelled: boolean }> {
+    return this.send({ type: 'fork', entryId });
+  }
+
+  getTree(): Promise<{ tree: KosSessionTreeNode[]; leafId: string | null }> {
+    return this.send({ type: 'get_tree' });
+  }
+
+  async getCommands(): Promise<KosSlashCommand[]> {
+    const data = await this.send<{ commands: KosSlashCommand[] }>({ type: 'get_commands' });
+    return data.commands;
+  }
+
   respondToQuestion(id: string, response: { value: string } | { confirmed: boolean } | { cancelled: true }): void {
     this.write({ type: 'extension_ui_response', id, ...response });
+    this.pendingQuestions.delete(id);
   }
 
   private send<T>(command: KosRpcCommand): Promise<T> {
@@ -231,7 +313,11 @@ export class KosAgentClient {
       pending.resolve(record);
       return;
     }
-    for (const listener of this.eventListeners) listener(record as KosRpcEvent);
+    const event = record as KosRpcEvent;
+    if (event.type === 'extension_ui_request' && ['select', 'confirm', 'input', 'editor'].includes(event.method)) {
+      this.pendingQuestions.set(event.id, event);
+    }
+    for (const listener of this.eventListeners) listener(event);
   }
 
   private handleExit(error: Error): void {

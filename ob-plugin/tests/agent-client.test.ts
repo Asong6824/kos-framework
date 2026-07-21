@@ -46,6 +46,7 @@ describe('KosAgentClient', () => {
 
     const started = client.start();
     answer(process, 'get_state', {
+      protocolVersion: 1,
       thinkingLevel: 'off',
       isStreaming: false,
       sessionId: 'session-1',
@@ -65,12 +66,20 @@ describe('KosAgentClient', () => {
     const process = new FakeProcess();
     const client = new KosAgentClient(() => process, 1_000);
     const started = client.start();
-    answer(process, 'get_state', { sessionId: 's' });
+    answer(process, 'get_state', { protocolVersion: 1, sessionId: 's' });
     await started;
 
     const abort = client.abort();
     answer(process, 'abort', undefined);
     await expect(abort).resolves.toBeUndefined();
+
+    const steer = client.steer('change direction');
+    answer(process, 'steer', undefined);
+    await expect(steer).resolves.toBeUndefined();
+
+    const followUp = client.followUp('then summarize');
+    answer(process, 'follow_up', undefined);
+    await expect(followUp).resolves.toBeUndefined();
 
     const validation = client.validate(['22_知识库/example.md']);
     answer(process, 'validate', {
@@ -134,9 +143,53 @@ describe('KosAgentClient', () => {
     answer(process, 'configure_model', { provider: 'custom', id: 'model-1' });
     await expect(configured).resolves.toEqual({ provider: 'custom', id: 'model-1' });
 
+    const webConfigured = client.configureWebSearch('brave', testCredential);
+    answer(process, 'configure_web_search', { provider: 'brave' });
+    await expect(webConfigured).resolves.toEqual({ provider: 'brave' });
+
+    const webState = client.getWebSearchState();
+    answer(process, 'get_web_search_state', { brave: true, exa: false });
+    await expect(webState).resolves.toEqual({ brave: true, exa: false });
+
     const selected = client.setModel('custom', 'model-1');
     answer(process, 'set_model', { provider: 'custom', id: 'model-1' });
     await expect(selected).resolves.toEqual({ provider: 'custom', id: 'model-1' });
+
+    const thinking = client.cycleThinkingLevel();
+    answer(process, 'cycle_thinking_level', { level: 'medium' });
+    await expect(thinking).resolves.toBe('medium');
+
+    const stats = client.getSessionStats();
+    answer(process, 'get_session_stats', { sessionId: 's', totalMessages: 2, toolCalls: 1, tokens: { total: 42 }, cost: 0 });
+    await expect(stats).resolves.toMatchObject({ tokens: { total: 42 } });
+
+    const sessions = client.listSessions();
+    answer(process, 'list_sessions', { sessions: [{ id: 's', path: '/tmp/s.jsonl', name: 'Research' }] });
+    await expect(sessions).resolves.toEqual([{ id: 's', path: '/tmp/s.jsonl', name: 'Research' }]);
+
+    const switched = client.switchSession('/tmp/s.jsonl');
+    answer(process, 'switch_session', { cancelled: false });
+    await expect(switched).resolves.toEqual({ cancelled: false });
+
+    const renamed = client.setSessionName('Research');
+    answer(process, 'set_session_name', undefined);
+    await expect(renamed).resolves.toBeUndefined();
+
+    const compacted = client.compact();
+    answer(process, 'compact', { summary: 'done' });
+    await expect(compacted).resolves.toEqual({ summary: 'done' });
+
+    const forkMessages = client.getForkMessages();
+    answer(process, 'get_fork_messages', { messages: [{ entryId: 'e1', text: 'first' }] });
+    await expect(forkMessages).resolves.toEqual([{ entryId: 'e1', text: 'first' }]);
+
+    const tree = client.getTree();
+    answer(process, 'get_tree', { tree: [{ entry: { id: 'e1', type: 'message' }, children: [] }], leafId: 'e1' });
+    await expect(tree).resolves.toMatchObject({ leafId: 'e1' });
+
+    const commands = client.getCommands();
+    answer(process, 'get_commands', { commands: [{ name: 'skill:research', source: 'skill' }] });
+    await expect(commands).resolves.toEqual([{ name: 'skill:research', source: 'skill' }]);
 
     client.respondToQuestion('question-1', { value: 'reviewed' });
     expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1])).toEqual({
@@ -144,5 +197,20 @@ describe('KosAgentClient', () => {
       id: 'question-1',
       value: 'reviewed',
     });
+
+    const replayed: string[] = [];
+    process.stdout.emit('data', `${JSON.stringify({
+      type: 'extension_ui_request', id: 'question-2', method: 'confirm', title: 'Review',
+    })}\n`);
+    client.onEvent((event) => {
+      if (event.type === 'extension_ui_request') replayed.push(event.id);
+    });
+    expect(replayed).toContain('question-2');
+    client.respondToQuestion('question-2', { confirmed: true });
+    const afterAnswer: string[] = [];
+    client.onEvent((event) => {
+      if (event.type === 'extension_ui_request') afterAnswer.push(event.id);
+    });
+    expect(afterAnswer).not.toContain('question-2');
   });
 });
