@@ -7,11 +7,12 @@ It provides:
 - A vault directory structure.
 - A typed object model for sources, extracts, summaries, research, concepts, projects, tasks, diaries, reflections, methods, and signals.
 - Core kos Skills for operating the vault.
-- Harness scripts for validation and object creation.
+- The official kos-agent Harness for validation, object operations, sessions, tools, and Skills.
+- The kos Companion Obsidian plugin for a six-section dashboard, Agent UI, and independent Reader.
 - Skill evals to prevent skill behavior drift.
 - User documentation inside the runtime vault.
 
-This repository contains only the core framework. Personal notes, private integrations, and personal workflows are intentionally excluded.
+This repository contains the reusable framework, official Agent, and Obsidian integration. Personal notes, private integrations, and personal workflows are intentionally excluded.
 
 ## How To Consume This Repository
 
@@ -23,6 +24,9 @@ Users should not keep personal notes directly in `kos-framework/vault/`. Instead
 kos-framework/        # source repo: framework, tests, release tooling
   vault/              # runtime template copied to users
   dev/                # framework development only
+  agent/              # official kos-agent source fork and Harness
+  ob-plugin/          # kos Companion source, docs, and tests
+  release/            # generated release artifacts; not authoritative source
 
 ~/kos/                # user's actual personal kos workspace
   00_工作台/
@@ -31,7 +35,7 @@ kos-framework/        # source repo: framework, tests, release tooling
   90_系统/
 ```
 
-This keeps the framework maintainable while still letting users consume only the runtime vault content. A future release process can publish `vault/` as a generated archive or template mirror, but this repository remains the authoritative project because the runtime, harness, evals, and release checks need to evolve together.
+This keeps the framework maintainable while letting users consume the Vault runtime and kos Companion as separate release artifacts. `vault/` is the Markdown runtime distribution; `ob-plugin/` and `agent/` remain source-owned layers and are packaged together into the kos Companion release. This repository remains authoritative because the object contracts, Agent Harness, plugin integration, evals, and release checks need to evolve together.
 
 Framework development can use a separate disposable `kos-test` vault driven by Pi:
 
@@ -57,27 +61,17 @@ Create a new vault:
 python3 dev/harness/init_vault.py ~/kos
 ```
 
-Run the health check:
+Build the kos Companion release from a development checkout:
 
 ```bash
-cd ~/kos
-python3 90_系统/harness/generate_health_report.py
+make mvp-package
 ```
 
-Use an agent backend.
+Install `release/kos-companion/` at `<Vault>/.obsidian/plugins/kos-companion`, enable it in Obsidian, and reload the plugin after replacing an existing build. Node.js 22.19+ is required for the desktop kos-agent process; the deterministic dashboard and Reader do not depend on a model call.
 
-For Hermes:
+Open the kos dashboard from the ribbon or command palette. It renders Today, Action, Input, Knowledge, Review & Reflection, and System as one continuous page. Open the Agent sidebar, configure a provider and model, then run the system check there.
 
-```yaml
-terminal:
-  cwd: /path/to/your/kos
-
-skills:
-  external_dirs:
-    - /path/to/your/kos/41_Skills
-```
-
-Then use:
+Common Agent requests include:
 
 ```text
 /kos-system-check
@@ -87,7 +81,7 @@ Then use:
 /kos-create-project
 ```
 
-For Codex or Claude Code, open the vault directory and let the agent read:
+kos-agent is the official product backend. Codex, Claude Code, Hermes, and other tools can still operate the open Markdown Vault by reading:
 
 ```text
 .kos.md
@@ -100,6 +94,8 @@ AGENTS.md or CLAUDE.md
 ```text
 vault/                 # Runtime distribution copied to users
 dev/                   # Framework development harness, Skills, docs, evals, and tests
+agent/                 # Official kos-agent source fork, protocol, tests, and docs
+ob-plugin/             # kos Companion plugin source, plugin docs, and Obsidian E2E tests
 ```
 
 Inside `vault/`:
@@ -108,17 +104,18 @@ Inside `vault/`:
 41_Skills/core/        # Core kos Skills
 90_系统/规则/           # Object rules
 90_系统/模板/           # Object templates
-90_系统/harness/        # Validation and creation scripts
-90_系统/evals/          # Skill eval definitions
+90_系统/evals/          # User-owned Skill and Task eval definitions; engine ships with kos-agent
 90_系统/文档/           # In-vault usage docs
 ```
 
 ## Documentation
 
-Documentation has two layers:
+Documentation follows the ownership boundary:
 
 - Runtime user documentation ships with the vault under `vault/90_系统/文档/`.
 - Framework development documentation lives under `dev/docs/` and is not copied into runtime vaults.
+- Obsidian plugin specifications and implementation notes live under `ob-plugin/docs/`.
+- kos-agent architecture and migration documents live under `agent/docs/`.
 
 Start with:
 
@@ -159,7 +156,8 @@ Included:
 - Core vault structure.
 - Core object model.
 - Core Skills.
-- Harness and eval infrastructure.
+- kos-agent Harness and eval infrastructure.
+- kos Companion dashboard, Agent integration, and Reader.
 
 Excluded:
 

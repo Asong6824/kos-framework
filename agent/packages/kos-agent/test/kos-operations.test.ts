@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { createObject } from "../src/kos/operations/create-object.ts";
+import { appendReaderExtract } from "../src/kos/operations/append-reader-extract.ts";
 import { transitionStatus } from "../src/kos/operations/transition-status.ts";
 import { processSource } from "../src/kos/operations/process-source.ts";
 import { updateProject } from "../src/kos/operations/update-project.ts";
@@ -127,6 +128,75 @@ describe("kos deterministic operations", () => {
 		const updated = readFileSync(join(root, source.path), "utf8");
 		expect(updated).toContain("status: summarized");
 		expect(updated).toContain("[[20_处理区/摘要/Article_摘要]]");
+	});
+
+	it("creates, appends and deduplicates Reader extracts while updating the Source", () => {
+		const root = vault();
+		const source = createObject(root, { kind: "source", title: "Reader Paper", directories, extra: { format: "paper" } });
+		mkdirSync(join(root, "附件"), { recursive: true });
+		writeFileSync(join(root, "附件/paper.pdf"), "pdf fixture");
+		const firstInput = {
+			sourcePath: source.path,
+			documentPath: "附件/paper.pdf",
+			kind: "pdf" as const,
+			location: "page:3",
+			positionLabel: "第 3 页",
+			text: "First selected passage",
+			directories,
+		};
+		const first = appendReaderExtract(root, firstInput);
+		expect(first).toMatchObject({ created: true, duplicate: false, validation: { passed: true } });
+		expect(first.path).toBe("20_处理区/摘录/Reader Paper_摘录.md");
+		const firstContent = readFileSync(join(root, first.path), "utf8");
+		expect(firstContent).toContain("> First selected passage");
+		expect(firstContent).toContain("- 位置：第 3 页");
+		expect(firstContent).toContain("- 原文件：[[附件/paper.pdf]]");
+		expect(firstContent).toContain(`^${first.extractId}`);
+		const updatedSource = readFileSync(join(root, source.path), "utf8");
+		expect(updatedSource).toContain("status: extracted");
+		expect(updatedSource).toContain("[[20_处理区/摘录/Reader Paper_摘录]]");
+
+		const duplicate = appendReaderExtract(root, firstInput);
+		expect(duplicate).toMatchObject({ created: false, duplicate: true, extractId: first.extractId });
+		expect(readFileSync(join(root, first.path), "utf8").match(/First selected passage/g)).toHaveLength(1);
+
+		const second = appendReaderExtract(root, {
+			...firstInput,
+			location: "page:4",
+			positionLabel: "第 4 页",
+			text: "Second selected passage",
+		});
+		expect(second).toMatchObject({ created: false, duplicate: false });
+		const finalContent = readFileSync(join(root, first.path), "utf8");
+		expect(finalContent).toContain("> First selected passage");
+		expect(finalContent).toContain("> Second selected passage");
+	});
+
+	it("marks AI extracts as mixed and rejects invalid Reader selections", () => {
+		const root = vault();
+		const source = createObject(root, { kind: "source", title: "Mixed Extract", directories, extra: { format: "book" } });
+		writeFileSync(join(root, "book.epub"), "epub fixture");
+		const extract = createObject(root, {
+			kind: "extract",
+			title: "Mixed Extract",
+			directories,
+			extra: { source: `[[${source.path.replace(/\.md$/, "")}]]`, extracted_by: "ai" },
+		});
+		const sourcePath = join(root, source.path);
+		writeFileSync(sourcePath, readFileSync(sourcePath, "utf8").replace('extract_file: ""', `extract_file: "[[${extract.path.replace(/\.md$/, "")}]]"`));
+		const input = {
+			sourcePath: source.path,
+			documentPath: "book.epub",
+			kind: "epub" as const,
+			location: "epubcfi(/6/2)",
+			positionLabel: "第 1 章",
+			text: "Human selection",
+			directories,
+		};
+		expect(appendReaderExtract(root, input).validation.passed).toBe(true);
+		expect(readFileSync(join(root, extract.path), "utf8")).toContain("extracted_by: mixed");
+		expect(() => appendReaderExtract(root, { ...input, text: " \n " })).toThrow(/empty/);
+		expect(() => appendReaderExtract(root, { ...input, text: "x".repeat(20_001) })).toThrow(/exceeds/);
 	});
 
 	it("updates Project sections and rolls the result through validation", () => {

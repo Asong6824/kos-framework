@@ -9,6 +9,8 @@ import { ItemView, TFile } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { MetricSettings } from '../core/metrics';
 import type { KosObject, KosObjectType } from '../core/model';
+import type { DashboardModule } from '../core/dashboard';
+import type { KosRpcEvent, KosRpcState, KosSessionStats, KosValidationReport } from '../agent/protocol';
 import type { KosIndex } from '../data/index';
 import type { KosDataStore } from '../data/store';
 import { localToday } from '../data/store';
@@ -19,6 +21,24 @@ export interface ViewContext {
   store: KosDataStore;
   metricSettings(): MetricSettings;
   openAgent?(path?: string, prompt?: string): Promise<void>;
+  runAgent?(module: DashboardModule, intent: string, objects?: KosObject[], path?: string): Promise<void>;
+  transition?(object: KosObject, target: string): Promise<boolean>;
+  approve?(object: KosObject): Promise<boolean>;
+  create?(kind: 'project' | 'concept' | 'method' | 'task' | 'source'): void;
+  capture?(): void;
+  openReader?(path: string): Promise<void>;
+  report?(period: 'week' | 'month'): void;
+  getAgentSnapshot?(): Promise<DashboardAgentSnapshot>;
+  validate?(): Promise<KosValidationReport>;
+  pendingQuestions?(): DashboardQuestion[];
+}
+
+export type DashboardQuestion = Extract<KosRpcEvent, { type: 'extension_ui_request' }>;
+
+export interface DashboardAgentSnapshot {
+  state: KosRpcState;
+  stats: KosSessionStats;
+  webSearch: { brave: boolean; exa: boolean };
 }
 
 /** 对象类型中文名（与 vault 文档术语对齐） */

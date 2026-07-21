@@ -13,6 +13,8 @@ import type { CompactionResult } from "../../core/compaction/index.ts";
 import type { SessionEntry, SessionTreeNode } from "../../core/session-manager.ts";
 import type { ValidationReport } from "../../kos/validation/types.ts";
 import type {
+	AppendReaderExtractInput,
+	AppendReaderExtractResult,
 	CreateObjectInput,
 	OperationResult,
 	TransitionStatusInput,
@@ -252,6 +254,11 @@ export class RpcClient {
 
 	async createObject(input: CreateObjectInput): Promise<OperationResult> {
 		const response = await this.send({ type: "create_object", ...input });
+		return this.getData(response);
+	}
+
+	async appendReaderExtract(input: AppendReaderExtractInput): Promise<AppendReaderExtractResult> {
+		const response = await this.send({ type: "append_reader_extract", ...input });
 		return this.getData(response);
 	}
 

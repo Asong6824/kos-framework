@@ -8,14 +8,27 @@
     "dev": "node esbuild.config.mjs --watch",
     "build": "node esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "node e2e/obsidian.cdp.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
     "builtin-modules": "^5.3.0",
     "esbuild": "^0.28.1",
     "obsidian": "^1.13.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "epubjs": "0.3.93",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "overrides": {
+    "epubjs": {
+      "@xmldom/xmldom": "0.8.13"
+    }
   }
 }

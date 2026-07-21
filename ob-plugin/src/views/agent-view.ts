@@ -435,6 +435,22 @@ export class AgentView extends ItemView {
     this.inputEl.focus();
   }
 
+  insertDraft(text: string): void {
+    const value = text.trim();
+    if (!value) return;
+    const start = this.inputEl.selectionStart;
+    const end = this.inputEl.selectionEnd;
+    const before = this.inputEl.value.slice(0, start);
+    const prefix = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+    this.inputEl.setRangeText(`${prefix}${value}`, start, end, 'end');
+    this.inputEl.focus();
+  }
+
+  async runConversation(path?: string, prompt?: string): Promise<void> {
+    await this.beginConversation(path, prompt);
+    await this.submit();
+  }
+
   async beginInlineEdit(): Promise<void> {
     if (!this.client?.isRunning) await this.connect();
     await this.attachSelection();

@@ -113,6 +113,38 @@ describe('KosAgentClient', () => {
     });
     await expect(created).resolves.toMatchObject({ path: '22_知识库/Agent Harness.md' });
 
+    const excerpt = client.appendReaderExtract({
+      sourcePath: '11_原材料/论文/Attention.md',
+      documentPath: '附件/attention.pdf',
+      kind: 'pdf',
+      location: 'page:3',
+      positionLabel: '第 3 页',
+      text: 'selected passage',
+      directories: {
+        project: '30_项目',
+        concept: '22_知识库',
+        method: '40_方法库',
+        task: '31_任务',
+        source: '11_原材料',
+        extract: '20_处理区/摘录',
+      },
+    });
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1])).toMatchObject({
+      type: 'append_reader_extract',
+      sourcePath: '11_原材料/论文/Attention.md',
+      documentPath: '附件/attention.pdf',
+      location: 'page:3',
+      text: 'selected passage',
+    });
+    answer(process, 'append_reader_extract', {
+      path: '20_处理区/摘录/Attention_摘录.md',
+      extractId: 'kos-reader-1234',
+      created: true,
+      duplicate: false,
+      validation: { validatedPaths: [], findings: [], errorCount: 0, warningCount: 0, passed: true },
+    });
+    await expect(excerpt).resolves.toMatchObject({ created: true, duplicate: false });
+
     const transitioned = client.transitionStatus({ path: '22_知识库/Agent Harness.md', target: 'verified' });
     expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1])).toMatchObject({
       type: 'transition_status',

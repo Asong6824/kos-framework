@@ -54,6 +54,22 @@ export interface OperationResult {
 	validation: ValidationReport;
 }
 
+export interface AppendReaderExtractInput {
+	sourcePath: string;
+	documentPath: string;
+	kind: "markdown" | "pdf" | "epub";
+	location: string;
+	positionLabel: string;
+	text: string;
+	directories: ObjectDirectories;
+}
+
+export interface AppendReaderExtractResult extends OperationResult {
+	extractId: string;
+	created: boolean;
+	duplicate: boolean;
+}
+
 export interface TransitionStatusInput {
 	path: string;
 	target: string;

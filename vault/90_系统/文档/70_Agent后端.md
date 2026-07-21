@@ -1,6 +1,6 @@
 # kos-agent 与外部 Agent
 
-> 状态：kos-agent MVP 已可通过 kos Companion 安装使用。当前 Vault 中的 Python Harness 仍作为迁移期兼容入口保留，迁移计划见 framework 的 `agent/docs/07_Vault能力迁移计划.md`。
+> 状态：kos-agent MVP 已可通过 kos Companion 安装使用。Runtime Validator、对象操作和 Eval 执行器已经从 Vault Python Harness 迁入 kos-agent；Vault 只保留规则、模板、Skills 和用户 Eval 定义。迁移记录见 framework 的 `agent/docs/07_Vault能力迁移计划.md`。
 
 kos 的官方 Agent 后端是 kos-agent。Obsidian 对话、Context、Skill、工具、Session、Validator 和任务反馈都以 kos-agent 为产品基准，不再承诺 Hermes、Codex、Claude Code 等后端具有同等体验。
 

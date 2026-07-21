@@ -1,4 +1,6 @@
 import type {
+  KosAppendReaderExtractInput,
+  KosAppendReaderExtractResult,
   KosCreateObjectInput,
   KosConfigureModelInput,
   KosMessage,
@@ -127,6 +129,10 @@ export class KosAgentClient {
     return () => this.errorListeners.delete(listener);
   }
 
+  getPendingQuestions(): Array<Extract<KosRpcEvent, { type: 'extension_ui_request' }>> {
+    return [...this.pendingQuestions.values()];
+  }
+
   getState(): Promise<KosRpcState> {
     return this.send<KosRpcState>({ type: 'get_state' });
   }
@@ -162,6 +168,10 @@ export class KosAgentClient {
 
   createObject(input: KosCreateObjectInput): Promise<KosOperationResult> {
     return this.send<KosOperationResult>({ type: 'create_object', ...input });
+  }
+
+  appendReaderExtract(input: KosAppendReaderExtractInput): Promise<KosAppendReaderExtractResult> {
+    return this.send<KosAppendReaderExtractResult>({ type: 'append_reader_extract', ...input });
   }
 
   transitionStatus(input: KosTransitionStatusInput): Promise<KosTransitionStatusResult> {

@@ -30,6 +30,7 @@ import {
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { validateChangedFiles, validateVault } from "../../kos/validation/validate.ts";
 import { createObject } from "../../kos/operations/create-object.ts";
+import { appendReaderExtract } from "../../kos/operations/append-reader-extract.ts";
 import { transitionStatus } from "../../kos/operations/transition-status.ts";
 import { generateDailyBrief, generateDailyDashboard, generateDiary } from "../../kos/operations/daily-workflows.ts";
 import { normalizeModelConfiguration, writeModelConfiguration } from "../../kos/model-configuration.ts";
@@ -480,6 +481,11 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			case "create_object": {
 				const result = createObject(session.sessionManager.getCwd(), command);
 				return success(id, "create_object", result);
+			}
+
+			case "append_reader_extract": {
+				const result = appendReaderExtract(session.sessionManager.getCwd(), command);
+				return success(id, "append_reader_extract", result);
 			}
 
 			case "transition_status": {

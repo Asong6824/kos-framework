@@ -1,7 +1,7 @@
 /**
  * store.ts — 插件私有 data.json 的读写与迁移
  *
- * schema v1 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
+ * schema v2 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
  * 不触碰 vault 内任何文件（写入边界见 3.4 节）。
  */
 
@@ -14,10 +14,12 @@ import type { DailySnapshot } from '../core/snapshot';
 import { DEFAULT_SETTINGS } from '../settings';
 import type { KosSettings } from '../settings';
 import { DEFAULT_OBJECT_DIRS, normalizeObjectDirs } from '../core/model';
+import type { ReaderProgress } from '../reader/model';
+import { normalizeReaderProgressRecord } from '../reader/model';
 
-export const DATA_VERSION = 1;
+export const DATA_VERSION = 2;
 
-/** data.json schema v1（02 文档 3.2 节） */
+/** data.json schema v2（02 文档 3.2 节） */
 export interface PluginData {
   version: number;
   /** 安装日期 YYYY-MM-DD */
@@ -32,6 +34,8 @@ export interface PluginData {
   inboxZeroCount: number;
   /** M13 review-clear 达成次数（M14 周报/月报展示） */
   reviewClearCount: number;
+  /** Source 路径 → Reader 阅读位置；不回写 Source Markdown */
+  readerProgress: Record<string, ReaderProgress>;
 }
 
 /** 可重复徽章的计数器 key */
@@ -40,7 +44,7 @@ export type CounterKey = 'inboxZeroCount' | 'reviewClearCount';
 /**
  * data.json 顶层结构 = PluginData + 设置。
  * Obsidian 每插件只有一个 data.json（loadData/saveData），设置与指标数据
- * 必须同文件持久化，否则互相覆盖；schema v1 字段保持原样，settings 为附加键。
+ * 必须同文件持久化，否则互相覆盖；settings 为附加键。
  */
 interface DataFile extends PluginData {
   settings: KosSettings;
@@ -63,6 +67,7 @@ function defaultData(today: string): PluginData {
     badges: {},
     inboxZeroCount: 0,
     reviewClearCount: 0,
+    readerProgress: {},
   };
 }
 
@@ -111,6 +116,7 @@ export class KosDataStore {
       badges: isRecord(raw.badges) ? (raw.badges as Record<string, string | null>) : {},
       inboxZeroCount: asNonNegInt(raw.inboxZeroCount),
       reviewClearCount: asNonNegInt(raw.reviewClearCount),
+      readerProgress: normalizeReaderProgressRecord(raw.readerProgress),
     };
     const s = isRecord(raw.settings) ? raw.settings : {};
     // objectDirs 逐键归一：旧 data.json 没有该字段或个别键缺失/非法时回落标准默认
@@ -158,5 +164,13 @@ export class KosDataStore {
   incrementCounter(key: CounterKey): number {
     this.data[key] += 1;
     return this.data[key];
+  }
+
+  getReaderProgress(sourcePath: string): ReaderProgress | undefined {
+    return this.data.readerProgress[sourcePath];
+  }
+
+  setReaderProgress(sourcePath: string, progress: ReaderProgress): void {
+    this.data.readerProgress[sourcePath] = progress;
   }
 }

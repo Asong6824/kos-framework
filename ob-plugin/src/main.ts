@@ -8,6 +8,7 @@ import { openReportModal } from './actions/report';
 import type { ReportDeps } from './actions/report';
 import { approveReviewObject } from './actions/review';
 import { openTransitionModal, statusBadgeProcessor } from './actions/transition';
+import { applyTransition } from './actions/transition';
 import type { TransitionOperation } from './actions/transition';
 import { createKosAgentClient, isKosAgentSupported } from './bridge/kos-agent';
 import { runAgentValidation } from './bridge/agent-validation';
@@ -24,16 +25,22 @@ import { HeatmapView, HEATMAP_VIEW_TYPE } from './views/heatmap-view';
 import { ReviewView, REVIEW_VIEW_TYPE } from './views/review-view';
 import { TasksView, TASKS_VIEW_TYPE } from './views/tasks-view';
 import { AgentView, AGENT_VIEW_TYPE } from './views/agent-view';
+import { ReaderView, READER_VIEW_TYPE } from './views/reader-view';
+import { ensureReaderSource as ensureReaderSourceAssociation } from './views/reader/association';
+import { formatReaderAgentQuote } from './reader/model';
+import type { ReaderExcerpt } from './reader/model';
 import { KosView } from './views/view-context';
 import type { ViewContext } from './views/view-context';
+import type { DashboardModule } from './core/dashboard';
 
-/** 各视图的打开位置：驾驶舱中央 tab，其余右侧栏 */
+/** 各视图的打开位置：工作台与 Reader 在中央 tab，工具视图在右侧栏。 */
 const VIEW_LOCATIONS: Record<string, 'tab' | 'right'> = {
   [DASHBOARD_VIEW_TYPE]: 'tab',
   [HEATMAP_VIEW_TYPE]: 'right',
   [REVIEW_VIEW_TYPE]: 'right',
   [TASKS_VIEW_TYPE]: 'right',
   [AGENT_VIEW_TYPE]: 'right',
+  [READER_VIEW_TYPE]: 'tab',
 };
 
 /** 跨天检测间隔（02 文档第 4 节：本地日期变化时先落昨日终态再开新一天） */
@@ -48,6 +55,8 @@ export default class KosCompanionPlugin extends Plugin {
   private staleStatusEl: HTMLElement | null = null;
   private agentClient: KosAgentClient | null = null;
   private agentConnection: Promise<KosAgentClient> | null = null;
+  private agentEventUnsubscribe: (() => void) | null = null;
+  private viewActivation: Promise<void> = Promise.resolve();
   /** 当前计数的本地日期（跨天检测基准） */
   private currentDate = '';
 
@@ -71,6 +80,18 @@ export default class KosCompanionPlugin extends Plugin {
     this.registerView(HEATMAP_VIEW_TYPE, (leaf) => new HeatmapView(leaf, this.viewContext()));
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => new ReviewView(leaf, this.viewContext(), this.onApprove));
     this.registerView(TASKS_VIEW_TYPE, (leaf) => new TasksView(leaf, this.viewContext()));
+    this.registerView(READER_VIEW_TYPE, (leaf) => new ReaderView(leaf, {
+      backToInput: () => this.activateDashboardModule('input'),
+      getProgress: (path) => this.store.getReaderProgress(path),
+      saveProgress: async (path, progress) => {
+        this.store.setReaderProgress(path, progress);
+        await this.store.save();
+      },
+      ensureSource: (documentPath) => this.ensureReaderSource(documentPath),
+      addToExtract: (excerpt) => this.addReaderExcerpt(excerpt),
+      addToAgent: (excerpt) => this.addReaderExcerptToAgent(excerpt),
+    }));
+    this.registerExtensions(['epub'], READER_VIEW_TYPE);
     if (isKosAgentSupported(this.app)) {
       this.registerView(
         AGENT_VIEW_TYPE,
@@ -92,8 +113,12 @@ export default class KosCompanionPlugin extends Plugin {
     this.addCommand({
       id: 'open-dashboard',
       name: '打开驾驶舱',
-      callback: () => void this.activateView(DASHBOARD_VIEW_TYPE),
+      callback: () => void this.activateDashboardModule('today'),
     });
+    this.addCommand({ id: 'open-action', name: '打开行动模块', callback: () => void this.activateDashboardModule('action') });
+    this.addCommand({ id: 'open-input', name: '打开输入模块', callback: () => void this.activateDashboardModule('input') });
+    this.addCommand({ id: 'open-knowledge', name: '打开知识模块', callback: () => void this.activateDashboardModule('knowledge') });
+    this.addCommand({ id: 'open-system', name: '打开系统模块', callback: () => void this.activateDashboardModule('system') });
     this.addCommand({
       id: 'open-heatmap',
       name: '打开活动热力图',
@@ -102,13 +127,30 @@ export default class KosCompanionPlugin extends Plugin {
     this.addCommand({
       id: 'open-review',
       name: '打开待审核中心',
-      callback: () => void this.activateView(REVIEW_VIEW_TYPE),
+      callback: () => void this.activateDashboardModule('review'),
     });
     this.addCommand({
       id: 'open-tasks',
       name: '打开聚合任务',
-      callback: () => void this.activateView(TASKS_VIEW_TYPE),
+      callback: () => void this.activateDashboardModule('action'),
     });
+    this.addCommand({
+      id: 'open-current-file-in-reader',
+      name: '使用 kos Reader 打开当前文件',
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        const supported = file instanceof TFile && (file.extension === 'pdf' || file.extension === 'epub');
+        if (supported && !checking) void this.openReaderDocument(file.path);
+        return supported;
+      },
+    });
+    this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
+      if (!(file instanceof TFile) || (file.extension !== 'pdf' && file.extension !== 'epub')) return;
+      menu.addItem((item) => item
+        .setTitle('使用 kos Reader 打开')
+        .setIcon('book-open')
+        .onClick(() => void this.openReaderDocument(file.path)));
+    }));
     if (isKosAgentSupported(this.app)) {
       this.addCommand({
         id: 'open-agent',
@@ -175,7 +217,7 @@ export default class KosCompanionPlugin extends Plugin {
       });
     }
 
-    this.addRibbonIcon('gauge', '打开 kos 驾驶舱', () => void this.activateView(DASHBOARD_VIEW_TYPE));
+    this.addRibbonIcon('gauge', '打开 kos 驾驶舱', () => void this.activateDashboardModule('today'));
     if (isKosAgentSupported(this.app)) {
       this.addRibbonIcon('message-square', '打开 kos Agent', () => void this.activateView(AGENT_VIEW_TYPE));
     }
@@ -183,10 +225,10 @@ export default class KosCompanionPlugin extends Plugin {
     // C2 状态栏：待审核数（M9）+ 停滞项目数（M10）
     this.pendingStatusEl = this.addStatusBarItem();
     this.pendingStatusEl.addClass('kos-status-item');
-    this.pendingStatusEl.addEventListener('click', () => void this.activateView(REVIEW_VIEW_TYPE));
+    this.pendingStatusEl.addEventListener('click', () => void this.activateDashboardModule('review'));
     this.staleStatusEl = this.addStatusBarItem();
     this.staleStatusEl.addClass('kos-status-item');
-    this.staleStatusEl.addEventListener('click', () => void this.activateView(TASKS_VIEW_TYPE));
+    this.staleStatusEl.addEventListener('click', () => void this.activateDashboardModule('action'));
     this.updateStatusBar();
 
     // 徽章系统（M13）：启动评估一次（非重复徽章补解锁），之后随索引变更评估
@@ -213,6 +255,7 @@ export default class KosCompanionPlugin extends Plugin {
 
   onunload(): void {
     this.index?.dispose();
+    this.agentEventUnsubscribe?.();
     void this.agentClient?.stop();
     for (const type of Object.keys(VIEW_LOCATIONS)) {
       this.app.workspace.detachLeavesOfType(type);
@@ -227,6 +270,12 @@ export default class KosCompanionPlugin extends Plugin {
     this.agentConnection = client.start()
       .then(() => {
         this.agentClient = client;
+        this.agentEventUnsubscribe?.();
+        this.agentEventUnsubscribe = client.onEvent((event) => {
+          if (event.type === 'agent_start') this.setDashboardAgentRunning(true);
+          if (event.type === 'agent_end' || event.type === 'agent_settled') this.setDashboardAgentRunning(false);
+          if (event.type === 'extension_ui_request') this.refreshDashboard();
+        });
         return client;
       })
       .catch(async (error) => {
@@ -287,13 +336,170 @@ export default class KosCompanionPlugin extends Plugin {
       store: this.store,
       metricSettings: () => toMetricSettings(this.settings),
       openAgent: (path, prompt) => this.openAgentFrom(path, prompt),
+      runAgent: (module, intent, objects, path) => this.runDashboardAgent(module, intent, objects, path),
+      transition: (object, target) => this.transitionObject(object, target),
+      approve: (object) => this.approveObject(object),
+      create: (kind) => this.openCreate(kind),
+      capture: () => openCaptureModal(this.app, this.settings.objectDirs),
+      openReader: (path) => this.openReader(path),
+      report: (period) => openReportModal(this.app, this.reportDeps(), period),
+      getAgentSnapshot: async () => {
+        const client = await this.connectAgent();
+        const [state, stats, webSearch] = await Promise.all([
+          client.getState(), client.getSessionStats(), client.getWebSearchState(),
+        ]);
+        return { state, stats, webSearch };
+      },
+      validate: async () => (await this.connectAgent()).validate(),
+      pendingQuestions: () => this.agentClient?.getPendingQuestions() ?? [],
     };
+  }
+
+  private async runDashboardAgent(
+    module: DashboardModule,
+    intent: string,
+    objects: KosObject[] = [],
+    path?: string,
+  ): Promise<void> {
+    await this.activateView(AGENT_VIEW_TYPE);
+    const view = this.app.workspace.getLeavesOfType(AGENT_VIEW_TYPE)[0]?.view;
+    if (!(view instanceof AgentView)) throw new Error('kos Agent 视图不可用');
+    const context = {
+      module,
+      view: module,
+      filters: {},
+      selectedObjects: objects.map((object) => ({ type: object.type, path: object.filePath, title: 'title' in object ? object.title ?? null : null })),
+      activeFile: path ? { path } : null,
+      intent,
+    };
+    const command = intent === 'prioritize-today'
+      ? `/kos-start-my-day\n\n看板上下文：${JSON.stringify(context, null, 2)}`
+      : intent === 'end-day'
+        ? `/kos-end-my-day\n\n看板上下文：${JSON.stringify(context, null, 2)}`
+        : `请执行看板意图 ${intent}。\n\n看板上下文：${JSON.stringify(context, null, 2)}`;
+    await view.runConversation(path, command);
+  }
+
+  private async transitionObject(object: KosObject, target: string): Promise<boolean> {
+    const operation = this.agentTransitionOperation();
+    if (!operation) throw new Error('状态流转需要桌面端 kos-agent');
+    return applyTransition(this.app, object, target, this.settings, operation);
+  }
+
+  private async approveObject(object: KosObject): Promise<boolean> {
+    const operation = this.agentTransitionOperation();
+    if (!operation) throw new Error('审核需要桌面端 kos-agent');
+    return approveReviewObject(this.app, object, this.settings, operation);
   }
 
   private async openAgentFrom(path?: string, prompt?: string): Promise<void> {
     await this.activateView(AGENT_VIEW_TYPE);
     const view = this.app.workspace.getLeavesOfType(AGENT_VIEW_TYPE)[0]?.view;
     if (view instanceof AgentView) await view.beginConversation(path, prompt);
+  }
+
+  private async activateDashboardModule(module: DashboardModule): Promise<void> {
+    await this.activateView(DASHBOARD_VIEW_TYPE);
+    const view = this.app.workspace.getLeavesOfType(DASHBOARD_VIEW_TYPE)[0]?.view;
+    if (view instanceof DashboardView) view.setModule(module);
+  }
+
+  private async openReader(path: string): Promise<void> {
+    await this.enqueueViewActivation(async () => {
+      let leaf = this.app.workspace.getLeavesOfType(READER_VIEW_TYPE)[0];
+      if (!leaf) leaf = this.app.workspace.getLeaf('tab');
+      const view = leaf.view;
+      if (view instanceof ReaderView) {
+        await this.revealViewLeaf(leaf);
+        await view.openSource(path);
+      } else {
+        await leaf.setViewState({ type: READER_VIEW_TYPE, active: true, state: { path } });
+        await this.revealViewLeaf(leaf);
+      }
+    });
+  }
+
+  private async openReaderDocument(path: string): Promise<void> {
+    await this.enqueueViewActivation(async () => {
+      let leaf = this.app.workspace.getLeavesOfType(READER_VIEW_TYPE)[0];
+      if (!leaf) leaf = this.app.workspace.getLeaf('tab');
+      const view = leaf.view;
+      if (view instanceof ReaderView) {
+        await this.revealViewLeaf(leaf);
+        await view.openDocument(path);
+      } else {
+        await leaf.setViewState({ type: READER_VIEW_TYPE, active: true, state: { file: path } });
+        await this.revealViewLeaf(leaf);
+      }
+    });
+  }
+
+  private async ensureReaderSource(documentPath: string): Promise<string> {
+    const association = await ensureReaderSourceAssociation(this.app, this.settings.objectDirs, documentPath);
+    if (association.created) new Notice(`已创建 Source：${association.sourcePath}`);
+    return association.sourcePath;
+  }
+
+  private async addReaderExcerpt(excerpt: ReaderExcerpt): Promise<void> {
+    if (!isKosAgentSupported(this.app)) {
+      new Notice('添加摘录需要 Obsidian 桌面端和 kos-agent');
+      return;
+    }
+    try {
+      const result = await (await this.connectAgent()).appendReaderExtract({
+        sourcePath: excerpt.sourcePath,
+        documentPath: excerpt.documentPath,
+        kind: excerpt.kind,
+        location: excerpt.selection.location,
+        positionLabel: excerpt.selection.positionLabel,
+        text: excerpt.selection.text,
+        directories: {
+          project: this.settings.objectDirs.project,
+          concept: this.settings.objectDirs.concept,
+          method: this.settings.objectDirs.method,
+          task: this.settings.objectDirs.task,
+          source: this.settings.objectDirs.source,
+          extract: this.settings.objectDirs.extract,
+          summary: this.settings.objectDirs.summary,
+          research: this.settings.objectDirs.research,
+          reflection: this.settings.objectDirs.reflection,
+        },
+      });
+      new Notice(result.duplicate
+        ? `该内容已在摘录中：${result.path}`
+        : result.created ? `已创建摘录：${result.path}` : `已添加到摘录：${result.path}`);
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private async addReaderExcerptToAgent(excerpt: ReaderExcerpt): Promise<void> {
+    if (!isKosAgentSupported(this.app)) {
+      new Notice('添加到 Agent 需要 Obsidian 桌面端和 kos-agent');
+      return;
+    }
+    try {
+      await this.activateView(AGENT_VIEW_TYPE);
+      const view = this.app.workspace.getLeavesOfType(AGENT_VIEW_TYPE)[0]?.view;
+      if (!(view instanceof AgentView)) throw new Error('kos Agent 视图不可用');
+      await view.beginConversation();
+      view.insertDraft(formatReaderAgentQuote(excerpt));
+      new Notice('已添加到 Agent 输入框');
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private setDashboardAgentRunning(running: boolean): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(DASHBOARD_VIEW_TYPE)) {
+      if (leaf.view instanceof DashboardView) leaf.view.setAgentRunning(running);
+    }
+  }
+
+  private refreshDashboard(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(DASHBOARD_VIEW_TYPE)) {
+      if (leaf.view instanceof DashboardView) leaf.view.render();
+    }
   }
 
   private async openAgentForInlineEdit(): Promise<void> {
@@ -357,14 +563,29 @@ export default class KosCompanionPlugin extends Plugin {
 
   /** 打开视图：复用已有 leaf；驾驶舱开中央 tab，其余开右侧栏 */
   async activateView(viewType: string): Promise<void> {
+    await this.enqueueViewActivation(async () => {
+      const { workspace } = this.app;
+      let leaf: WorkspaceLeaf | null | undefined = workspace.getLeavesOfType(viewType)[0];
+      if (!leaf) {
+        leaf = VIEW_LOCATIONS[viewType] === 'tab' ? workspace.getLeaf('tab') : workspace.getRightLeaf(false);
+        if (!leaf) return;
+        await leaf.setViewState({ type: viewType, active: true });
+      }
+      await this.revealViewLeaf(leaf);
+    });
+  }
+
+  private enqueueViewActivation(operation: () => Promise<void>): Promise<void> {
+    const next = this.viewActivation.then(operation, operation);
+    this.viewActivation = next.catch(() => undefined);
+    return next;
+  }
+
+  private async revealViewLeaf(leaf: WorkspaceLeaf): Promise<void> {
     const { workspace } = this.app;
-    let leaf: WorkspaceLeaf | null | undefined = workspace.getLeavesOfType(viewType)[0];
-    if (!leaf) {
-      leaf = VIEW_LOCATIONS[viewType] === 'tab' ? workspace.getLeaf('tab') : workspace.getRightLeaf(false);
-      if (!leaf) return;
-      await leaf.setViewState({ type: viewType, active: true });
-    }
+    workspace.setActiveLeaf(leaf, { focus: true });
     await workspace.revealLeaf(leaf);
+    workspace.setActiveLeaf(leaf, { focus: true });
   }
 
   /** 通知所有已打开的 kos 视图重渲染 */

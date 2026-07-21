@@ -19,7 +19,7 @@ await mkdir(join(output, 'kos-agent/dist/eval-schemas'), { recursive: true });
 await mkdir(join(output, 'kos-agent/node_modules/@silvia-odwyer'), { recursive: true });
 await mkdir(join(output, 'kos-agent/THIRD_PARTY_LICENSES'), { recursive: true });
 
-for (const name of ['main.js', 'manifest.json', 'styles.css']) {
+for (const name of ['main.js', 'manifest.json', 'styles.css', 'THIRD_PARTY_NOTICES.md']) {
   await cp(join(pluginDir, name), join(output, name));
 }
 await cp(join(agentDir, 'package.json'), join(output, 'kos-agent/package.json'));

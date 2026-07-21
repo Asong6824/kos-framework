@@ -15,6 +15,8 @@ import type { SourceInfo } from "../../core/source-info.ts";
 import type { ValidationReport } from "../../kos/validation/types.ts";
 import type { ConfigureModelInput } from "../../kos/model-configuration.ts";
 import type {
+	AppendReaderExtractInput,
+	AppendReaderExtractResult,
 	CreateObjectInput,
 	OperationResult,
 	TransitionStatusInput,
@@ -37,6 +39,7 @@ export type RpcCommand =
 	| { id?: string; type: "get_state" }
 	| { id?: string; type: "validate"; paths?: string[] }
 	| ({ id?: string; type: "create_object" } & CreateObjectInput)
+	| ({ id?: string; type: "append_reader_extract" } & AppendReaderExtractInput)
 	| ({ id?: string; type: "transition_status" } & TransitionStatusInput)
 	| { id?: string; type: "daily_workflow"; workflow: "dashboard" | "brief" | "diary"; date?: string }
 
@@ -140,6 +143,7 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "get_state"; success: true; data: RpcSessionState }
 	| { id?: string; type: "response"; command: "validate"; success: true; data: ValidationReport }
 	| { id?: string; type: "response"; command: "create_object"; success: true; data: OperationResult }
+	| { id?: string; type: "response"; command: "append_reader_extract"; success: true; data: AppendReaderExtractResult }
 	| { id?: string; type: "response"; command: "transition_status"; success: true; data: TransitionStatusResult }
 	| { id?: string; type: "response"; command: "daily_workflow"; success: true; data: OperationResult }
 

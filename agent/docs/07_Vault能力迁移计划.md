@@ -78,8 +78,8 @@ agent/packages/kos-agent/src/kos/
 3. 逐个移植 Validator，以同一 fixture 对比 Python 与 TypeScript 结果。（已完成）
 4. 移植 create/update/generate operations，处理现有语义逻辑混入脚本的问题。（已完成首版）
 5. 移植 Task Contract 和用户 Skill Eval runtime。（已完成）
-6. 修改对象规范和 Skills，取消强制人工确认，加入可选 review/`ask_question` 语义。
-7. 让 Obsidian 看板和 Agent UI 统一调用 kos-agent。
+6. 修改对象规范和 Skills，取消强制人工确认，加入可选 review/`ask_question` 语义。（已完成）
+7. 让 Obsidian 看板和 Agent UI 统一调用 kos-agent。（已完成）
 8. parity tests 全部通过后，从 runtime distribution 删除 `vault/90_系统/harness/`。（已完成）
 9. 删除插件中的重复 TypeScript operations 和 legacy Python bridge。（Python bridge 已删除）
 

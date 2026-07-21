@@ -8,6 +8,7 @@ export type KosRpcCommand =
   | { type: 'new_session'; parentSession?: string }
   | { type: 'validate'; paths?: string[] }
   | ({ type: 'create_object' } & KosCreateObjectInput)
+  | ({ type: 'append_reader_extract' } & KosAppendReaderExtractInput)
   | ({ type: 'transition_status' } & KosTransitionStatusInput)
   | { type: 'daily_workflow'; workflow: 'dashboard' | 'brief' | 'diary'; date?: string }
   | { type: 'get_available_models' }
@@ -60,6 +61,34 @@ export interface KosCreateObjectInput {
 export interface KosOperationResult {
   path: string;
   validation: KosValidationReport;
+}
+
+export interface KosObjectDirectories {
+  project: string;
+  concept: string;
+  method: string;
+  task: string;
+  source: string;
+  extract?: string;
+  summary?: string;
+  research?: string;
+  reflection?: string;
+}
+
+export interface KosAppendReaderExtractInput {
+  sourcePath: string;
+  documentPath: string;
+  kind: 'markdown' | 'pdf' | 'epub';
+  location: string;
+  positionLabel: string;
+  text: string;
+  directories: KosObjectDirectories;
+}
+
+export interface KosAppendReaderExtractResult extends KosOperationResult {
+  extractId: string;
+  created: boolean;
+  duplicate: boolean;
 }
 
 export interface KosTransitionStatusInput {
