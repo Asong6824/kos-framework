@@ -29,4 +29,5 @@ vault/90_系统/文档/  # 跟随 runtime vault 发布的用户文档
 - `Process Eval与Agent Trace.md`：Pi trace 采集、过程合同、指标和安全边界。
 - `Pi驱动kos-test.md`：三层 Vault 边界和 Pi 测试入口。
 - `自举与维护边界.md`：Runtime Distribution 和 Framework Development 的信任与依赖边界。
+- `Obsidian看板二期优化.md`：看板作为 kos-agent 工作流触发器和结果载体的二期设计。
 - `原公开仓库文档归档.md`：原 `docs/` 目录内容的本地归档。
