@@ -15,6 +15,7 @@ export type KosObjectType =
   | 'summary'
   | 'research'
   | 'concept'
+  | 'goal'
   | 'project'
   | 'task'
   | 'diary'
@@ -30,6 +31,7 @@ export const KOS_OBJECT_TYPES: readonly KosObjectType[] = [
   'summary',
   'research',
   'concept',
+  'goal',
   'project',
   'task',
   'diary',
@@ -164,11 +166,32 @@ export interface ConceptObject extends KosObjectBase {
   source?: string;
 }
 
-export type ProjectStatus = 'active' | 'idea' | 'paused' | 'completed' | 'archived' | 'cancelled';
+export type GoalStatus = 'draft' | 'active' | 'paused' | 'achieved' | 'abandoned' | 'archived';
+export const GOAL_STATUSES: readonly GoalStatus[] = ['draft', 'active', 'paused', 'achieved', 'abandoned', 'archived'];
+export type GoalHealth = 'unknown' | 'on_track' | 'at_risk' | 'off_track';
+export const GOAL_HEALTH: readonly GoalHealth[] = ['unknown', 'on_track', 'at_risk', 'off_track'];
+
+export interface GoalObject extends KosObjectBase {
+  type: 'goal';
+  title?: string;
+  horizon: 'H1' | 'H2';
+  period: string;
+  status: GoalStatus;
+  allocation_weight: number;
+  health: GoalHealth;
+  period_start: string | null;
+  period_end: string | null;
+  updated: string | null;
+  human_confirmed: boolean;
+  result_evidence: string[];
+}
+
+export type ProjectStatus = 'active' | 'idea' | 'paused' | 'blocked' | 'completed' | 'archived' | 'cancelled';
 export const PROJECT_STATUSES: readonly ProjectStatus[] = [
   'active',
   'idea',
   'paused',
+  'blocked',
   'completed',
   'archived',
   'cancelled',
@@ -176,6 +199,18 @@ export const PROJECT_STATUSES: readonly ProjectStatus[] = [
 
 export type Priority = 'P0' | 'P1' | 'P2' | 'P3' | 'P4';
 export const PRIORITIES: readonly Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4'];
+
+export interface ProjectMetric {
+  id: string;
+  kind: 'process' | 'result';
+  name: string;
+  unit: string;
+  baseline: number;
+  target: number;
+  current: number;
+  updated: string | null;
+  evidence: string[];
+}
 
 export interface ProjectObject extends KosObjectBase {
   type: 'project';
@@ -185,9 +220,22 @@ export interface ProjectObject extends KosObjectBase {
   priority?: Priority;
   area?: string;
   goal?: string;
+  primary_goal?: string;
+  supporting_goals: string[];
+  goal_alignment?: 'direct' | 'enabling' | 'exploratory' | 'off_goal' | 'conflicting';
+  alignment_reviewed: string | null;
+  exploration_review_due: string | null;
+  process_metrics: Array<ProjectMetric | string>;
+  result_metrics: Array<ProjectMetric | string>;
   current_stage?: string;
+  next_milestone?: string;
   due: string | null;
   updated: string | null;
+  off_goal_override: boolean;
+  override_reason?: string;
+  override_review_due: string | null;
+  validation_completed: boolean;
+  expected_result_achieved: boolean;
 }
 
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'blocked' | 'cancelled';
@@ -197,11 +245,26 @@ export interface TaskObject extends KosObjectBase {
   type: 'task';
   status: TaskStatus;
   title?: string;
-  /** 指向项目的 wikilink，如 [[30_项目/某项目]] */
+  /** 迁移期兼容旧单 Project 字段；业务读取统一使用 projects。 */
   project?: string;
+  projects: string[];
   priority?: Priority;
+  scheduled_for: string | null;
+  defer_until: string | null;
   due: string | null;
+  estimate_minutes: number;
+  energy: 'low' | 'medium' | 'high';
+  work_mode: 'deep' | 'shallow' | 'collaborative' | 'administrative';
+  growth_mode: 'neutral' | 'practice' | 'stretch';
+  /** 当日本地触发时刻，24 小时制 HH:mm；同一任务可有多个时刻 */
+  scheduled_times: string[];
   completed: string | null;
+  result?: string;
+  outputs: string[];
+  blocked_reason?: string;
+  unblock_condition?: string;
+  project_contributions: string[];
+  recommendation_history: string[];
 }
 
 export interface DiaryObject extends KosObjectBase {
@@ -290,6 +353,7 @@ export type KosObject =
   | SummaryObject
   | ResearchObject
   | ConceptObject
+  | GoalObject
   | ProjectObject
   | TaskObject
   | DiaryObject
@@ -349,13 +413,29 @@ for (const s of SOURCE_CHAIN.slice(0, -1)) {
   sourceTransitions.push(tr(s, 'ignored', false));
 }
 
-/** project：active/idea/paused/completed/archived/cancelled 自由流转；archived/cancelled 为终态 */
-const PROJECT_FREE: readonly string[] = ['active', 'idea', 'paused', 'completed'];
+/** project：非终态之间自由流转；archived/cancelled 为终态 */
+const PROJECT_FREE: readonly string[] = ['active', 'idea', 'paused', 'blocked', 'completed'];
 const projectTransitions: TransitionRule[] = PROJECT_FREE.flatMap((from) =>
   PROJECT_STATUSES.filter((to) => to !== from).map((to) => tr(from, to, false)),
 );
 
 export const STATE_MACHINES: Record<KosObjectType, StateMachine | null> = {
+	goal: {
+		statusField: 'status',
+		transitions: [
+			tr('draft', 'active', true, '激活半年目标需人确认，且当前周期 active Goal 占比合计必须为 100'),
+			tr('draft', 'abandoned', true, '放弃目标需人确认'),
+			tr('active', 'paused', true, '暂停目标需人确认并重新分配 active Goal 占比'),
+			tr('active', 'achieved', true, '达成目标需人确认并提供结果证据'),
+			tr('active', 'abandoned', true, '放弃目标需人确认'),
+			tr('paused', 'active', true, '恢复目标需人确认并重新分配 active Goal 占比'),
+			tr('paused', 'abandoned', true, '放弃目标需人确认'),
+			tr('achieved', 'archived', false),
+			tr('abandoned', 'archived', false),
+		],
+		frozenStates: ['archived'],
+		protectedFields: ['allocation_weight'],
+	},
   source: {
     statusField: 'status',
     transitions: sourceTransitions,
@@ -397,20 +477,23 @@ export const STATE_MACHINES: Record<KosObjectType, StateMachine | null> = {
     statusField: 'status',
     transitions: projectTransitions,
     frozenStates: ['archived', 'cancelled'],
-    protectedFields: ['goal', 'priority'],
+    protectedFields: ['goal', 'primary_goal', 'supporting_goals', 'goal_alignment', 'priority'],
   },
   task: {
     statusField: 'status',
     transitions: [
       tr('todo', 'doing', false),
+		tr('todo', 'done', false),
       tr('doing', 'done', false),
       tr('todo', 'blocked', false),
       tr('doing', 'blocked', false),
       tr('todo', 'cancelled', false),
       tr('doing', 'cancelled', false),
+		tr('blocked', 'todo', false),
+		tr('blocked', 'doing', false),
+		tr('blocked', 'cancelled', false),
     ],
-    // done/blocked 规范未定义出边，同为流转终点
-    frozenStates: ['done', 'blocked', 'cancelled'],
+	frozenStates: ['done', 'cancelled'],
     protectedFields: [],
   },
   diary: null,
@@ -455,8 +538,9 @@ export const DEFAULT_STATE: Partial<Record<KosObjectType, string>> = {
   extract: 'pending',
   summary: 'false',
   research: 'draft',
-  concept: 'draft',
-  project: 'active',
+	concept: 'draft',
+	goal: 'draft',
+	project: 'active',
   task: 'todo',
   reflection: 'raw',
   personal_operating_profile: 'draft',
@@ -479,13 +563,14 @@ export const PATH_PREFIX_RULES: readonly PathPrefixRule[] = [
   { prefix: '11_原材料/', type: 'source' },
   { prefix: '21_研究/', type: 'research' },
   { prefix: '22_知识库/', type: 'concept' },
-  { prefix: '30_项目/', type: 'project' },
-  { prefix: '31_任务/', type: 'task' },
-  { prefix: '23_日记/', type: 'diary' },
-  { prefix: '24_认知记录/', type: 'reflection' },
-  { prefix: '25_个人操作画像/', type: 'personal_operating_profile' },
-  { prefix: '40_方法库/', type: 'method' },
-  { prefix: '50_信息雷达/', type: 'signal' },
+  { prefix: '31_项目/', type: 'project' },
+  { prefix: '32_任务/', type: 'task' },
+  { prefix: '40_日记/', type: 'diary' },
+  { prefix: '41_认知记录/', type: 'reflection' },
+  { prefix: '42_个人操作画像/', type: 'personal_operating_profile' },
+  { prefix: '30_目标/', type: 'goal' },
+  { prefix: '23_方法库/', type: 'method' },
+  { prefix: '12_信息雷达/', type: 'signal' },
   { prefix: '00_工作台/', type: 'dashboard' },
 ];
 
@@ -517,6 +602,7 @@ export interface ObjectDirs {
   research: string;
   concept: string;
   method: string;
+  goal: string;
   project: string;
   task: string;
   diary: string;
@@ -532,6 +618,7 @@ export const OBJECT_DIR_KEYS = [
   'research',
   'concept',
   'method',
+  'goal',
   'project',
   'task',
   'diary',
@@ -547,13 +634,40 @@ export const DEFAULT_OBJECT_DIRS: ObjectDirs = {
   summary: '20_处理区/摘要',
   research: '21_研究',
   concept: '22_知识库',
+  method: '23_方法库',
+  goal: '30_目标',
+  project: '31_项目',
+  task: '32_任务',
+  diary: '40_日记',
+  reflection: '41_认知记录',
+  radar: '12_信息雷达',
+};
+
+/** Layout v1 defaults, used only to migrate untouched plugin settings to Layout v2. */
+export const LEGACY_OBJECT_DIRS: Readonly<ObjectDirs> = {
+  inbox: '10_收件箱',
+  source: '11_原材料',
+  extract: '20_处理区/摘录',
+  summary: '20_处理区/摘要',
+  research: '21_研究',
+  concept: '22_知识库',
   method: '40_方法库',
+  goal: '26_目标',
   project: '30_项目',
   task: '31_任务',
   diary: '23_日记',
   reflection: '24_认知记录',
   radar: '50_信息雷达',
 };
+
+export function migrateLegacyObjectDirs(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return raw;
+  const migrated = { ...(raw as Record<string, unknown>) };
+  for (const key of OBJECT_DIR_KEYS) {
+    if (migrated[key] === LEGACY_OBJECT_DIRS[key]) migrated[key] = DEFAULT_OBJECT_DIRS[key];
+  }
+  return migrated;
+}
 
 /**
  * 目录映射归一：逐键取字符串值，trim 并去掉首尾斜杠；

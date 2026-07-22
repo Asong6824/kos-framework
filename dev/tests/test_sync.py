@@ -27,22 +27,22 @@ class FrameworkSyncTests(unittest.TestCase):
         self.assertFalse(diff.changed)
 
     def test_detects_modified_and_stale_core_files(self) -> None:
-        skill = self.target / "41_Skills/core/kos-ingest/SKILL.md"
+        skill = self.target / "80_Skills/core/kos-ingest/SKILL.md"
         skill.write_text(skill.read_text(encoding="utf-8") + "\nlocal edit\n", encoding="utf-8")
-        stale = self.target / "41_Skills/core/stale-skill/SKILL.md"
+        stale = self.target / "80_Skills/core/stale-skill/SKILL.md"
         stale.parent.mkdir(parents=True)
         stale.write_text("stale", encoding="utf-8")
 
         diff = compare(self.target)
-        self.assertIn(Path("41_Skills/core/kos-ingest/SKILL.md"), diff.modified)
-        self.assertIn(Path("41_Skills/core/stale-skill/SKILL.md"), diff.deleted)
+        self.assertIn(Path("80_Skills/core/kos-ingest/SKILL.md"), diff.modified)
+        self.assertIn(Path("80_Skills/core/stale-skill/SKILL.md"), diff.deleted)
 
     def test_apply_preserves_personal_content_and_creates_backup(self) -> None:
-        personal = self.target / "23_日记/2026/06/2026-06-21.md"
+        personal = self.target / "40_日记/2026/06/2026-06-21.md"
         personal.parent.mkdir(parents=True)
         personal.write_text("personal", encoding="utf-8")
 
-        skill = self.target / "41_Skills/core/kos-ingest/SKILL.md"
+        skill = self.target / "80_Skills/core/kos-ingest/SKILL.md"
         original = skill.read_text(encoding="utf-8")
         skill.write_text(original + "\nlocal edit\n", encoding="utf-8")
 
@@ -77,6 +77,37 @@ class FrameworkSyncTests(unittest.TestCase):
         diff = compare(self.target)
 
         self.assertIn(Path(".kos.md"), diff.added)
+
+    def test_sync_rejects_layout_v1_before_writing(self) -> None:
+        manifest = self.target / "90_系统/framework.yaml"
+        manifest.write_text(
+            manifest.read_text(encoding="utf-8").replace("layout_version: 2\n", ""),
+            encoding="utf-8",
+        )
+        sentinel = self.target / "80_Skills/core/kos-ingest/SKILL.md"
+        original = sentinel.read_text(encoding="utf-8")
+
+        with self.assertRaisesRegex(SystemExit, "kos-harness migrate-layout"):
+            compare(self.target)
+
+        self.assertEqual(sentinel.read_text(encoding="utf-8"), original)
+
+    def test_sync_manifest_keeps_layout_version(self) -> None:
+        diff = compare(self.target)
+        apply_sync(self.target, diff)
+
+        manifest = (self.target / "90_系统/framework.yaml").read_text(encoding="utf-8")
+        self.assertIn("layout_version: 2", manifest)
+
+    def test_sync_restores_missing_required_empty_directory(self) -> None:
+        archive = self.target / "32_任务/归档"
+        shutil.rmtree(archive)
+
+        diff = compare(self.target)
+
+        self.assertIn(Path("32_任务/归档"), diff.added_directories)
+        apply_sync(self.target, diff)
+        self.assertTrue(archive.is_dir())
 
 
 if __name__ == "__main__":

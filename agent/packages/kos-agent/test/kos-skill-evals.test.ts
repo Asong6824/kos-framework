@@ -9,10 +9,10 @@ const roots: string[] = [];
 function vault(): string {
 	const root = mkdtempSync(join(tmpdir(), "kos-skill-eval-"));
 	roots.push(root);
-	mkdirSync(join(root, "41_Skills/core/example/config"), { recursive: true });
+	mkdirSync(join(root, "80_Skills/core/example/config"), { recursive: true });
 	mkdirSync(join(root, "90_系统/evals/skills"), { recursive: true });
 	writeFileSync(
-		join(root, "41_Skills/core/example/SKILL.md"),
+		join(root, "80_Skills/core/example/SKILL.md"),
 		`---
 name: example
 metadata:
@@ -32,7 +32,7 @@ metadata:
 Task Contract pass@1 pass@k 最大迭代 evals/contracts
 `,
 	);
-	writeFileSync(join(root, "41_Skills/core/example/config/EXTEND.md"), "config\n");
+	writeFileSync(join(root, "80_Skills/core/example/config/EXTEND.md"), "config\n");
 	writeFileSync(
 		join(root, "90_系统/evals/skills/example.prompts.csv"),
 		"id,skill,should_trigger,prompt,expected_checks,notes\n" +

@@ -1,8 +1,12 @@
 import { Notice, setIcon } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
+import { createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import {
   attentionSummary,
   currentActionTasks,
+  goalAllocationSummary,
   inputProgress,
   knowledgeRows,
   objectName,
@@ -13,16 +17,30 @@ import {
   sortTasks,
   sourceRows,
   statusDistribution,
+  taskArchiveCandidates,
   taskIsDueToday,
+  taskIsDeferred,
   taskIsOverdue,
+  todayScheduleEntries,
+  truncateLabel,
 } from '../core/dashboard';
 import type { DashboardModule, PageSlice, ProjectRow } from '../core/dashboard';
-import { knowledgeAssetTotal, maturityScore, pipelineFunnel } from '../core/metrics';
-import type { KosObject, SourceObject, TaskObject } from '../core/model';
+import { activityHeatmap, knowledgeAssetTotal, maturityScore, pipelineFunnel } from '../core/metrics';
+import type { GoalObject, KosObject, SourceObject, TaskObject } from '../core/model';
 import { legalTransitions } from '../core/transitions';
-import type { KosValidationReport } from '../agent/protocol';
+import type { KosDailyRecommendation, KosRecommendationFeedbackInput, KosStartDayResult, KosValidationReport } from '../agent/protocol';
+import { openRecommendationFeedbackModal, openStartDayModal } from '../actions/daily-planning';
 import { KosView, TYPE_LABELS, objectTitle } from './view-context';
 import type { DashboardAgentSnapshot, ViewContext } from './view-context';
+import { renderDotClock } from './components/dot-clock';
+import type { DotClockHandle } from './components/dot-clock';
+import { renderYearProgress } from './components/year-progress';
+import type { YearProgressHandle } from './components/year-progress';
+import { renderDaySchedule } from './components/day-schedule';
+import type { DayScheduleHandle } from './components/day-schedule';
+import { renderActivityHeatmap } from './components/activity-heatmap';
+import { DashboardApp } from './dashboard/DashboardApp';
+import type { BentoLayoutItem } from '../core/bento-layout';
 
 export const DASHBOARD_VIEW_TYPE = 'kos-dashboard';
 
@@ -35,9 +53,12 @@ const SOURCE_ACTION: Record<SourceObject['status'], string> = {
 const STATE_LABELS: Record<string, string> = {
   todo: '待办', doing: '进行中', done: '完成', blocked: '受阻', cancelled: '取消',
   active: '进行中', idea: '想法', paused: '暂停', completed: '完成', archived: '归档',
+  achieved: '已达成', abandoned: '已放弃',
   captured: '已捕获', extracted: '已摘录', summarized: '已摘要', reviewed: '已审阅', linked: '已关联', ignored: '已忽略',
   draft: '草稿', verified: '已验证', mature: '已成熟', complete: '完成', candidate: '候选', usable: '可用', trusted: '可信', deprecated: '弃用', pending: '待审阅',
 };
+
+const SOURCE_TITLE_MAX_CHARACTERS = 24;
 
 function percent(value: number | null): string { return value === null ? '—' : `${Math.round(value * 100)}%`; }
 function labelState(state: string): string { return STATE_LABELS[state] ?? state; }
@@ -49,13 +70,21 @@ function tone(state: string): string {
 }
 
 export class DashboardView extends KosView {
+  private root: Root | null = null;
+  private clock: DotClockHandle | null = null;
+  private schedule: DayScheduleHandle | null = null;
+  private progress: YearProgressHandle | null = null;
+  private renderVersion = 0;
+  private moduleFocusTimers: number[] = [];
+  private layoutSaveQueue: Promise<void> = Promise.resolve();
   private inputFilter: 'pending' | 'all' | 'done' | 'ignored' = 'pending';
   private knowledgeFilter: 'all' | 'research' | 'concept' | 'method' = 'all';
+  private taskFilter: 'available' | 'scheduled' | 'doing' | 'blocked' | 'deferred' | 'archive' = 'available';
   private agentSnapshot: DashboardAgentSnapshot | null = null;
   private validation: KosValidationReport | null = null;
   private systemLoading = false;
   private agentRunning = false;
-  private agentGeneratedAt: string | null = null;
+  private dailyPlan: KosStartDayResult | null = null;
   private pages: Record<PaginationKey, number> = {
     todayTasks: 1,
     actionProjects: 1,
@@ -71,39 +100,98 @@ export class DashboardView extends KosView {
   getDisplayText(): string { return 'kos 看板'; }
   getIcon(): string { return 'layout-dashboard'; }
 
+  async onOpen(): Promise<void> {
+    await super.onOpen();
+    this.registerInterval(window.setInterval(() => {
+      const now = new Date();
+      this.clock?.update(now);
+      this.schedule?.update(now);
+      this.progress?.update(now);
+    }, 1_000));
+  }
+
+  async onClose(): Promise<void> {
+    for (const timer of this.moduleFocusTimers) window.clearTimeout(timer);
+    this.moduleFocusTimers = [];
+    this.root?.unmount();
+    this.root = null;
+    this.clock = null;
+    this.schedule = null;
+    this.progress = null;
+    this.contentEl.empty();
+  }
+
   setModule(module: DashboardModule): void {
-    const target = this.contentEl.querySelector<HTMLElement>(`#kos-board-${module}`);
-    if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' });
-    else {
-      this.render();
-      window.requestAnimationFrame(() => this.contentEl.querySelector<HTMLElement>(`#kos-board-${module}`)?.scrollIntoView({ block: 'start' }));
-    }
+    const selector = module === 'today' ? '.kos-dot-clock' : `#kos-board-${module}`;
+    const scrollToTarget = () => this.contentEl.querySelector<HTMLElement>(selector)?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    if (!this.contentEl.querySelector(selector)) this.render();
+    for (const timer of this.moduleFocusTimers) window.clearTimeout(timer);
+    this.moduleFocusTimers = [0, 80, 180, 360].map((delay) => window.setTimeout(scrollToTarget, delay));
   }
 
   setAgentRunning(running: boolean): void {
     this.agentRunning = running;
-    if (!running) this.agentGeneratedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     this.render();
   }
 
   render(): void {
-    const { contentEl } = this;
-    const previousScrollTop = contentEl.scrollTop;
-    contentEl.empty();
-    contentEl.addClass('kos-view', 'kos-dashboard-v2', 'kos-board-page');
-    const canvas = contentEl.createEl('main', { cls: 'kos-board-canvas' });
-    this.renderToday(this.boardSection(canvas, 'today'));
-    this.renderAction(this.boardSection(canvas, 'action'));
-    this.renderInput(this.boardSection(canvas, 'input'));
-    this.renderKnowledge(this.boardSection(canvas, 'knowledge'));
-    this.renderReview(this.boardSection(canvas, 'review'));
-    this.renderSystem(this.boardSection(canvas, 'system'));
-    contentEl.scrollTop = Math.min(previousScrollTop, Math.max(0, contentEl.scrollHeight - contentEl.clientHeight));
+    this.ensureRoot().render(createElement(DashboardApp, {
+      initialLayout: this.ctx.store.getDashboardLayout(),
+      renderVersion: ++this.renderVersion,
+      renderModule: this.renderModule,
+      mountClock: this.mountClock,
+      mountSchedule: this.mountSchedule,
+      mountProgress: this.mountProgress,
+      mountHeatmap: this.mountHeatmap,
+      persistDashboard: this.persistDashboard,
+    }));
   }
 
-  private boardSection(parent: HTMLElement, module: DashboardModule): HTMLElement {
-    return parent.createEl('section', { cls: `kos-board-section kos-board-${module}`, attr: { id: `kos-board-${module}` } });
+  private ensureRoot(): Root {
+    if (!this.root) {
+      this.contentEl.empty();
+      this.contentEl.addClass('kos-view', 'kos-dashboard-v2', 'kos-board-page');
+      this.root = createRoot(this.contentEl);
+    }
+    return this.root;
   }
+
+  private renderModule = (module: DashboardModule, host: HTMLElement): void => {
+    if (module === 'today') this.renderToday(host);
+    else if (module === 'action') this.renderAction(host);
+    else if (module === 'input') this.renderInput(host);
+    else if (module === 'knowledge') this.renderKnowledge(host);
+    else if (module === 'review') this.renderReview(host);
+    else this.renderSystem(host);
+  };
+
+  private mountClock = (host: HTMLElement): void => {
+    this.clock = renderDotClock(host);
+  };
+
+  private mountSchedule = (host: HTMLElement): void => {
+    const entries = todayScheduleEntries(this.ctx.index.getAll(), this.today());
+    this.schedule = renderDaySchedule(host, entries);
+  };
+
+  private mountProgress = (host: HTMLElement): void => {
+    this.progress = renderYearProgress(host);
+  };
+
+  private mountHeatmap = (host: HTMLElement): void => {
+    const settings = this.ctx.metricSettings();
+    renderActivityHeatmap(host, activityHeatmap(this.ctx.index.getAll(), settings), this.today(), settings.weekStart ?? 1);
+  };
+
+  private persistDashboard = (layout: BentoLayoutItem[]): Promise<void> => {
+    this.layoutSaveQueue = this.layoutSaveQueue.then(async () => {
+      this.ctx.store.setDashboardLayout(layout);
+      await this.ctx.store.save();
+    }).catch((error) => {
+      new Notice(error instanceof Error ? error.message : String(error));
+    });
+    return this.layoutSaveQueue;
+  };
 
   private renderToday(section: HTMLElement): void {
     const objects = this.ctx.index.getAll();
@@ -113,8 +201,8 @@ export class DashboardView extends KosView {
     const head = this.sectionHeader(section, '今日', 'TODAY');
     head.createDiv({ cls: 'kos-board-head-note', text: this.todayLabel() });
 
-    const mainlineHead = this.subhead(section, '今日主线');
-    mainlineHead.createSpan({ cls: 'kos-board-dashed-label', text: this.agentGeneratedAt ? `AGENT 建议 · ${this.agentGeneratedAt}` : '确定性排序' });
+    const mainlineHead = this.subhead(section, '确定性事实');
+    mainlineHead.createSpan({ cls: 'kos-board-dashed-label', text: '到期 · 进行中 · 阻塞 · 系统异常' });
     if (!tasks.length) {
       this.empty(section, '今天没有到期、进行中或受阻的任务', '新建任务', () => this.ctx.create?.('task'));
     } else {
@@ -131,16 +219,63 @@ export class DashboardView extends KosView {
     this.attention(attentionRow, this.validation?.warningCount ?? 0, '系统警告', 'warning');
     this.attention(attentionRow, this.validation?.errorCount ?? 0, '系统错误', 'muted');
 
-    this.subhead(section, '当前行动', 'kos-today-actions');
-    const taskPage = this.page('todayTasks', tasks);
+    const recommendationHead = this.subhead(section, 'Agent 建议');
+    recommendationHead.createSpan({ cls: 'kos-board-dashed-label', text: this.dailyPlan ? `${this.dailyPlan.context.date} · ${this.dailyPlan.context.fingerprint}` : '尚未生成' });
+    if (!this.dailyPlan?.recommendations.length) section.createDiv({ cls: 'kos-board-empty', text: '点击“开始一天”后显示结构化建议。' });
+    else for (const recommendation of this.dailyPlan.recommendations) this.renderRecommendation(section, recommendation);
+
+    this.subhead(section, '用户已确认计划', 'kos-today-actions');
+    const confirmed = objects.filter((object): object is TaskObject => object.type === 'task' && object.scheduled_for === today && !['done', 'cancelled'].includes(object.status));
+    const taskPage = this.page('todayTasks', confirmed);
     const list = section.createDiv({ cls: 'kos-board-lines' });
     for (const task of taskPage.items) this.renderTaskLine(list, task, today);
     this.pagination(section, 'todayTasks', taskPage, 'today', 'kos-today-actions');
     const foot = section.createDiv({ cls: 'kos-board-footer' });
     foot.createSpan({ text: `刷新 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` });
     const commands = foot.createDiv({ cls: 'kos-board-actions' });
-    this.button(commands, '开始一天', false, () => this.runAgent('today', 'prioritize-today'));
-    this.button(commands, '结束一天', false, () => this.runAgent('today', 'end-day'));
+    this.button(commands, '开始一天', false, () => {
+      if (!this.ctx.startDay) return;
+      openStartDayModal(this.app, this.ctx.startDay, (result) => {
+        this.dailyPlan = result;
+        this.render();
+      });
+    });
+    this.button(commands, '结束一天', false, () => void this.ctx.endDay?.().catch((error) => new Notice(error instanceof Error ? error.message : String(error))));
+  }
+
+  private renderRecommendation(parent: HTMLElement, recommendation: KosDailyRecommendation): void {
+    const card = parent.createDiv({ cls: 'kos-board-focus-card' });
+    const top = card.createDiv({ cls: 'kos-board-card-top' });
+    this.link(top, recommendation.title, () => void this.openFile(recommendation.taskPath));
+    top.createSpan({ cls: `kos-board-state is-${tone(recommendation.status)}`, text: labelState(recommendation.status) });
+    card.createDiv({ cls: 'kos-board-card-copy', text: recommendation.reason });
+    const meta = card.createDiv({ cls: 'kos-board-project-meta', text: `预计 ${recommendation.estimateMinutes} 分钟 · ${recommendation.tradeoff}${recommendation.capabilityFocusUsed ? ' · 能力强化' : ''}` });
+    if (recommendation.status !== 'recommended') return;
+    const actions = meta.createDiv({ cls: 'kos-board-actions' });
+    this.button(actions, '接受', true, () => void this.submitFeedback(recommendation, 'accepted'));
+    this.button(actions, '调整', false, () => this.openFeedback(recommendation, 'adjusted'));
+    this.button(actions, '推迟', false, () => this.openFeedback(recommendation, 'deferred'));
+    this.button(actions, '拒绝', false, () => this.openFeedback(recommendation, 'rejected'));
+  }
+
+  private feedbackInput(recommendation: KosDailyRecommendation, action: KosRecommendationFeedbackInput['action']): Omit<KosRecommendationFeedbackInput, 'reason' | 'deferUntil' | 'estimateMinutes'> {
+    return { date: this.dailyPlan!.context.date, runId: this.dailyPlan!.runId, recommendationId: recommendation.id, action };
+  }
+
+  private openFeedback(recommendation: KosDailyRecommendation, action: 'adjusted' | 'deferred' | 'rejected'): void {
+    if (!this.ctx.recommendationFeedback || !this.dailyPlan) return;
+    openRecommendationFeedbackModal(this.app, this.feedbackInput(recommendation, action), recommendation.estimateMinutes, async (input) => {
+      const ok = await this.ctx.recommendationFeedback!(input);
+      if (ok) { recommendation.status = action; this.render(); }
+      return ok;
+    });
+  }
+
+  private async submitFeedback(recommendation: KosDailyRecommendation, action: 'accepted'): Promise<void> {
+    if (!this.ctx.recommendationFeedback || !this.dailyPlan) return;
+    try {
+      if (await this.ctx.recommendationFeedback(this.feedbackInput(recommendation, action))) { recommendation.status = action; this.render(); }
+    } catch (error) { new Notice(error instanceof Error ? error.message : String(error)); }
   }
 
   private renderFocusCard(parent: HTMLElement, task: TaskObject, today: string): void {
@@ -151,11 +286,13 @@ export class DashboardView extends KosView {
     this.pill(identity, '任务', 'outline');
     this.link(identity, objectName(task), () => void this.openFile(task.filePath));
     top.createSpan({ cls: 'kos-board-state', text: `● ${labelState(task.status)}` });
-    card.createDiv({ cls: 'kos-board-card-copy', text: task.project ? `关联 ${task.project.replace(/\[|\]/g, '')}` : '尚未关联项目，可直接推进下一步。' });
+    const projectLabel = task.projects.map((project) => project.replace(/\[|\]/g, '')).join('、');
+    card.createDiv({ cls: 'kos-board-card-copy', text: projectLabel ? `关联 ${projectLabel}` : '零散任务，可直接推进。' });
     const bottom = card.createDiv({ cls: 'kos-board-card-bottom' });
-    bottom.createSpan({ cls: 'kos-board-muted', text: task.project ? `关联 ${task.project.replace(/\[|\]/g, '')}` : `截止 ${task.due ?? '未记录'}` });
+    bottom.createSpan({ cls: 'kos-board-muted', text: projectLabel ? `关联 ${projectLabel}` : `截止 ${task.due ?? '未记录'}` });
     const actions = bottom.createDiv({ cls: 'kos-board-actions' });
-    if (legalTransitions(task).some((target) => target.to === 'done')) this.button(actions, '完成', true, () => void this.ctx.transition?.(task, 'done'));
+    if (legalTransitions(task).some((target) => target.to === 'done')) this.button(actions, '完成', true, () => this.ctx.completeTask?.(task));
+    this.button(actions, '状态', false, () => this.ctx.manageStatus?.(task));
     this.button(actions, task.status === 'blocked' ? '分析阻塞' : '交给 AGENT', false, () => this.runAgent('today', task.status === 'blocked' ? 'resolve-blocker' : 'update-task', [task], task.filePath));
     if (taskIsOverdue(task, today)) card.addClass('is-danger');
   }
@@ -164,8 +301,18 @@ export class DashboardView extends KosView {
     const objects = this.ctx.index.getAll();
     const head = this.sectionHeader(section, '行动', 'ACTION');
     const tabs = head.createDiv({ cls: 'kos-board-switch' });
-    this.anchorButton(tabs, '项目', true, 'kos-action-projects');
+    this.anchorButton(tabs, '目标', true, 'kos-action-goals');
+    this.anchorButton(tabs, '项目', false, 'kos-action-projects');
     this.anchorButton(tabs, '任务', false, 'kos-action-tasks');
+    const goalSummary = goalAllocationSummary(objects, this.today());
+    const goalHead = this.subhead(section, `${goalSummary.period || '当前周期'} 目标`, 'kos-action-goals');
+    goalHead.createSpan({
+      cls: goalSummary.valid ? 'kos-board-mono' : 'kos-board-mono is-danger',
+      text: `ACTIVE 占比 ${goalSummary.activeTotal} / 100`,
+    });
+    if (goalSummary.goals.length) this.button(goalHead, '调整占比', false, () => this.ctx.adjustGoalWeights?.(goalSummary.period, goalSummary.goals));
+    if (!goalSummary.goals.length) this.empty(section, '当前半年还没有目标', '新建半年目标', () => this.ctx.create?.('goal'));
+    else for (const goal of goalSummary.goals) this.renderGoalCard(section, goal);
     const projectHead = this.subhead(section, '项目', 'kos-action-projects');
     projectHead.createSpan({ text: '按优先级排序' });
     const projects = projectRows(objects, this.today(), this.ctx.metricSettings());
@@ -176,14 +323,29 @@ export class DashboardView extends KosView {
       this.pagination(section, 'actionProjects', projectPage, 'action', 'kos-action-projects');
     }
     const taskHead = this.subhead(section, '任务', 'kos-action-tasks');
-    taskHead.createSpan({ cls: 'kos-board-mono', text: 'BLOCKED → OVERDUE → P0..P4' });
-    const tasks = sortTasks(objects.filter((object): object is TaskObject => object.type === 'task'), this.today());
+    const taskTabs = taskHead.createDiv({ cls: 'kos-board-tabs' });
+    for (const [id, label] of [['available', '任务池'], ['scheduled', '今日'], ['doing', '进行中'], ['blocked', '阻塞'], ['deferred', '已推迟'], ['archive', '待归档']] as const) {
+      const button = taskTabs.createEl('button', { cls: this.taskFilter === id ? 'is-active' : '', text: label });
+      button.addEventListener('click', () => { this.taskFilter = id; this.pages.actionTasks = 1; this.render(); this.setModule('action'); });
+    }
+    const allTasks = objects.filter((object): object is TaskObject => object.type === 'task');
+    const allOpenTasks = allTasks.filter((task) => !['done', 'cancelled'].includes(task.status));
+    const archiveCandidates = taskArchiveCandidates(allTasks);
+    const taskSource = this.taskFilter === 'archive' ? archiveCandidates : allOpenTasks;
+    const tasks = sortTasks(taskSource.filter((task) => {
+	  if (this.taskFilter === 'archive') return true;
+      if (this.taskFilter === 'scheduled') return task.scheduled_for === this.today();
+      if (this.taskFilter === 'doing') return task.status === 'doing';
+      if (this.taskFilter === 'blocked') return task.status === 'blocked';
+      if (this.taskFilter === 'deferred') return taskIsDeferred(task, this.today());
+      return task.status === 'todo' && task.scheduled_for !== this.today() && !taskIsDeferred(task, this.today());
+    }), this.today());
     const taskPage = this.page('actionTasks', tasks);
     const list = section.createDiv({ cls: 'kos-board-lines' });
     for (const task of taskPage.items) this.renderTaskLine(list, task, this.today());
     this.pagination(section, 'actionTasks', taskPage, 'action', 'kos-action-tasks');
     const foot = section.createDiv({ cls: 'kos-board-footer' });
-    foot.createSpan({ text: `项目 ${projects.length} · 任务 ${tasks.length}` });
+    foot.createSpan({ text: `项目 ${projects.length} · 开放任务 ${allOpenTasks.length} · 当前筛选 ${tasks.length}` });
     foot.createSpan({ text: '完成与取消已折叠' });
   }
 
@@ -192,10 +354,13 @@ export class DashboardView extends KosView {
     const top = card.createDiv({ cls: 'kos-board-card-top' });
     const title = top.createDiv({ cls: 'kos-board-card-title' });
     this.pill(title, row.object.priority ?? 'P4', row.object.priority === 'P0' ? 'solid' : 'outline');
+    this.pill(title, row.object.goal_alignment ?? 'off_goal', 'outline');
     this.link(title, objectName(row.object), () => void this.openFile(row.object.filePath));
     top.createSpan({ cls: 'kos-board-state', text: `● ${labelState(row.object.status)}` });
-    card.createDiv({ cls: 'kos-board-card-copy', text: row.object.goal || '项目目标未记录' });
+    card.createDiv({ cls: 'kos-board-card-copy', text: row.object.primary_goal || row.object.goal || '尚未关联半年目标' });
     card.createDiv({ cls: 'kos-board-project-meta', text: `阶段 ${row.object.current_stage || '未记录'}　领域 ${row.object.area || '未记录'}　截止 ${row.object.due || '未记录'}　更新 ${row.object.updated || '未记录'}` });
+    const metrics = [...row.object.process_metrics, ...row.object.result_metrics];
+    card.createDiv({ cls: 'kos-board-project-meta', text: metrics.length ? metrics.map((item) => typeof item === 'string' ? item : `${item.kind === 'process' ? '过程' : '结果'} ${item.name} ${item.current}/${item.target} ${item.unit}`).join('　') : '缺少量化指标' });
     const progress = card.createDiv({ cls: 'kos-board-project-progress' });
     progress.createSpan({ cls: 'kos-board-mono', text: `${row.done} / ${row.total} · ${percent(row.ratio)}` });
     this.segmentRail(progress, row.ratio, 28);
@@ -204,9 +369,33 @@ export class DashboardView extends KosView {
     if (row.blockedTasks) flags.createSpan({ cls: 'is-warning', text: '● 包含阻塞任务' });
     if (row.stale) flags.createSpan({ cls: 'is-warning', text: '● 项目停滞' });
     if (row.overdue) flags.createSpan({ cls: 'is-danger', text: '● 已逾期' });
+    if (row.object.off_goal_override) flags.createSpan({ cls: 'is-warning', text: `● 已确认继续，${row.object.override_review_due ?? '待复查'}` });
     const actions = bottom.createDiv({ cls: 'kos-board-actions' });
-    this.button(actions, '更新进展', false, () => this.runAgent('action', 'update-project', [row.object], row.object.filePath));
+    this.button(actions, '编辑', false, () => this.ctx.editProject?.(row.object));
+    this.button(actions, '状态', false, () => this.ctx.manageStatus?.(row.object));
+    this.button(actions, 'Agent 分析', false, () => this.runAgent('action', 'update-project', [row.object], row.object.filePath));
     this.button(actions, '打开', false, () => void this.openFile(row.object.filePath));
+  }
+
+  private renderGoalCard(parent: HTMLElement, goal: GoalObject): void {
+    const card = parent.createDiv({ cls: 'kos-board-project-card kos-board-goal-card' });
+    const top = card.createDiv({ cls: 'kos-board-card-top' });
+    const title = top.createDiv({ cls: 'kos-board-card-title' });
+    this.pill(title, goal.period, 'outline');
+    this.link(title, objectName(goal), () => void this.openFile(goal.filePath));
+    top.createSpan({ cls: `kos-board-state is-${tone(goal.status)}`, text: `● ${labelState(goal.status)}` });
+    const health = goal.health === 'on_track' ? '正常' : goal.health === 'at_risk' ? '有风险' : goal.health === 'off_track' ? '已偏离' : '未判断';
+    card.createDiv({ cls: 'kos-board-project-meta', text: `投入占比 ${goal.allocation_weight}%　健康度 ${health}　周期 ${goal.period_start ?? '—'} 至 ${goal.period_end ?? '—'}` });
+    const progress = card.createDiv({ cls: 'kos-board-project-progress' });
+    progress.createSpan({ cls: 'kos-board-mono', text: `${goal.allocation_weight} / 100` });
+    this.segmentRail(progress, goal.allocation_weight / 100, 28);
+    const bottom = card.createDiv({ cls: 'kos-board-card-bottom' });
+    bottom.createSpan({ cls: 'kos-board-muted', text: `结果证据 ${goal.result_evidence.length} 条` });
+    const actions = bottom.createDiv({ cls: 'kos-board-actions' });
+    this.button(actions, '编辑', false, () => this.ctx.editGoal?.(goal));
+    this.button(actions, '状态', false, () => this.ctx.manageStatus?.(goal));
+    this.button(actions, '打开目标', false, () => void this.openFile(goal.filePath));
+    this.button(actions, '与 AGENT 讨论', false, () => this.runAgent('action', 'review-goal', [goal], goal.filePath));
   }
 
   private renderInput(section: HTMLElement): void {
@@ -413,25 +602,36 @@ export class DashboardView extends KosView {
     const line = parent.createDiv({ cls: 'kos-board-line kos-board-task-line' });
     const check = line.createEl('button', { cls: 'kos-board-check', attr: { 'aria-label': task.status === 'done' ? '已完成' : '标记完成' } });
     setIcon(check, task.status === 'done' ? 'square-check-big' : 'square');
-    check.disabled = task.status !== 'doing' || !legalTransitions(task).some((target) => target.to === 'done');
-    check.addEventListener('click', () => void this.ctx.transition?.(task, 'done'));
+    check.disabled = !['todo', 'doing'].includes(task.status);
+    check.addEventListener('click', () => this.ctx.completeTask?.(task));
     const main = line.createDiv({ cls: 'kos-board-line-main' });
     this.pill(main, task.priority ?? 'P4', task.priority === 'P0' ? 'solid' : 'outline');
     this.link(main, objectName(task), () => void this.openFile(task.filePath));
     const meta = line.createDiv({ cls: 'kos-board-line-meta' });
-    meta.createSpan({ text: task.project?.replace(/\[|\]/g, '') ?? '未关联项目' });
+    meta.createSpan({ text: task.projects.length ? task.projects.map((project) => project.replace(/\[|\]/g, '')).join('、') : '零散任务' });
+	if (task.defer_until && task.defer_until > today) meta.createSpan({ cls: 'is-warning', text: `推迟至 ${task.defer_until}` });
     if (taskIsOverdue(task, today)) meta.createSpan({ cls: 'is-danger', text: '逾期' });
     if (task.status === 'blocked') meta.createSpan({ cls: 'is-danger', text: '● 受阻' });
     else meta.createSpan({ text: `● ${labelState(task.status)}` });
     meta.createSpan({ cls: taskIsDueToday(task, today) ? 'is-warning' : '', text: taskIsDueToday(task, today) ? '今天' : task.due ?? '未排期' });
-    if (task.status === 'blocked') this.button(meta, 'AGENT 分析阻塞', false, () => this.runAgent('action', 'resolve-blocker', [task], task.filePath));
+	if (task.status === 'done' && task.projects.length && !task.filePath.startsWith('32_任务/归档/')) {
+		this.button(meta, '移入归档', true, () => void this.ctx.archiveTask?.(task));
+	} else if (task.status === 'blocked') this.button(meta, 'AGENT 分析阻塞', false, () => this.runAgent('action', 'resolve-blocker', [task], task.filePath));
+	else {
+		this.iconAction(meta, 'pencil', '编辑任务', () => this.ctx.editTask?.(task));
+		if (task.scheduled_for === today) this.iconAction(meta, 'undo-2', '退回任务池', () => void this.ctx.returnTaskToPool?.(task));
+		else this.iconAction(meta, 'calendar-plus', '加入今日计划', () => void this.ctx.scheduleTask?.(task));
+		if (task.status === 'todo') this.iconAction(meta, 'calendar-clock', '推迟任务', () => this.ctx.deferTask?.(task));
+		if (task.status === 'todo' || task.status === 'doing') this.iconAction(meta, 'circle-pause', '记录阻塞', () => this.ctx.blockTask?.(task));
+	}
+	this.iconAction(meta, 'list-restart', '流转状态', () => this.ctx.manageStatus?.(task));
   }
 
   private renderSourceLine(parent: HTMLElement, source: SourceObject): void {
     const line = parent.createDiv({ cls: 'kos-board-line' });
     line.createSpan({ cls: 'kos-board-check-static' });
     const main = line.createDiv({ cls: 'kos-board-line-main' });
-    this.link(main, objectName(source), () => void this.ctx.openReader?.(source.filePath));
+    this.link(main, objectName(source), () => void this.ctx.openReader?.(source.filePath), SOURCE_TITLE_MAX_CHARACTERS);
     const meta = line.createDiv({ cls: 'kos-board-line-meta' });
     if (source.format) this.pill(meta, source.format, 'outline');
     if (source.importance) this.pill(meta, source.importance === 'high' ? '高' : source.importance === 'medium' ? '中' : '低', 'outline');
@@ -486,8 +686,14 @@ export class DashboardView extends KosView {
   }
 
   private pill(parent: HTMLElement, text: string, variant: string): void { parent.createSpan({ cls: `kos-board-pill is-${variant}`, text }); }
-  private link(parent: HTMLElement, text: string, action: () => void): void {
-    const button = parent.createEl('button', { cls: 'kos-board-link', text });
+  private link(parent: HTMLElement, text: string, action: () => void, maxCharacters?: number): void {
+    const truncated = maxCharacters !== undefined;
+    const button = parent.createEl('button', {
+      cls: `kos-board-link${truncated ? ' is-truncated' : ''}`,
+      text: truncated ? undefined : text,
+      attr: truncated ? { title: text, 'aria-label': text } : undefined,
+    });
+    if (truncated) button.createSpan({ cls: 'kos-board-link-label', text: truncateLabel(text, maxCharacters) });
     button.addEventListener('click', action);
   }
   private button(parent: HTMLElement, text: string, primary: boolean, action: () => void): HTMLButtonElement {
@@ -495,6 +701,12 @@ export class DashboardView extends KosView {
     button.addEventListener('click', action);
     return button;
   }
+	private iconAction(parent: HTMLElement, icon: string, label: string, action: () => void): HTMLButtonElement {
+		const button = parent.createEl('button', { cls: 'kos-board-icon', attr: { 'aria-label': label, title: label } });
+		setIcon(button, icon);
+		button.addEventListener('click', action);
+		return button;
+	}
   private page<T>(key: PaginationKey, items: T[]): PageSlice<T> {
     const result = paginate(items, this.pages[key]);
     this.pages[key] = result.page;

@@ -1,7 +1,7 @@
 /**
  * tasks-view.ts — B6 聚合任务视图（右侧栏）
  *
- * 聚合 31_任务 中 todo/doing/blocked 的 task，按 priority（P0 优先）再按 due 排序；
+ * 聚合 32_任务 中 todo/doing/blocked 的 task，按 priority（P0 优先）再按 due 排序；
  * 按项目分区块，项目区块显示 mergedProjectProgress 进度条，停滞项目（M10）标黄。
  */
 
@@ -65,11 +65,11 @@ export class TasksView extends KosView {
       return;
     }
 
-    // 按项目分组：key = task.project wikilink 归一化目标（与 M10 projectKey 同一口径）
+    // 多 Project Task 以关联集合分组，避免同一 Task 在聚合视图重复出现。
     const byProject = new Map<string, TaskObject[]>();
     const unassigned: TaskObject[] = [];
     for (const t of tasks) {
-      const key = t.project ? wikilinkTarget(t.project) : '';
+      const key = t.projects.length ? t.projects.map(wikilinkTarget).sort().join(' + ') : '';
       if (key === '') {
         unassigned.push(t);
         continue;
@@ -110,7 +110,7 @@ export class TasksView extends KosView {
     // 未关联到存活项目的任务（含 project 指向不存在/已归档项目的情况）
     const orphans = unassigned.concat(
       tasks.filter((t) => {
-        const key = t.project ? wikilinkTarget(t.project) : '';
+        const key = t.projects.length ? t.projects.map(wikilinkTarget).sort().join(' + ') : '';
         return key !== '' && !seenKeys.has(key);
       }),
     );

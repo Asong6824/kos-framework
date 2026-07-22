@@ -22,23 +22,25 @@ required_paths:
   - 20_处理区/摘要
   - 21_研究
   - 22_知识库
-  - 23_日记
-  - 24_认知记录
-  - 25_个人操作画像
-  - 30_项目
-  - 31_任务
-  - 40_方法库
-  - 41_Skills
-  - 41_Skills/core
-  - 41_Skills/incubator
-  - 41_Skills/integrations
-  - 41_Skills/personal
-  - 41_Skills/archived
-  - 50_信息雷达
-  - 50_信息雷达/主题监控
-  - 50_信息雷达/公司监控
-  - 50_信息雷达/宏观监控
-  - 50_信息雷达/每日简报
+  - 23_方法库
+  - 30_目标
+  - 31_项目
+  - 32_任务
+  - 32_任务/归档
+  - 40_日记
+  - 41_认知记录
+  - 42_个人操作画像
+  - 80_Skills
+  - 80_Skills/core
+  - 80_Skills/incubator
+  - 80_Skills/integrations
+  - 80_Skills/personal
+  - 80_Skills/archived
+  - 12_信息雷达
+  - 12_信息雷达/主题监控
+  - 12_信息雷达/公司监控
+  - 12_信息雷达/宏观监控
+  - 12_信息雷达/每日简报
   - 90_系统
   - 90_系统/规则
   - 90_系统/模板
@@ -59,5 +61,5 @@ forbidden_runtime_directories:
   - 90_系统/harness
   - 90_系统/evals/schemas
 runtime_empty_extension_dirs:
-  - 41_Skills/integrations
-  - 41_Skills/personal
+  - 80_Skills/integrations
+  - 80_Skills/personal

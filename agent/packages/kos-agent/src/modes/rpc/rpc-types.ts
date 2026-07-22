@@ -14,11 +14,31 @@ import type { SessionEntry, SessionInfo, SessionTreeNode } from "../../core/sess
 import type { SourceInfo } from "../../core/source-info.ts";
 import type { ValidationReport } from "../../kos/validation/types.ts";
 import type { ConfigureModelInput } from "../../kos/model-configuration.ts";
+import type { UpdateProjectInput } from "../../kos/operations/update-project.ts";
 import type {
 	AppendReaderExtractInput,
 	AppendReaderExtractResult,
 	CreateObjectInput,
 	OperationResult,
+	SetGoalWeightsInput,
+	SetGoalWeightsResult,
+	UpdateTaskInput,
+	TaskPoolResult,
+	DeferTaskInput,
+	ReturnTaskToPoolInput,
+	CompleteTaskInput,
+	CompleteTaskResult,
+	ArchiveTaskInput,
+	ArchiveTaskResult,
+	GoalHealthReview,
+	LayoutMigrationResult,
+	ProjectDirectoryMigrationResult,
+	RecommendationFeedbackInput,
+	ReviewResult,
+	StartDayInput,
+	StartDayResult,
+	TaskMigrationResult,
+	UpdateGoalInput,
 	TransitionStatusInput,
 	TransitionStatusResult,
 } from "../../kos/operations/types.ts";
@@ -41,6 +61,24 @@ export type RpcCommand =
 	| ({ id?: string; type: "create_object" } & CreateObjectInput)
 	| ({ id?: string; type: "append_reader_extract" } & AppendReaderExtractInput)
 	| ({ id?: string; type: "transition_status" } & TransitionStatusInput)
+	| ({ id?: string; type: "set_goal_weights" } & SetGoalWeightsInput)
+	| ({ id?: string; type: "update_goal" } & UpdateGoalInput)
+	| { id?: string; type: "review_goal_health"; path: string; date?: string }
+	| ({ id?: string; type: "update_project" } & UpdateProjectInput)
+	| ({ id?: string; type: "update_task" } & UpdateTaskInput)
+	| { id?: string; type: "list_task_pool"; today?: string }
+	| ({ id?: string; type: "defer_task" } & DeferTaskInput)
+	| ({ id?: string; type: "return_task_to_pool" } & ReturnTaskToPoolInput)
+	| ({ id?: string; type: "complete_task" } & CompleteTaskInput)
+	| ({ id?: string; type: "archive_task" } & ArchiveTaskInput)
+	| { id?: string; type: "migrate_task_pool"; dryRun?: boolean }
+	| { id?: string; type: "migrate_layout"; dryRun?: boolean }
+	| { id?: string; type: "migrate_project_directories"; dryRun?: boolean }
+	| ({ id?: string; type: "start_day" } & StartDayInput)
+	| ({ id?: string; type: "recommendation_feedback" } & RecommendationFeedbackInput)
+	| { id?: string; type: "end_day"; date?: string }
+	| { id?: string; type: "review_week"; date?: string }
+	| { id?: string; type: "review_month"; date?: string }
 	| { id?: string; type: "daily_workflow"; workflow: "dashboard" | "brief" | "diary"; date?: string }
 
 	// Model
@@ -145,6 +183,22 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "create_object"; success: true; data: OperationResult }
 	| { id?: string; type: "response"; command: "append_reader_extract"; success: true; data: AppendReaderExtractResult }
 	| { id?: string; type: "response"; command: "transition_status"; success: true; data: TransitionStatusResult }
+	| { id?: string; type: "response"; command: "set_goal_weights"; success: true; data: SetGoalWeightsResult }
+	| { id?: string; type: "response"; command: "update_goal"; success: true; data: OperationResult }
+	| { id?: string; type: "response"; command: "review_goal_health"; success: true; data: GoalHealthReview }
+	| { id?: string; type: "response"; command: "update_project"; success: true; data: OperationResult }
+	| { id?: string; type: "response"; command: "update_task"; success: true; data: OperationResult }
+	| { id?: string; type: "response"; command: "list_task_pool"; success: true; data: TaskPoolResult }
+	| { id?: string; type: "response"; command: "defer_task"; success: true; data: OperationResult }
+	| { id?: string; type: "response"; command: "return_task_to_pool"; success: true; data: OperationResult }
+	| { id?: string; type: "response"; command: "complete_task"; success: true; data: CompleteTaskResult }
+	| { id?: string; type: "response"; command: "archive_task"; success: true; data: ArchiveTaskResult }
+	| { id?: string; type: "response"; command: "migrate_task_pool"; success: true; data: TaskMigrationResult }
+	| { id?: string; type: "response"; command: "migrate_layout"; success: true; data: LayoutMigrationResult }
+	| { id?: string; type: "response"; command: "migrate_project_directories"; success: true; data: ProjectDirectoryMigrationResult }
+	| { id?: string; type: "response"; command: "start_day"; success: true; data: StartDayResult }
+	| { id?: string; type: "response"; command: "recommendation_feedback"; success: true; data: OperationResult }
+	| { id?: string; type: "response"; command: "end_day" | "review_week" | "review_month"; success: true; data: ReviewResult }
 	| { id?: string; type: "response"; command: "daily_workflow"; success: true; data: OperationResult }
 
 	// Model

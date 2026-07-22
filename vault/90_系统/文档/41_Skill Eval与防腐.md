@@ -17,7 +17,6 @@ Skill eval 使用“结构门禁 + 两层有效性评估”：
 ```text
 90_系统/evals/
   README.md
-  schemas/
   skills/
     <skill-name>.prompts.csv
   contracts/
@@ -29,6 +28,8 @@ Skill eval 使用“结构门禁 + 两层有效性评估”：
 `skills/` 存放用户自建或修改 Skill 的 prompt 测试集。`artifacts/` 存放运行结果，不应手工维护。
 
 `contracts/` 存放 Task Contract：在任务执行前冻结目标、完成检查、语义 rubric 和最大迭代次数。
+
+Eval schema 和执行器随 kos-agent 安装，不复制到 Vault。
 
 ## Prompt CSV
 
@@ -52,19 +53,19 @@ id,skill,should_trigger,prompt,expected_checks,notes
 先检查 eval 定义：
 
 ```bash
-kos-harness validate
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate
 ```
 
 运行全部 eval：
 
 ```bash
-kos-harness skill-eval --write-artifact
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs skill-eval --write-artifact
 ```
 
 运行单个 suite：
 
 ```bash
-kos-harness skill-eval --suite <skill-name> --write-artifact
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs skill-eval --suite <skill-name> --write-artifact
 ```
 
 没有 case 时 runner 返回 `NO_CASES`，不能视为通过。
@@ -82,7 +83,7 @@ max_iterations: 3
 checks:
   - id: project_exists
     type: path_exists
-    path: 30_项目/示例项目.md
+    path: 31_项目/示例项目/示例项目.md
   - id: schema_valid
     type: harness_passes
     validator: schema
@@ -95,7 +96,7 @@ rubric:
 Agent 完成任务后提交带证据的 rubric 自评，再运行：
 
 ```bash
-kos-harness task-eval \
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs task-eval \
   --contract 90_系统/evals/contracts/kos-create-project/create-project-basic.task.yaml \
   --self-assessment /tmp/create-project-basic.assessment.yaml \
   --state 90_系统/evals/artifacts/create-project-basic-run.json \

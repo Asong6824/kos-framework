@@ -1,6 +1,6 @@
 type: task
 paths:
-  - 31_任务
+  - 32_任务
 required:
   type:
     kind: enum
@@ -10,16 +10,48 @@ required:
   status:
     kind: enum
     values: [todo, doing, done, blocked, cancelled]
-  project:
-    kind: string
+  projects:
+    kind: list
   priority:
     kind: enum
     values: [P0, P1, P2, P3, P4]
   due:
     kind: string
+  scheduled_for:
+    kind: string
+  defer_until:
+    kind: string
+  estimate_minutes:
+    kind: int
+  energy:
+    kind: enum
+    values: [low, medium, high]
+  work_mode:
+    kind: enum
+    values: [deep, shallow, collaborative, administrative]
+  growth_mode:
+    kind: enum
+    values: [neutral, practice, stretch]
   created:
     kind: date
   completed:
     kind: string
+  result:
+    kind: string
+  outputs:
+    kind: list
+  blocked_reason:
+    kind: string
+  unblock_condition:
+    kind: string
+  project_contributions:
+    kind: list
+  recommendation_history:
+    kind: list
   tags:
     kind: list
+  scheduled_times:
+    kind: list
+optional:
+  project:
+    kind: string

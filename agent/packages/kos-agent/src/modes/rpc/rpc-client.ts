@@ -12,11 +12,31 @@ import type { BashResult } from "../../core/bash-executor.ts";
 import type { CompactionResult } from "../../core/compaction/index.ts";
 import type { SessionEntry, SessionTreeNode } from "../../core/session-manager.ts";
 import type { ValidationReport } from "../../kos/validation/types.ts";
+import type { UpdateProjectInput } from "../../kos/operations/update-project.ts";
 import type {
 	AppendReaderExtractInput,
 	AppendReaderExtractResult,
 	CreateObjectInput,
 	OperationResult,
+	SetGoalWeightsInput,
+	SetGoalWeightsResult,
+	UpdateTaskInput,
+	TaskPoolResult,
+	DeferTaskInput,
+	ReturnTaskToPoolInput,
+	CompleteTaskInput,
+	CompleteTaskResult,
+	ArchiveTaskInput,
+	ArchiveTaskResult,
+	GoalHealthReview,
+	RecommendationFeedbackInput,
+	ReviewResult,
+	StartDayInput,
+	StartDayResult,
+	TaskMigrationResult,
+	LayoutMigrationResult,
+	ProjectDirectoryMigrationResult,
+	UpdateGoalInput,
 	TransitionStatusInput,
 	TransitionStatusResult,
 } from "../../kos/operations/types.ts";
@@ -265,6 +285,79 @@ export class RpcClient {
 	async transitionStatus(input: TransitionStatusInput): Promise<TransitionStatusResult> {
 		const response = await this.send({ type: "transition_status", ...input });
 		return this.getData(response);
+	}
+
+	async setGoalWeights(input: SetGoalWeightsInput): Promise<SetGoalWeightsResult> {
+		const response = await this.send({ type: "set_goal_weights", ...input });
+		return this.getData(response);
+	}
+
+	async updateGoal(input: UpdateGoalInput): Promise<OperationResult> {
+		return this.getData(await this.send({ type: "update_goal", ...input }));
+	}
+
+	async reviewGoalHealth(path: string, date?: string): Promise<GoalHealthReview> {
+		return this.getData(await this.send({ type: "review_goal_health", path, date }));
+	}
+
+	async updateProject(input: UpdateProjectInput): Promise<OperationResult> {
+		return this.getData(await this.send({ type: "update_project", ...input }));
+	}
+
+	async updateTask(input: UpdateTaskInput): Promise<OperationResult> {
+		return this.getData(await this.send({ type: "update_task", ...input }));
+	}
+
+	async listTaskPool(today?: string): Promise<TaskPoolResult> {
+		return this.getData(await this.send({ type: "list_task_pool", today }));
+	}
+
+	async deferTask(input: DeferTaskInput): Promise<OperationResult> {
+		return this.getData(await this.send({ type: "defer_task", ...input }));
+	}
+
+	async returnTaskToPool(input: ReturnTaskToPoolInput): Promise<OperationResult> {
+		return this.getData(await this.send({ type: "return_task_to_pool", ...input }));
+	}
+
+	async completeTask(input: CompleteTaskInput): Promise<CompleteTaskResult> {
+		return this.getData(await this.send({ type: "complete_task", ...input }));
+	}
+
+	async archiveTask(input: ArchiveTaskInput): Promise<ArchiveTaskResult> {
+		return this.getData(await this.send({ type: "archive_task", ...input }));
+	}
+
+	async migrateTaskPool(dryRun = false): Promise<TaskMigrationResult> {
+		return this.getData(await this.send({ type: "migrate_task_pool", dryRun }));
+	}
+
+	async migrateLayout(dryRun = false): Promise<LayoutMigrationResult> {
+		return this.getData(await this.send({ type: "migrate_layout", dryRun }));
+	}
+
+	async migrateProjectDirectories(dryRun = false): Promise<ProjectDirectoryMigrationResult> {
+		return this.getData(await this.send({ type: "migrate_project_directories", dryRun }));
+	}
+
+	async startDay(input: StartDayInput = {}): Promise<StartDayResult> {
+		return this.getData(await this.send({ type: "start_day", ...input }));
+	}
+
+	async recordRecommendationFeedback(input: RecommendationFeedbackInput): Promise<OperationResult> {
+		return this.getData(await this.send({ type: "recommendation_feedback", ...input }));
+	}
+
+	async endDay(date?: string): Promise<ReviewResult> {
+		return this.getData(await this.send({ type: "end_day", date }));
+	}
+
+	async reviewWeek(date?: string): Promise<ReviewResult> {
+		return this.getData(await this.send({ type: "review_week", date }));
+	}
+
+	async reviewMonth(date?: string): Promise<ReviewResult> {
+		return this.getData(await this.send({ type: "review_month", date }));
 	}
 
 	/**

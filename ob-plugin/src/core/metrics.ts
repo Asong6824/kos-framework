@@ -1,5 +1,5 @@
 /**
- * metrics.ts — 全部指标计算（M1–M14）
+ * metrics.ts — 全部指标计算（M1–M15）
  *
  * 口径唯一标准：docs/03_指标定义.md。函数名与指标编号一一对应。
  * 通用约定要点：
@@ -421,7 +421,7 @@ export function pendingReviewCount(objects: KosObject[]): PendingReviewCount {
 export interface ProjectProgress {
   filePath: string;
   title: string;
-  /** 全部任务数（31_任务 中 project 指向该项目的 task；项目页 checkbox 由数据层合并） */
+  /** 全部任务数（32_任务 中 project 指向该项目的 task；项目页 checkbox 由数据层合并） */
   total: number;
   done: number;
   /** 无任务时为 null（显示 —） */
@@ -452,7 +452,8 @@ function projectKey(p: ProjectObject): string {
 
 /** task 是否属于某项目 */
 function taskBelongsTo(t: TaskObject, key: string): boolean {
-  return t.project !== undefined && wikilinkTarget(t.project) === key;
+  const projects = t.projects ?? (t.project ? [t.project] : []);
+  return projects.some((project) => wikilinkTarget(project) === key);
 }
 
 /** M10：逐项目推进度 + 停滞判定 */
@@ -818,4 +819,51 @@ export function monthlyReport(
   extras?: PeriodReportExtras,
 ): PeriodReport {
   return periodReport(objects, snapshots, today, 'month', settings, extras);
+}
+
+// ---------------------------------------------------------------------------
+// M15 年 / 月 / 周 / 日时间进度
+// ---------------------------------------------------------------------------
+
+export type ProgressPeriod = 'year' | 'month' | 'week' | 'day';
+
+export interface YearProgressSnapshot {
+  year: number;
+  dayOfYear: number;
+  daysInYear: number;
+  progress: Record<ProgressPeriod, number>;
+}
+
+function clampTimeProgress(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function elapsedPeriod(now: Date, start: Date, end: Date): number {
+  return clampTimeProgress((now.getTime() - start.getTime()) / (end.getTime() - start.getTime()));
+}
+
+/** M15：按设备本地时区计算当前时刻在年、月、周（周一开始）和日中的已流逝比例。 */
+export function yearProgressSnapshot(now: Date): YearProgressSnapshot {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const date = now.getDate();
+  const dayStart = new Date(year, month, date);
+  const nextDay = new Date(year, month, date + 1);
+  const mondayOffset = (now.getDay() + 6) % 7;
+  const weekStart = new Date(year, month, date - mondayOffset);
+  const nextWeek = new Date(year, month, date - mondayOffset + 7);
+  const yearStartUtc = Date.UTC(year, 0, 1);
+  const todayUtc = Date.UTC(year, month, date);
+  const nextYearUtc = Date.UTC(year + 1, 0, 1);
+  return {
+    year,
+    dayOfYear: Math.floor((todayUtc - yearStartUtc) / 86_400_000) + 1,
+    daysInYear: Math.round((nextYearUtc - yearStartUtc) / 86_400_000),
+    progress: {
+      year: elapsedPeriod(now, new Date(year, 0, 1), new Date(year + 1, 0, 1)),
+      month: elapsedPeriod(now, new Date(year, month, 1), new Date(year, month + 1, 1)),
+      week: elapsedPeriod(now, weekStart, nextWeek),
+      day: elapsedPeriod(now, dayStart, nextDay),
+    },
+  };
 }

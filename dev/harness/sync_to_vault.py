@@ -25,7 +25,8 @@ def main() -> int:
     print(f"Add: {len(diff.added)}")
     print(f"Update: {len(diff.modified)}")
     print(f"Delete: {len(diff.deleted)}")
-    for label, paths in [("ADD", diff.added), ("UPDATE", diff.modified), ("DELETE", diff.deleted)]:
+    print(f"Add directories: {len(diff.added_directories)}")
+    for label, paths in [("ADD_DIR", diff.added_directories), ("ADD", diff.added), ("UPDATE", diff.modified), ("DELETE", diff.deleted)]:
         for path in paths:
             print(f"{label} {path}")
 

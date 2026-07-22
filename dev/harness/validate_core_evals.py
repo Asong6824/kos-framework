@@ -20,7 +20,7 @@ REQUIRED_COLUMNS = ["id", "skill", "should_trigger", "prompt", "expected_checks"
 
 def core_skill_names() -> set[str]:
     names: set[str] = set()
-    for path in sorted((VAULT_ROOT / "41_Skills/core").glob("*/SKILL.md")):
+    for path in sorted((VAULT_ROOT / "80_Skills/core").glob("*/SKILL.md")):
         text = path.read_text(encoding="utf-8")
         if not text.startswith("---\n"):
             continue

@@ -1,6 +1,6 @@
 type: topic_watch
 paths:
-  - 50_信息雷达/主题监控
+  - 12_信息雷达/主题监控
 required:
   type:
     kind: enum

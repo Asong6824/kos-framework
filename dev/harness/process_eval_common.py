@@ -418,7 +418,7 @@ def _skill_reads(trace: dict[str, Any]) -> set[str]:
         if event.get("type") != "tool_call" or event.get("tool") != "read":
             continue
         path = str((event.get("args") or {}).get("path") or "")
-        match = re.search(r"(?:^|/)41_Skills/(?:[^/]+/)*([^/]+)/SKILL\.md$", path)
+        match = re.search(r"(?:^|/)80_Skills/(?:[^/]+/)*([^/]+)/SKILL\.md$", path)
         if match:
             names.add(match.group(1))
     return names

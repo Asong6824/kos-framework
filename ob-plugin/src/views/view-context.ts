@@ -8,9 +8,9 @@
 import { ItemView, TFile } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { MetricSettings } from '../core/metrics';
-import type { KosObject, KosObjectType } from '../core/model';
+import type { GoalObject, KosObject, KosObjectType, ProjectObject, TaskObject } from '../core/model';
 import type { DashboardModule } from '../core/dashboard';
-import type { KosRpcEvent, KosRpcState, KosSessionStats, KosValidationReport } from '../agent/protocol';
+import type { KosRecommendationFeedbackInput, KosRpcEvent, KosRpcState, KosSessionStats, KosStartDayInput, KosStartDayResult, KosValidationReport } from '../agent/protocol';
 import type { KosIndex } from '../data/index';
 import type { KosDataStore } from '../data/store';
 import { localToday } from '../data/store';
@@ -23,8 +23,22 @@ export interface ViewContext {
   openAgent?(path?: string, prompt?: string): Promise<void>;
   runAgent?(module: DashboardModule, intent: string, objects?: KosObject[], path?: string): Promise<void>;
   transition?(object: KosObject, target: string): Promise<boolean>;
+  manageStatus?(object: KosObject): void;
   approve?(object: KosObject): Promise<boolean>;
-  create?(kind: 'project' | 'concept' | 'method' | 'task' | 'source'): void;
+  create?(kind: 'goal' | 'project' | 'concept' | 'method' | 'task' | 'source'): void;
+  adjustGoalWeights?(period: string, goals: GoalObject[]): void;
+  editGoal?(goal: GoalObject): void;
+  editProject?(project: ProjectObject): void;
+  editTask?(task: TaskObject): void;
+  scheduleTask?(task: TaskObject): Promise<boolean>;
+  deferTask?(task: TaskObject): void;
+  returnTaskToPool?(task: TaskObject): Promise<boolean>;
+  blockTask?(task: TaskObject): void;
+  completeTask?(task: TaskObject): void;
+  archiveTask?(task: TaskObject): Promise<boolean>;
+  startDay?(input: KosStartDayInput): Promise<KosStartDayResult>;
+  recommendationFeedback?(input: KosRecommendationFeedbackInput): Promise<boolean>;
+  endDay?(): Promise<void>;
   capture?(): void;
   openReader?(path: string): Promise<void>;
   report?(period: 'week' | 'month'): void;
@@ -48,6 +62,7 @@ export const TYPE_LABELS: Record<KosObjectType, string> = {
   summary: '摘要',
   research: '研究',
   concept: '概念',
+  goal: '目标',
   project: '项目',
   task: '任务',
   diary: '日记',

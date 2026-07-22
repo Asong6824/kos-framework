@@ -1,5 +1,5 @@
 export type ValidationLevel = "ERROR" | "WARN" | "INFO";
-export type ValidatorName = "paths" | "schema" | "state" | "skills" | "skill_evals";
+export type ValidatorName = "paths" | "schema" | "state" | "business" | "skills" | "skill_evals";
 
 export interface ValidationFinding {
 	level: ValidationLevel;
@@ -18,7 +18,7 @@ export interface ValidationReport {
 }
 
 export interface SchemaRule {
-	kind: "string" | "date" | "int" | "bool" | "list" | "enum";
+	kind: "string" | "date" | "int" | "bool" | "list" | "map" | "enum";
 	values?: unknown[];
 }
 

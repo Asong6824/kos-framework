@@ -367,8 +367,8 @@ Content`,
 			});
 		});
 
-		it("should discover Vault Skills under 41_Skills", async () => {
-			const skillDir = join(cwd, "41_Skills", "core", "vault-skill");
+		it("should discover Vault Skills under 80_Skills", async () => {
+			const skillDir = join(cwd, "80_Skills", "core", "vault-skill");
 			mkdirSync(skillDir, { recursive: true });
 			writeFileSync(join(skillDir, "SKILL.md"), `---\nname: vault-skill\ndescription: Vault skill\n---\nUse it.`);
 

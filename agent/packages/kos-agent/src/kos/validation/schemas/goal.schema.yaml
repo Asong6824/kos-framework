@@ -1,0 +1,37 @@
+type: goal
+paths:
+  - 30_目标
+required:
+  type:
+    kind: enum
+    values: [goal]
+  title:
+    kind: string
+  horizon:
+    kind: enum
+    values: [H1, H2]
+  period:
+    kind: string
+  status:
+    kind: enum
+    values: [draft, active, paused, achieved, abandoned, archived]
+  allocation_weight:
+    kind: int
+  health:
+    kind: enum
+    values: [unknown, on_track, at_risk, off_track]
+  period_start:
+    kind: date
+  period_end:
+    kind: date
+  created:
+    kind: date
+  updated:
+    kind: date
+  human_confirmed:
+    kind: bool
+  tags:
+    kind: list
+optional:
+  result_evidence:
+    kind: list

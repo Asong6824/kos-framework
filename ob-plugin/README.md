@@ -2,13 +2,13 @@
 
 kos 的 Obsidian 插件项目（插件 id：`kos-companion`）。为 kos vault 提供实时、原生、可视化的交互层。
 
-二期中央工作台采用 Nothing-inspired 设计系统，把“今日、行动、输入、知识、审阅与复盘、系统”六个区块放在同一个连续页面中，不需要切换模块。Agent 保持为右侧栏，Reader 保持为独立 Obsidian 视图；进入、刷新和滚动看板不会自动调用模型，“开始一天”和“结束一天”只在用户点击后提交对应 Skill。
+二期中央工作台采用 Nothing-inspired 设计系统，把四张工具卡与“今日、行动、输入、知识、审阅与复盘、系统”六个业务区块放在同一个响应式 Bento 页面中，不需要切换模块。桌面使用 12 列整数格，进入“编辑布局”后十张卡均可自由拖动、整格缩放、碰撞避让、撤销、重做和恢复默认；布局写入插件私有数据，内容过多时仍自动整格撑开且不产生卡片内滚动。移动端保持单列连续页面。Agent 保持为右侧栏，Reader 保持为独立 Obsidian 视图。
 
 Agent 侧栏支持 Vault `@mention`、Skill/prompt 菜单、运行中 steering/follow-up、thinking/usage、`ask_question`，以及当前模型或 Brave/Exa 驱动的 Web 搜索。
 
-视图层采用渐进式 React 策略：现有六区块看板和简单工具视图继续使用 Obsidian 原生 DOM；Reader 已在独立 `ItemView` 内挂载随插件打包的 React 18 UI，支持 Source Markdown、本地 PDF 和无 DRM EPUB、目录/翻页及阅读位置恢复。PDF 默认纵向连续滚动，并只为当前页附近渲染 Canvas/文字层；EPUB 默认跨章节连续滚动，也可从工具栏切换为分页阅读，切换时沿用当前 CFI。插件注册 `.epub` 扩展，因此 EPUB 会显示在 Obsidian 文件树并可直接点击；没有关联 Source 时按书籍模板自动创建。PDF 保留 Obsidian 原生默认视图，可通过文件右键菜单或“使用 kos Reader 打开当前文件”命令进入 Reader。用户选中文本后可以确定性写入关联 Extract，也可以把带 Source、原文件和位置的引用预填到 Agent 输入框；后者不会自动发送消息。PDF 使用 Obsidian 公开 `loadPdfJs()`，EPUB 固定使用 `epubjs@0.3.93`；进度只写插件私有 `data.json`。搜索、持久划线回显、批注和章节/阅读会话 Summary 尚未实现。
+视图层采用渐进式 React 策略：看板由 React 18 管理统一 Bento 布局外壳、dnd-kit 拖动和 Framer Motion 避让动画，六个业务区块内部继续复用 Obsidian 原生 DOM 动作；点阵时钟、当日任务时刻、实时年度进度和 M5 热点图同样位于该网格，并可从四边或四角整格缩放。任务通过可选 `scheduled_times: ["HH:mm"]` 进入当日 48 点时间轴；热点图只使用真实 M5 数据。Reader 在独立 `ItemView` 内挂载 React UI，支持 Source Markdown、本地 PDF 和无 DRM EPUB、目录/翻页及阅读位置恢复。PDF 默认纵向连续滚动，并只为当前页附近渲染 Canvas/文字层；EPUB 默认跨章节连续滚动，也可从工具栏切换为分页阅读，切换时沿用当前 CFI。插件注册 `.epub` 扩展，因此 EPUB 会显示在 Obsidian 文件树并可直接点击；没有关联 Source 时按书籍模板自动创建。PDF 保留 Obsidian 原生默认视图，可通过文件右键菜单或“使用 kos Reader 打开当前文件”命令进入 Reader。用户选中文本后可以确定性写入关联 Extract，也可以把带 Source、原文件和位置的引用预填到 Agent 输入框；后者不会自动发送消息。PDF 使用 Obsidian 公开 `loadPdfJs()`，EPUB 固定使用 `epubjs@0.3.93`；Reader 进度和十张卡的统一布局只写插件私有 `data.json`，实时指标值不持久化。搜索、持久划线回显、批注和章节/阅读会话 Summary 尚未实现。
 
-EPUB 显示与默认打开由插件加载时的 `registerExtensions(['epub'], 'kos-reader')` 完成，不修改 Obsidian 应用文件。禁用或卸载插件后注册自动消失；若其他插件也注册 `.epub`，处理器选择可能受插件加载顺序影响。React、ReactDOM 和 epub.js 都打包进发布版 `main.js`，使用者无需执行 `npm install`。安装或覆盖发布目录后必须重新加载 kos Companion 或重启 Obsidian，正在运行的旧插件实例不会自动采用新的 bundle。
+EPUB 显示与默认打开由插件加载时的 `registerExtensions(['epub'], 'kos-reader')` 完成，不修改 Obsidian 应用文件。禁用或卸载插件后注册自动消失；若其他插件也注册 `.epub`，处理器选择可能受插件加载顺序影响。React、ReactDOM、dnd-kit、Framer Motion 和 epub.js 都打包进发布版 `main.js`，使用者无需执行 `npm install`。安装或覆盖发布目录后必须重新加载 kos Companion 或重启 Obsidian，正在运行的旧插件实例不会自动采用新的 bundle。
 
 本目录独立于 kos-framework 的 `vault/`（运行时）和 `dev/`（框架开发）：
 
@@ -41,9 +41,9 @@ npm run test:e2e     # 独立临时 Vault + 真实 Obsidian + kos-agent RPC
 4. 建议装社区插件 Hot Reload 实现改码自动重载；`Cmd+Opt+I` 打开 DevTools 调试
 5. 用 `kos-harness create` 在测试 vault 里批量造各状态的对象
 
-正式本地发布先在仓库根目录运行 `make release-check`，产物位于 `release/kos-companion/`。同步到现有 Vault 时保留目标插件目录中的 `data.json`，因为其中包含用户设置、历史快照、徽章和 Reader 进度。
+正式本地发布先在仓库根目录运行 `make release-check`，产物位于 `release/kos-companion/`。同步到现有 Vault 时保留目标插件目录中的 `data.json`，因为其中包含用户设置、历史快照、徽章、Reader 进度和自定义看板布局。
 
-`npm run test:e2e` 需要 macOS 上已安装 `/Applications/Obsidian.app`，以及 Node.js 22.19+。脚本会创建独立的临时 Vault 和 `user-data-dir`，不会打开、修改或关闭用户当前 Vault；它通过 Obsidian 的 Chrome DevTools Protocol 验证六区块同时存在且纵向连续、手动开始入口、桌面/390px 布局、独立 Reader、EPUB 文件树显示和直接打开、自动 Source 创建、本地 PDF/EPUB 渲染与进度恢复、真实 EPUB 选区、Extract 创建与去重、Agent 草稿预填且不自动发送、Agent 在线状态，并让一个夹具任务经 kos-agent 从 `doing` 流转到 `done`。截图和夹具路径会输出到终端。
+`npm run test:e2e` 需要 macOS 上已安装 `/Applications/Obsidian.app`，以及 Node.js 22.19+。脚本会创建独立的临时 Vault 和 `user-data-dir`，不会打开、修改或关闭用户当前 Vault；它通过 Obsidian 的 Chrome DevTools Protocol 验证 Bento 编辑格线、真实拖动与缩放、碰撞无重叠、撤销/重做/复位和布局落盘，同时覆盖区块无内部滚动、桌面/390px 布局、Reader、PDF/EPUB、Extract、Agent 草稿和确定性任务流转。截图和夹具路径会输出到终端。
 
 ### 个性化目录布局
 
@@ -55,16 +55,16 @@ npm run test:e2e     # 独立临时 Vault + 真实 Obsidian + kos-agent RPC
 |--------|--------------|----------|
 | 收件箱（inbox） | `10_输入/11_收件箱` | `10_收件箱` |
 | 原材料（source） | `10_输入/12_原材料`（format 中文子目录如 `书籍/文章` 照常在下面拼） | `11_原材料` |
-| 信息雷达（radar） | `10_输入/13_信息雷达` | `50_信息雷达` |
+| 信息雷达（radar） | `10_输入/13_信息雷达` | `12_信息雷达` |
 | 摘录（extract） | `20_处理/21_摘录` | `20_处理区/摘录` |
 | 摘要（summary） | `20_处理/22_摘要` | `20_处理区/摘要` |
 | 研究（research） | `20_处理/23_研究` | `21_研究` |
 | 知识库（concept） | `30_知识/31_知识库` | `22_知识库` |
-| 方法库（method） | `30_知识/32_方法库` | `40_方法库` |
-| 项目（project） | `40_行动/41_项目` | `30_项目` |
-| 任务（task） | `40_行动/42_任务` | `31_任务` |
-| 日记（diary） | `50_复盘/51_日记`（YYYY/MM 嵌套照常拼） | `23_日记` |
-| 认知记录（reflection） | `50_复盘/52_认知记录` | `24_认知记录` |
+| 方法库（method） | `30_知识/32_方法库` | `23_方法库` |
+| 项目（project） | `40_行动/41_项目` | `31_项目` |
+| 任务（task） | `40_行动/42_任务` | `32_任务` |
+| 日记（diary） | `50_复盘/51_日记`（YYYY/MM 嵌套照常拼） | `40_日记` |
+| 认知记录（reflection） | `50_复盘/52_认知记录` | `41_认知记录` |
 
 `90_系统/模板`、`00_工作台` 与标准一致时无需任何配置。
 
@@ -73,7 +73,7 @@ npm run test:e2e     # 独立临时 Vault + 真实 Obsidian + kos-agent RPC
 ```text
 src/core/       # 纯 TS，零 obsidian 依赖：对象模型、状态机、M1–M14 指标、二期看板模型（Vitest 覆盖）
 src/data/       # KosIndex（metadataCache 增量索引）+ KosDataStore（data.json 持久化）
-src/views/      # 六区块连续单页工作台、独立 Reader、Agent 侧栏；复杂视图渐进挂载 React Root
+src/views/      # 六区块响应式 Bento 工作台、独立 Reader、Agent 侧栏；复杂视图渐进挂载 React Root
 src/actions/    # 快速捕获、创建向导、状态流转、审核通过、徽章、周月报
 src/bridge/     # kos-agent host 启动与结构化验证展示
 tests/          # Vitest：core、Agent contract、Reader 纯逻辑与进度迁移

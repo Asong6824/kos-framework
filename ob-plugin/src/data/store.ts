@@ -1,7 +1,7 @@
 /**
  * store.ts — 插件私有 data.json 的读写与迁移
  *
- * schema v2 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
+ * schema v7 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
  * 不触碰 vault 内任何文件（写入边界见 3.4 节）。
  */
 
@@ -13,13 +13,15 @@ import { addDays, buildSnapshot, missingDates } from '../core/snapshot';
 import type { DailySnapshot } from '../core/snapshot';
 import { DEFAULT_SETTINGS } from '../settings';
 import type { KosSettings } from '../settings';
-import { DEFAULT_OBJECT_DIRS, normalizeObjectDirs } from '../core/model';
+import { cloneBentoLayout, DEFAULT_BENTO_LAYOUT, migrateLegacyDashboardLayout, normalizeBentoLayout } from '../core/bento-layout';
+import type { BentoLayoutItem } from '../core/bento-layout';
+import { DEFAULT_OBJECT_DIRS, migrateLegacyObjectDirs, normalizeObjectDirs } from '../core/model';
 import type { ReaderProgress } from '../reader/model';
 import { normalizeReaderProgressRecord } from '../reader/model';
 
-export const DATA_VERSION = 2;
+export const DATA_VERSION = 7;
 
-/** data.json schema v2（02 文档 3.2 节） */
+/** data.json schema v7（02 文档 3.2 节） */
 export interface PluginData {
   version: number;
   /** 安装日期 YYYY-MM-DD */
@@ -36,6 +38,8 @@ export interface PluginData {
   reviewClearCount: number;
   /** Source 路径 → Reader 阅读位置；不回写 Source Markdown */
   readerProgress: Record<string, ReaderProgress>;
+  /** 全部看板卡片的整数 Bento 位置与期望尺寸；内容高度下限不写入配置 */
+  dashboardLayout: BentoLayoutItem[];
 }
 
 /** 可重复徽章的计数器 key */
@@ -68,6 +72,7 @@ function defaultData(today: string): PluginData {
     inboxZeroCount: 0,
     reviewClearCount: 0,
     readerProgress: {},
+    dashboardLayout: cloneBentoLayout(DEFAULT_BENTO_LAYOUT),
   };
 }
 
@@ -104,9 +109,7 @@ export class KosDataStore {
       this.settings = { ...DEFAULT_SETTINGS, objectDirs: { ...DEFAULT_OBJECT_DIRS } };
       return;
     }
-    if (raw.version !== DATA_VERSION) {
-      // TODO: data.json 迁移入口 —— schema 升级时在此按旧版本号做字段迁移
-    }
+    const rawVersion = typeof raw.version === 'number' ? raw.version : 0;
     const today = localToday();
     this.data = {
       version: DATA_VERSION,
@@ -117,15 +120,27 @@ export class KosDataStore {
       inboxZeroCount: asNonNegInt(raw.inboxZeroCount),
       reviewClearCount: asNonNegInt(raw.reviewClearCount),
       readerProgress: normalizeReaderProgressRecord(raw.readerProgress),
+      dashboardLayout: rawVersion >= 6
+        ? normalizeBentoLayout(raw.dashboardLayout)
+        : migrateLegacyDashboardLayout(raw.dashboardLayout, raw.dashboardWidgets),
     };
     const s = isRecord(raw.settings) ? raw.settings : {};
     // objectDirs 逐键归一：旧 data.json 没有该字段或个别键缺失/非法时回落标准默认
-    this.settings = { ...DEFAULT_SETTINGS, ...s, objectDirs: normalizeObjectDirs(s.objectDirs) } as KosSettings;
+    const objectDirs = rawVersion < DATA_VERSION ? migrateLegacyObjectDirs(s.objectDirs) : s.objectDirs;
+    this.settings = { ...DEFAULT_SETTINGS, ...s, objectDirs: normalizeObjectDirs(objectDirs) } as KosSettings;
   }
 
   async save(): Promise<void> {
     const file: DataFile = { ...this.data, settings: this.settings };
     await this.plugin.saveData(file);
+  }
+
+  getDashboardLayout(): BentoLayoutItem[] {
+    return cloneBentoLayout(this.data.dashboardLayout);
+  }
+
+  setDashboardLayout(layout: readonly BentoLayoutItem[]): void {
+    this.data.dashboardLayout = normalizeBentoLayout(layout);
   }
 
   /** 追加/覆盖某日快照，并推进 lastSnapshotDate */

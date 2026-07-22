@@ -6,6 +6,8 @@ import {
   INBOX_PREFIX,
   isTerminalStatus,
   KOS_OBJECT_TYPES,
+  LEGACY_OBJECT_DIRS,
+  migrateLegacyObjectDirs,
   normalizeObjectDirs,
   OBJECT_DIR_KEYS,
   PATH_PREFIX_RULES,
@@ -14,9 +16,10 @@ import {
 } from '../src/core/model';
 
 describe('model 常量表', () => {
-  it('恰好 13 种对象类型（02 文档称 12，实际枚举含 dashboard 共 13 种）', () => {
-    expect(KOS_OBJECT_TYPES).toHaveLength(13);
+  it('恰好 14 种对象类型（含 Goal 与 dashboard）', () => {
+    expect(KOS_OBJECT_TYPES).toHaveLength(14);
     expect(KOS_OBJECT_TYPES).toContain('personal_operating_profile');
+    expect(KOS_OBJECT_TYPES).toContain('goal');
   });
 
   it('每种有状态对象都有状态机或显式为 null', () => {
@@ -52,8 +55,13 @@ describe('model 常量表', () => {
     expect(DEFAULT_STATE.diary).toBeUndefined();
   });
 
-  it('project 的 goal/priority 为字段级需确认', () => {
-    expect(STATE_MACHINES.project?.protectedFields).toEqual(['goal', 'priority']);
+  it('project 的 Goal 关系和 priority 为字段级需确认', () => {
+    expect(STATE_MACHINES.project?.protectedFields).toEqual(['goal', 'primary_goal', 'supporting_goals', 'goal_alignment', 'priority']);
+  });
+
+  it('project blocked 保持为合法状态，Goal 激活需要确认', () => {
+    expect(STATE_MACHINES.project?.transitions.some((edge) => edge.from === 'active' && edge.to === 'blocked')).toBe(true);
+    expect(STATE_MACHINES.goal?.transitions.find((edge) => edge.from === 'draft' && edge.to === 'active')?.requiresConfirmation).toBe(true);
   });
 
   it('method 晋升边标注实践次数要求', () => {
@@ -73,13 +81,14 @@ describe('路径前缀归类', () => {
     expect(classifyByPath('20_处理区/摘要/某书_摘要.md')).toBe('summary');
     expect(classifyByPath('21_研究/AI/主题/笔记.md')).toBe('research');
     expect(classifyByPath('22_知识库/AI/概念.md')).toBe('concept');
-    expect(classifyByPath('30_项目/某项目.md')).toBe('project');
-    expect(classifyByPath('31_任务/完成任务.md')).toBe('task');
-    expect(classifyByPath('23_日记/2026/07/2026-07-19.md')).toBe('diary');
-    expect(classifyByPath('24_认知记录/某反思.md')).toBe('reflection');
-    expect(classifyByPath('25_个人操作画像/画像.md')).toBe('personal_operating_profile');
-    expect(classifyByPath('40_方法库/方法.md')).toBe('method');
-    expect(classifyByPath('50_信息雷达/daily_briefs/2026-07-19_简报.md')).toBe('signal');
+    expect(classifyByPath('31_项目/某项目.md')).toBe('project');
+    expect(classifyByPath('32_任务/完成任务.md')).toBe('task');
+    expect(classifyByPath('40_日记/2026/07/2026-07-19.md')).toBe('diary');
+    expect(classifyByPath('41_认知记录/某反思.md')).toBe('reflection');
+    expect(classifyByPath('42_个人操作画像/画像.md')).toBe('personal_operating_profile');
+    expect(classifyByPath('30_目标/2027-H1/研究表达.md')).toBe('goal');
+    expect(classifyByPath('23_方法库/方法.md')).toBe('method');
+    expect(classifyByPath('12_信息雷达/daily_briefs/2026-07-19_简报.md')).toBe('signal');
     expect(classifyByPath('00_工作台/今日工作台.md')).toBe('dashboard');
   });
 
@@ -97,8 +106,8 @@ describe('路径前缀归类', () => {
 });
 
 describe('对象目录映射（ObjectDirs）', () => {
-  it('默认值为 framework 标准布局，且 12 键齐全', () => {
-    expect(OBJECT_DIR_KEYS).toHaveLength(12);
+  it('默认值为 framework 标准布局，且 13 键齐全', () => {
+    expect(OBJECT_DIR_KEYS).toHaveLength(13);
     for (const key of OBJECT_DIR_KEYS) {
       expect(typeof DEFAULT_OBJECT_DIRS[key]).toBe('string');
       expect(DEFAULT_OBJECT_DIRS[key].length).toBeGreaterThan(0);
@@ -106,8 +115,9 @@ describe('对象目录映射（ObjectDirs）', () => {
     expect(DEFAULT_OBJECT_DIRS.inbox).toBe('10_收件箱');
     expect(DEFAULT_OBJECT_DIRS.source).toBe('11_原材料');
     expect(DEFAULT_OBJECT_DIRS.concept).toBe('22_知识库');
-    expect(DEFAULT_OBJECT_DIRS.diary).toBe('23_日记');
-    expect(DEFAULT_OBJECT_DIRS.radar).toBe('50_信息雷达');
+    expect(DEFAULT_OBJECT_DIRS.goal).toBe('30_目标');
+    expect(DEFAULT_OBJECT_DIRS.diary).toBe('40_日记');
+    expect(DEFAULT_OBJECT_DIRS.radar).toBe('12_信息雷达');
   });
 
   it('默认值与 PATH_PREFIX_RULES / INBOX_PREFIX 标准布局一致', () => {
@@ -119,6 +129,7 @@ describe('对象目录映射（ObjectDirs）', () => {
       summary: 'summary',
       research: 'research',
       concept: 'concept',
+      goal: 'goal',
       project: 'project',
       task: 'task',
       diary: 'diary',
@@ -168,5 +179,19 @@ describe('对象目录映射（ObjectDirs）', () => {
     const out = normalizeObjectDirs({ unknown_dir: '99_其他' });
     expect(out).toEqual(DEFAULT_OBJECT_DIRS);
     expect('unknown_dir' in out).toBe(false);
+  });
+
+  it('Layout v1 默认目录迁移到 v2，同时保留用户自定义目录', () => {
+    const migrated = normalizeObjectDirs(migrateLegacyObjectDirs({
+      ...LEGACY_OBJECT_DIRS,
+      project: '我的项目',
+    }));
+    expect(migrated.method).toBe('23_方法库');
+    expect(migrated.goal).toBe('30_目标');
+    expect(migrated.task).toBe('32_任务');
+    expect(migrated.diary).toBe('40_日记');
+    expect(migrated.reflection).toBe('41_认知记录');
+    expect(migrated.radar).toBe('12_信息雷达');
+    expect(migrated.project).toBe('我的项目');
   });
 });

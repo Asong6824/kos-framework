@@ -1,6 +1,6 @@
 type: signal
 paths:
-  - 50_信息雷达
+  - 12_信息雷达
 required:
   type:
     kind: enum

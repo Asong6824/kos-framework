@@ -10,6 +10,13 @@ related_reflections: []
 related_methods: []
 related_projects: []
 applies_to_skills: []
+capability_focus:
+  period: ""
+  name: ""
+  behavior: ""
+  applies_to: []
+  max_daily_recommendations: 1
+  status: draft
 reviewed: false
 tags: []
 ---
@@ -50,6 +57,8 @@ tags: []
 ## Agent 应如何使用
 
 - 只作为协作假设使用，不得宣称理解用户本质。
+- 仅在 capability_focus.applies_to 命中当前工作流时加载能力强化摘要。
+- 每日最多让 capability_focus.max_daily_recommendations 个建议显式承担能力练习。
 
 ## 仍需验证的假设
 

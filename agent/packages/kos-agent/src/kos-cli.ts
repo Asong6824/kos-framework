@@ -2,11 +2,18 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { createObject } from "./kos/operations/create-object.ts";
 import { transitionStatus } from "./kos/operations/transition-status.ts";
+import { setGoalWeights } from "./kos/operations/set-goal-weights.ts";
+import { reviewGoalHealth, updateGoal } from "./kos/operations/goal-management.ts";
+import { archiveTask, completeTask, deferTask, listTaskPool, returnTaskToPool, updateTask } from "./kos/operations/task-pool.ts";
 import { processSource } from "./kos/operations/process-source.ts";
 import { updateProject, type UpdateProjectInput } from "./kos/operations/update-project.ts";
 import { generateDailyBrief, generateDailyDashboard, generateDiary } from "./kos/operations/daily-workflows.ts";
+import { endDay, migrateTaskPool, recordRecommendationFeedback, reviewMonth, reviewWeek, startDay } from "./kos/operations/progress-workflows.ts";
+import { migrateLayout } from "./kos/operations/layout-migration.ts";
+import { migrateProjectDirectories } from "./kos/operations/project-directories.ts";
 import type { CreateObjectInput } from "./kos/operations/types.ts";
 import { runSkillEvals } from "./kos/evals/skill-evals.ts";
 import {
@@ -22,7 +29,30 @@ import { validateSkills } from "./kos/validation/skills.ts";
 import { findVaultRoot, validateVault } from "./kos/validation/validate.ts";
 import type { ValidationFinding, ValidationReport } from "./kos/validation/types.ts";
 
-type Values = Map<string, string | true>;
+type Values = Map<string, string | string[] | true>;
+
+const COMMON_OPTIONS = ["root", "format"] as const;
+const CREATE_OPTIONS = [
+	"kind", "title", "directories", "extra", "dry-run", "period", "allocation-weight", "health", "expected-result", "not-doing",
+	"status", "category", "priority", "area", "goal", "why", "current-stage", "due", "problem", "success", "constraint", "task", "note",
+	"definition", "importance", "understanding", "example", "pitfall", "scenario", "not-scenario", "prerequisite", "step", "criteria", "validation",
+	"source", "source-url", "source-location", "source-name", "source-diary", "source-project", "source-reflection",
+	"related", "related-source", "related-research", "related-project", "related-concept", "related-method", "related-reflection", "related-topic",
+	"alias", "tag", "question", "background", "trigger", "concept-candidate", "format", "signal-type", "topic", "fact", "interpretation", "impact",
+	"confidence", "requires-research", "keyword", "next", "ticker", "market", "business", "metric",
+	"conclusion", "evidence", "applies-to", "not-applies-to", "applies-to-skill", "collaboration-preference",
+	"high-energy-task", "low-energy-task", "blind-spot", "agent-guideline", "hypothesis", "rejected-belief", "previous-view", "changed-view", "reason", "to-verify",
+	"primary-goal", "supporting-goal", "goal-alignment", "alignment-reason", "alignment-reviewed", "exploration-review-due", "process-metric", "result-metric", "next-milestone",
+	"project", "projects", "scheduled-for", "defer-until", "estimate-minutes", "energy", "work-mode", "growth-mode", "scheduled-time",
+] as const;
+const LIST_CREATE_OPTIONS = new Set([
+	"problem", "success", "constraint", "task", "example", "pitfall", "scenario", "not-scenario", "prerequisite", "step", "criteria", "validation",
+	"source", "source-project", "source-reflection", "related", "related-source", "related-research", "related-project", "related-concept", "related-method",
+	"related-reflection", "related-topic", "alias", "tag", "concept-candidate", "topic", "keyword", "fact", "interpretation", "impact", "metric", "question",
+	"conclusion", "evidence", "applies-to", "not-applies-to", "applies-to-skill", "collaboration-preference", "high-energy-task", "low-energy-task",
+	"blind-spot", "agent-guideline", "hypothesis", "rejected-belief", "to-verify", "metric", "not-doing", "supporting-goal", "process-metric", "result-metric",
+	"project", "projects", "scheduled-time",
+]);
 
 const HELP = `kos-harness - deterministic kos Harness
 
@@ -30,8 +60,25 @@ Usage:
   kos-harness validate [--root <vault>] [--format text|json]
   kos-harness skill-eval [--root <vault>] [--suite <name>] [--write-artifact] [--format text|json]
   kos-harness task-eval --contract <path> [--root <vault>] [--self-assessment <path>] [--state <path>] [--run-id <id>] [--format text|json]
-  kos-harness create --kind <kind> --title <title> [--root <vault>] [--directories <json>] [--extra <json>]
-  kos-harness transition --path <vault-path> --target <status> [--root <vault>]
+  kos-harness create --kind <kind> --title <title> [--root <vault>] [--directories <json>] [--extra <json>] [--output-format text|json]
+  kos-harness transition --path <vault-path> --target <status> [--human-confirmed] [--root <vault>]
+  kos-harness set-goal-weights --input <json> [--root <vault>]
+  kos-harness update-goal --input <json> [--root <vault>]
+  kos-harness review-goal-health --path <goal> [--date YYYY-MM-DD] [--root <vault>]
+  kos-harness update-task --input <json> [--root <vault>]
+  kos-harness list-task-pool [--today YYYY-MM-DD] [--root <vault>]
+  kos-harness defer-task --input <json> [--root <vault>]
+  kos-harness return-task-to-pool --input <json> [--root <vault>]
+  kos-harness complete-task --input <json> [--root <vault>]
+  kos-harness archive-task --input <json> [--root <vault>]
+  kos-harness migrate-task-pool [--dry-run] [--root <vault>]
+  kos-harness migrate-layout [--dry-run] [--root <vault>]
+  kos-harness migrate-project-directories [--dry-run] [--root <vault>]
+  kos-harness start-day [--input <json>] [--root <vault>]
+  kos-harness recommendation-feedback --input <json> [--root <vault>]
+  kos-harness end-day [--date YYYY-MM-DD] [--root <vault>]
+  kos-harness review-week [--date YYYY-MM-DD] [--root <vault>]
+  kos-harness review-month [--date YYYY-MM-DD] [--root <vault>]
   kos-harness process-source --kind extract|summary [--query <source>] [--root <vault>]
   kos-harness update-project [--query <project>] --input <json> [--root <vault>]
   kos-harness daily-dashboard [--root <vault>]
@@ -47,9 +94,11 @@ async function main(argv: string[]): Promise<number> {
 		return 0;
 	}
 	const values = parseValues(argv.slice(1));
+	assertAllowed(values, allowedOptions(command));
 	const root = vaultRoot(value(values, "root"));
-	const format = value(values, "format") ?? "text";
-	if (!new Set(["text", "json"]).has(format)) throw new Error("--format must be text or json");
+	const formatOption = command === "create" ? "output-format" : "format";
+	const format = value(values, formatOption) ?? "text";
+	if (!new Set(["text", "json"]).has(format)) throw new Error(`--${formatOption} must be text or json`);
 
 	if (command === "validate") {
 		const reports = [validateVault(root), validateSkills(root), validateSkillEvals(root)];
@@ -92,9 +141,12 @@ async function main(argv: string[]): Promise<number> {
 		const extra = value(values, "extra")
 			? parseJson(value(values, "extra")!, "--extra") as NonNullable<CreateObjectInput["extra"]>
 			: {};
-		for (const name of ["goal", "priority", "format", "area", "category", "status", "question", "source", "signal-type", "importance", "confidence", "requires-research"]) {
+		for (const name of CREATE_OPTIONS) {
+			if (["kind", "title", "directories", "extra", "dry-run"].includes(name)) continue;
 			const raw = values.get(name);
-			if (raw !== undefined) extra[name.replaceAll("-", "_")] = raw === true ? true : raw;
+			if (raw === undefined) continue;
+			const normalized = name.replaceAll("-", "_");
+			extra[normalized] = LIST_CREATE_OPTIONS.has(name) ? valuesOf(values, name) : raw === true ? true : value(values, name);
 		}
 		const input: CreateObjectInput = {
 			kind,
@@ -102,10 +154,10 @@ async function main(argv: string[]): Promise<number> {
 			directories: value(values, "directories")
 				? parseJson(value(values, "directories")!, "--directories") as CreateObjectInput["directories"]
 				: {
-					project: "30_项目",
+					project: "31_项目",
 					concept: "22_知识库",
-					method: "40_方法库",
-					task: "31_任务",
+					method: "23_方法库",
+					task: "32_任务",
 					source: "11_原材料",
 				},
 			extra,
@@ -116,8 +168,73 @@ async function main(argv: string[]): Promise<number> {
 		return 0;
 	}
 	if (command === "transition") {
-		const payload = transitionStatus(root, { path: required(values, "path"), target: required(values, "target") });
+		const payload = transitionStatus(root, {
+			path: required(values, "path"),
+			target: required(values, "target"),
+			humanConfirmed: values.has("human-confirmed"),
+		});
 		print(format, payload, `Transitioned: ${payload.path}\n${payload.from} -> ${payload.to}\nValidation: PASS`);
+		return 0;
+	}
+	if (command === "set-goal-weights") {
+		const input = parseJson(required(values, "input"), "--input") as Parameters<typeof setGoalWeights>[1];
+		const payload = setGoalWeights(root, input);
+		print(format, payload, `Updated Goal allocation: ${payload.period}\nActive total: ${payload.activeTotal}\nValidation: PASS`);
+		return 0;
+	}
+	if (command === "update-goal") {
+		const payload = updateGoal(root, parseJson(required(values, "input"), "--input") as Parameters<typeof updateGoal>[1]);
+		print(format, payload, `Updated Goal: ${payload.path}\nValidation: PASS`);
+		return 0;
+	}
+	if (command === "review-goal-health") {
+		const payload = reviewGoalHealth(root, required(values, "path"), value(values, "date"));
+		print(format, payload, `Goal health suggestion: ${payload.current} -> ${payload.suggested}\n${payload.reasons.join("\n")}`);
+		return 0;
+	}
+	if (["update-task", "defer-task", "return-task-to-pool", "complete-task", "archive-task"].includes(command)) {
+		const input = parseJson(required(values, "input"), "--input") as never;
+		const operation = command === "update-task" ? updateTask : command === "defer-task" ? deferTask : command === "return-task-to-pool" ? returnTaskToPool : command === "archive-task" ? archiveTask : completeTask;
+		const payload = operation(root, input);
+		print(format, payload, `${command}: ${payload.path}\nValidation: PASS`);
+		return 0;
+	}
+	if (command === "list-task-pool") {
+		const payload = listTaskPool(root, value(values, "today"));
+		print(format, payload, JSON.stringify(payload, null, 2));
+		return 0;
+	}
+	if (command === "migrate-task-pool") {
+		const payload = migrateTaskPool(root, values.has("dry-run"));
+		print(format, payload, `${values.has("dry-run") ? "Task migration preview" : "Task migration complete"}: ${payload.changedPaths.length}/${payload.scanned}`);
+		return 0;
+	}
+	if (command === "migrate-layout") {
+		const payload = migrateLayout(root, values.has("dry-run"));
+		const moveCount = payload.moves.filter((move) => move.state === "move").length;
+		print(format, payload, `${values.has("dry-run") ? "Layout migration preview" : "Layout migration complete"}: ${moveCount} directories, ${payload.rewrittenPaths.length} references${payload.backupPath ? `\nBackup: ${payload.backupPath}` : ""}`);
+		return payload.conflicts.length ? 1 : 0;
+	}
+	if (command === "migrate-project-directories") {
+		const payload = migrateProjectDirectories(root, values.has("dry-run"));
+		print(format, payload, `${values.has("dry-run") ? "Project directory migration preview" : "Project directory migration complete"}: ${payload.moves.filter((move) => move.state === "move").length}/${payload.scanned}`);
+		return payload.conflicts.length ? 1 : 0;
+	}
+	if (command === "start-day") {
+		const input = value(values, "input") ? parseJson(value(values, "input")!, "--input") as Parameters<typeof startDay>[1] : {};
+		const payload = startDay(root, input);
+		print(format, payload, `Started day: ${payload.context.date}\nRecommendations: ${payload.recommendations.length}\nPlan: ${payload.path}`);
+		return 0;
+	}
+	if (command === "recommendation-feedback") {
+		const payload = recordRecommendationFeedback(root, parseJson(required(values, "input"), "--input") as Parameters<typeof recordRecommendationFeedback>[1]);
+		print(format, payload, `Recommendation feedback recorded: ${payload.path}`);
+		return 0;
+	}
+	if (["end-day", "review-week", "review-month"].includes(command)) {
+		const operation = command === "end-day" ? endDay : command === "review-week" ? reviewWeek : reviewMonth;
+		const payload = operation(root, value(values, "date"));
+		print(format, payload, `Generated: ${payload.path}\nPeriod: ${payload.period}`);
 		return 0;
 	}
 	if (command === "process-source") {
@@ -160,7 +277,7 @@ async function main(argv: string[]): Promise<number> {
 	throw new Error(`Unknown command: ${command}\n\n${HELP}`);
 }
 
-function parseValues(args: string[]): Values {
+export function parseValues(args: string[]): Values {
 	const values: Values = new Map();
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index];
@@ -169,7 +286,9 @@ function parseValues(args: string[]): Values {
 		const next = args[index + 1];
 		if (!next || next.startsWith("--")) values.set(name, true);
 		else {
-			values.set(name, next);
+			const previous = values.get(name);
+			if (previous === undefined || previous === true) values.set(name, previous === true ? ["true", next] : next);
+			else values.set(name, Array.isArray(previous) ? [...previous, next] : [previous, next]);
 			index++;
 		}
 	}
@@ -178,7 +297,50 @@ function parseValues(args: string[]): Values {
 
 function value(values: Values, name: string): string | undefined {
 	const result = values.get(name);
-	return typeof result === "string" ? result : undefined;
+	return typeof result === "string" ? result : Array.isArray(result) ? result.at(-1) : undefined;
+}
+
+function valuesOf(values: Values, name: string): string[] {
+	const result = values.get(name);
+	return typeof result === "string" ? [result] : Array.isArray(result) ? result : [];
+}
+
+export function allowedOptions(command: string): ReadonlySet<string> {
+	const byCommand: Record<string, readonly string[]> = {
+		validate: COMMON_OPTIONS,
+		"skill-eval": [...COMMON_OPTIONS, "suite", "write-artifact"],
+		"task-eval": [...COMMON_OPTIONS, "contract", "self-assessment", "state", "run-id"],
+		create: [...COMMON_OPTIONS, ...CREATE_OPTIONS, "output-format"],
+		transition: [...COMMON_OPTIONS, "path", "target", "human-confirmed"],
+		"set-goal-weights": [...COMMON_OPTIONS, "input"],
+		"update-goal": [...COMMON_OPTIONS, "input"],
+		"review-goal-health": [...COMMON_OPTIONS, "path", "date"],
+		"update-task": [...COMMON_OPTIONS, "input"],
+		"list-task-pool": [...COMMON_OPTIONS, "today"],
+		"defer-task": [...COMMON_OPTIONS, "input"],
+		"return-task-to-pool": [...COMMON_OPTIONS, "input"],
+		"complete-task": [...COMMON_OPTIONS, "input"],
+		"archive-task": [...COMMON_OPTIONS, "input"],
+		"migrate-task-pool": [...COMMON_OPTIONS, "dry-run"],
+		"migrate-layout": [...COMMON_OPTIONS, "dry-run"],
+		"migrate-project-directories": [...COMMON_OPTIONS, "dry-run"],
+		"start-day": [...COMMON_OPTIONS, "input"],
+		"recommendation-feedback": [...COMMON_OPTIONS, "input"],
+		"end-day": [...COMMON_OPTIONS, "date"],
+		"review-week": [...COMMON_OPTIONS, "date"],
+		"review-month": [...COMMON_OPTIONS, "date"],
+		"process-source": [...COMMON_OPTIONS, "kind", "query", "location", "dry-run"],
+		"update-project": [...COMMON_OPTIONS, "query", "input", "status", "current-stage", "progress", "task", "decision", "review", "problem", "final-result", "final-insight"],
+		"daily-dashboard": COMMON_OPTIONS,
+		"daily-brief": COMMON_OPTIONS,
+		diary: COMMON_OPTIONS,
+	};
+	return new Set(byCommand[command] ?? COMMON_OPTIONS);
+}
+
+export function assertAllowed(values: Values, allowed: ReadonlySet<string>): void {
+	const unknown = [...values.keys()].filter((name) => !allowed.has(name));
+	if (unknown.length) throw new Error(`Unknown option${unknown.length > 1 ? "s" : ""}: ${unknown.map((name) => `--${name}`).join(", ")}`);
 }
 
 function required(values: Values, name: string): string {
@@ -276,7 +438,7 @@ function parseJson(input: string, name: string): unknown {
 
 function defaultDirectories(): CreateObjectInput["directories"] {
 	return {
-		project: "30_项目", concept: "22_知识库", method: "40_方法库", task: "31_任务", source: "11_原材料",
+		project: "31_项目", concept: "22_知识库", method: "23_方法库", task: "32_任务", source: "11_原材料",
 	};
 }
 
@@ -284,11 +446,13 @@ function timestamp(): string {
 	return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
-main(process.argv.slice(2)).then(
-	(code) => { process.exitCode = code; },
-	(error) => {
-		const message = error instanceof TaskContractError || error instanceof Error ? error.message : String(error);
-		console.error(`kos-harness: ${message}`);
-		process.exitCode = 2;
-	},
-);
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+	main(process.argv.slice(2)).then(
+		(code) => { process.exitCode = code; },
+		(error) => {
+			const message = error instanceof TaskContractError || error instanceof Error ? error.message : String(error);
+			console.error(`kos-harness: ${message}`);
+			process.exitCode = 2;
+		},
+	);
+}

@@ -34,7 +34,7 @@ afterEach(() => {
 
 describe("kos validation", () => {
 	it("loads the migrated schema set and accepts a valid promoted concept without permission warnings", () => {
-		expect(loadObjectSchemas().size).toBe(15);
+		expect(loadObjectSchemas().size).toBe(16);
 		const root = tempVault();
 		writeObject(
 			root,
@@ -88,16 +88,20 @@ updated: 2026-07-20`,
 		);
 
 		const report = validateVault(root);
-		const counts = Object.fromEntries(
-			["paths", "schema", "state"].map((name) => [
+		const errorCounts = Object.fromEntries(
+			["schema", "state"].map((name) => [
 				name,
 				report.findings.filter((item) => item.level === "ERROR" && item.validator === name).length,
 			]),
 		);
-		expect(counts.paths).toBeGreaterThan(0);
-		expect(counts.schema).toBeGreaterThan(0);
-		expect(counts.state).toBeGreaterThan(0);
-		expect(report.warningCount).toBe(0);
+		const pathWarnings = report.findings.filter(
+			(item) => item.level === "WARN" && item.validator === "paths",
+		);
+		expect(pathWarnings.length).toBeGreaterThan(0);
+		expect(errorCounts.schema).toBeGreaterThan(0);
+		expect(errorCounts.state).toBeGreaterThan(0);
+		expect(report.warningCount).toBeGreaterThan(0);
+		expect(report.passed).toBe(false);
 	});
 
 	it("validates only changed object files", () => {
@@ -108,13 +112,43 @@ updated: 2026-07-20`,
 		expect(report.errorCount).toBeGreaterThan(0);
 	});
 
+	it("allows plain Markdown materials beside a canonical Project main file", () => {
+		const root = tempVault();
+		mkdirSync(join(root, "31_项目/Research"), { recursive: true });
+		writeFileSync(join(root, "31_项目/Research/notes.md"), "# Research notes\n");
+		const report = validateChangedFiles(root, ["31_项目/Research/notes.md"]);
+		expect(report.findings).toEqual([]);
+		expect(report.passed).toBe(true);
+	});
+
 	it("validates task objects instead of treating them as unknown types", () => {
 		const root = tempVault();
-		writeObject(root, "31_任务/invalid.md", "type: task\nstatus: todo");
-		const report = validateChangedFiles(root, ["31_任务/invalid.md"]);
+		writeObject(root, "32_任务/invalid.md", "type: task\nstatus: todo");
+		const report = validateChangedFiles(root, ["32_任务/invalid.md"]);
 		expect(report.findings.some((finding) => finding.message.includes("暂无 schema"))).toBe(false);
 		expect(report.findings.some((finding) => finding.message.includes("`title`"))).toBe(true);
 		expect(report.passed).toBe(false);
+	});
+
+	it("validates Goal periods and active allocation totals across files", () => {
+		const root = tempVault();
+		for (const [name, weight] of [["one", 60], ["two", 30]] as const) {
+			writeObject(root, `30_目标/2027-H1/${name}.md`, `type: goal
+title: ${name}
+horizon: H1
+period: 2027-H1
+status: active
+allocation_weight: ${weight}
+health: unknown
+period_start: 2027-01-01
+period_end: 2027-06-30
+created: 2026-12-20
+updated: 2026-12-20
+human_confirmed: true
+tags: [goal]`);
+		}
+		const report = validateVault(root);
+		expect(report.findings).toContainEqual(expect.objectContaining({ validator: "business", level: "ERROR", path: "30_目标/2027-H1" }));
 	});
 
 	it("marks a successful write result as failed when deterministic validation fails", async () => {
@@ -151,7 +185,7 @@ updated: 2026-07-20`,
 		const skills = validateSkills(root);
 		const evals = validateSkillEvals(root);
 		expect(skills).toMatchObject({ passed: true, errorCount: 0, warningCount: 0 });
-		expect(skills.validatedPaths).toHaveLength(19);
+		expect(skills.validatedPaths).toHaveLength(21);
 		expect(evals).toMatchObject({ passed: true, errorCount: 0, warningCount: 0 });
 	});
 
@@ -159,7 +193,7 @@ updated: 2026-07-20`,
 		const root = tempVault();
 		writeObject(
 			root,
-			"41_Skills/core/wrong-name/SKILL.md",
+			"80_Skills/core/wrong-name/SKILL.md",
 			`name: another-name
 description: test
 version: 1.0.0

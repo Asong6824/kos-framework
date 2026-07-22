@@ -14,7 +14,7 @@ harness/             # WeRead-specific harness scripts
 Runtime installation target, when explicitly installed into a personal kos vault:
 
 ```text
-41_Skills/integrations/weread/kos-reading/
+80_Skills/integrations/weread/kos-reading/
 90_系统/harness/import_weread_book.py
 90_系统/harness/sync_weread_highlights.py
 90_系统/harness/sync_weread_progress.py

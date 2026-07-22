@@ -431,7 +431,7 @@ export function loadSkills(options: LoadSkillsOptions): LoadSkillsResult {
 		addSkills(loadSkillsFromDirInternal(join(resolvedAgentDir, "skills"), "user", true));
 		addSkills(loadSkillsFromDirInternal(resolve(resolvedCwd, CONFIG_DIR_NAME, "skills"), "project", true));
 		if (APP_NAME === "kos-agent") {
-			addSkills(loadSkillsFromDirInternal(resolve(resolvedCwd, "41_Skills"), "project", true));
+			addSkills(loadSkillsFromDirInternal(resolve(resolvedCwd, "80_Skills"), "project", true));
 		}
 	}
 

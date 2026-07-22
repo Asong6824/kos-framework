@@ -23,7 +23,7 @@ make kos-test
 
 `make kos-test-build` 创建或刷新测试 Vault。刷新只同步 framework 管理的路径，保留测试过程中生成的笔记和对象。
 
-`make kos-test` 先刷新，再从测试 Vault 根目录启动 Pi。启动器会关闭默认 Skill discovery，只显式加载 `41_Skills/core/`，避免个人全局 Skills 污染 framework 测试；同时追加 kos-test 专用运行边界，并沿用 Pi 的全局模型与认证配置。
+`make kos-test` 先刷新，再从测试 Vault 根目录启动 Pi。启动器会关闭默认 Skill discovery，只显式加载 `80_Skills/core/`，避免个人全局 Skills 污染 framework 测试；同时追加 kos-test 专用运行边界，并沿用 Pi 的全局模型与认证配置。
 
 需要清空全部测试产物时使用：
 
@@ -46,7 +46,7 @@ make kos-test PI=/custom/path/to/pi
 
 ```text
 .kos-test.json          # 测试层身份和来源标记
-.pi/settings.json       # 让 Pi 加载 41_Skills/core
+.pi/settings.json       # 让 Pi 加载 80_Skills/core
 .pi/APPEND_SYSTEM.md    # 限制 Pi 只操作当前测试 Vault
 ```
 

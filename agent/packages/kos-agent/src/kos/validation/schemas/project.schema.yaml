@@ -1,6 +1,6 @@
 type: project
 paths:
-  - 30_项目
+  - 31_项目
 required:
   type:
     kind: enum
@@ -23,12 +23,37 @@ required:
 optional:
   area:
     kind: string
-  goal:
+  primary_goal:
     kind: string
+  supporting_goals:
+    kind: list
+  goal_alignment:
+    kind: enum
+    values: [direct, enabling, exploratory, off_goal, conflicting]
+  alignment_reviewed:
+    kind: string
+  exploration_review_due:
+    kind: string
+  process_metrics:
+    kind: list
+  result_metrics:
+    kind: list
   current_stage:
+    kind: string
+  next_milestone:
     kind: string
   due:
     kind: string
+  off_goal_override:
+    kind: bool
+  override_reason:
+    kind: string
+  override_review_due:
+    kind: string
+  validation_completed:
+    kind: bool
+  expected_result_achieved:
+    kind: bool
   related_sources:
     kind: list
   related_research:

@@ -54,7 +54,7 @@ def pi_version(pi_path: str) -> str:
 
 
 def skill_version(vault: Path, skill_name: str) -> str:
-    for path in (vault / "41_Skills").rglob("SKILL.md"):
+    for path in (vault / "80_Skills").rglob("SKILL.md"):
         text = path.read_text(encoding="utf-8")
         if not text.startswith("---\n"):
             continue

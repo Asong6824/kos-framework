@@ -1,0 +1,33 @@
+version: 1
+id: progress-management
+skill: kos-start-my-day
+objective: 验证 H1/H2 目标驱动推进体系的数据合同、工作流与看板入口已经同时存在
+max_iterations: 3
+checks:
+  - id: goal-template
+    type: path_exists
+    path: 90_系统/模板/Goal_半年目标模板.md
+  - id: task-pool-contract
+    type: text_contains
+    path: 90_系统/模板/Task_任务模板.md
+    values: ["projects: []", "defer_until", "project_contributions", "recommendation_history"]
+  - id: planning-skill
+    type: text_contains
+    path: 80_Skills/core/kos-start-my-day/SKILL.md
+    values: [PlanningContext, "Context fingerprint", recommended, accepted, adjusted, deferred, rejected]
+  - id: review-skill
+    type: text_contains
+    path: 80_Skills/core/kos-review-period/SKILL.md
+    values: [review-week, review-month, off_goal, capability_focus]
+  - id: profile-focus
+    type: text_contains
+    path: 90_系统/模板/PersonalOperatingProfile_个人操作画像模板.md
+    values: [capability_focus, applies_to, max_daily_recommendations]
+  - id: harness-schema
+    type: harness_passes
+    validator: schema
+rubric:
+  - id: contract-complete
+    description: Goal、Task Pool、PlanningContext、周期复盘和 Capability Focus 合同完整
+    min_score: 4
+    weight: 1

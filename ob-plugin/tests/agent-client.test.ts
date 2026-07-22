@@ -38,6 +38,43 @@ function answer(process: FakeProcess, command: string, data: unknown): void {
 }
 
 describe('KosAgentClient', () => {
+  it('transports Task Pool planning, feedback, migration and review RPC commands', async () => {
+    const process = new FakeProcess();
+    const client = new KosAgentClient(() => process, 1_000);
+    const started = client.start();
+    answer(process, 'get_state', { protocolVersion: 1, sessionId: 's' });
+    await started;
+
+    const migration = client.migrateTaskPool(true);
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({ type: 'migrate_task_pool', dryRun: true });
+    answer(process, 'migrate_task_pool', { scanned: 1, changedPaths: [], validation: { passed: true } });
+    await expect(migration).resolves.toMatchObject({ scanned: 1 });
+
+    const archive = client.archiveTask({ path: '32_任务/完成任务.md' });
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({ type: 'archive_task', path: '32_任务/完成任务.md' });
+    answer(process, 'archive_task', {
+      path: '32_任务/归档/2027/完成任务.md', fromPath: '32_任务/完成任务.md', archived: '2027-01-05', rewrittenPaths: [], validation: { passed: true },
+    });
+    await expect(archive).resolves.toMatchObject({ path: '32_任务/归档/2027/完成任务.md' });
+
+    const plan = client.startDay({ date: '2027-01-05', availableMinutes: 90 });
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({ type: 'start_day', date: '2027-01-05', availableMinutes: 90 });
+    answer(process, 'start_day', { path: '00_工作台/计划/2027-01-05.md', runId: 'run', context: { date: '2027-01-05' }, recommendations: [] });
+    await expect(plan).resolves.toMatchObject({ runId: 'run' });
+
+    const feedback = client.recordRecommendationFeedback({ date: '2027-01-05', runId: 'run', recommendationId: 'r1', action: 'rejected', reason: '容量不足' });
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({ type: 'recommendation_feedback', action: 'rejected' });
+    answer(process, 'recommendation_feedback', { path: '00_工作台/计划/2027-01-05.md' });
+    await feedback;
+
+    for (const command of ['end_day', 'review_week', 'review_month'] as const) {
+      const promise = command === 'end_day' ? client.endDay('2027-01-05') : command === 'review_week' ? client.reviewWeek('2027-01-05') : client.reviewMonth('2027-01-05');
+      expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({ type: command, date: '2027-01-05' });
+      answer(process, command, { path: 'report.md', period: '2027-01-05', summary: {} });
+      await promise;
+    }
+  });
+
   it('starts with get_state and preserves strict JSONL event framing', async () => {
     const process = new FakeProcess();
     const client = new KosAgentClient(() => process, 1_000);
@@ -95,10 +132,10 @@ describe('KosAgentClient', () => {
       kind: 'concept',
       title: 'Agent Harness',
       directories: {
-        project: '30_项目',
+        project: '31_项目',
         concept: '22_知识库',
-        method: '40_方法库',
-        task: '31_任务',
+        method: '23_方法库',
+        task: '32_任务',
         source: '11_原材料',
       },
     });
@@ -121,10 +158,10 @@ describe('KosAgentClient', () => {
       positionLabel: '第 3 页',
       text: 'selected passage',
       directories: {
-        project: '30_项目',
+        project: '31_项目',
         concept: '22_知识库',
-        method: '40_方法库',
-        task: '31_任务',
+        method: '23_方法库',
+        task: '32_任务',
         source: '11_原材料',
         extract: '20_处理区/摘录',
       },
@@ -159,6 +196,71 @@ describe('KosAgentClient', () => {
       validation: { validatedPaths: ['22_知识库/Agent Harness.md'], findings: [], errorCount: 0, warningCount: 0, passed: true },
     });
     await expect(transitioned).resolves.toMatchObject({ from: 'draft', to: 'verified' });
+
+    const allocation = client.setGoalWeights({
+      period: '2027-H1',
+      humanConfirmed: true,
+      changes: [{ path: '30_目标/2027-H1/研究表达.md', allocationWeight: 100, targetStatus: 'active' }],
+    });
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1])).toMatchObject({
+      type: 'set_goal_weights',
+      period: '2027-H1',
+      humanConfirmed: true,
+    });
+    answer(process, 'set_goal_weights', {
+      period: '2027-H1',
+      activeTotal: 100,
+      changedPaths: ['30_目标/2027-H1/研究表达.md'],
+      validation: { validatedPaths: [], findings: [], errorCount: 0, warningCount: 0, passed: true },
+    });
+    await expect(allocation).resolves.toMatchObject({ period: '2027-H1', activeTotal: 100 });
+
+    const goalUpdate = client.updateGoal({
+      path: '30_目标/2027-H1/研究表达.md',
+      health: 'on_track',
+      metrics: ['发布 2 篇文章'],
+      appendEvidence: ['已发布第一篇'],
+      humanConfirmed: true,
+    });
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({
+      type: 'update_goal',
+      path: '30_目标/2027-H1/研究表达.md',
+      health: 'on_track',
+      humanConfirmed: true,
+    });
+    answer(process, 'update_goal', {
+      path: '30_目标/2027-H1/研究表达.md',
+      validation: { validatedPaths: [], findings: [], errorCount: 0, warningCount: 0, passed: true },
+    });
+    await expect(goalUpdate).resolves.toMatchObject({ path: '30_目标/2027-H1/研究表达.md' });
+
+    const healthReview = client.reviewGoalHealth('30_目标/2027-H1/研究表达.md', '2027-03-01');
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({
+      type: 'review_goal_health',
+      path: '30_目标/2027-H1/研究表达.md',
+      date: '2027-03-01',
+    });
+    answer(process, 'review_goal_health', {
+      path: '30_目标/2027-H1/研究表达.md', current: 'unknown', suggested: 'at_risk',
+      reasons: ['当前没有结果证据，需要结合 Project 指标人工判断'], evidenceCount: 0, requiresConfirmation: true,
+    });
+    await expect(healthReview).resolves.toMatchObject({ suggested: 'at_risk', requiresConfirmation: true });
+
+    const projectUpdate = client.updateProject({
+      query: '31_项目/研究表达.md',
+      currentStage: '验证',
+      metricUpdates: [{ id: 'result-1', current: 1, evidence: '文章链接' }],
+    });
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({
+      type: 'update_project',
+      query: '31_项目/研究表达.md',
+      currentStage: '验证',
+    });
+    answer(process, 'update_project', {
+      path: '31_项目/研究表达.md',
+      validation: { validatedPaths: [], findings: [], errorCount: 0, warningCount: 0, passed: true },
+    });
+    await expect(projectUpdate).resolves.toMatchObject({ path: '31_项目/研究表达.md' });
 
     const available = client.getAvailableModels();
     answer(process, 'get_available_models', { models: [{ provider: 'custom', id: 'model-1' }] });

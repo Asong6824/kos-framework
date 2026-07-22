@@ -71,7 +71,7 @@ describe('legalTransitions', () => {
 
   it('project：非终态自由流转，不含自身', () => {
     const targets = legalTransitions(mk('project', { status: 'active' })).map((t) => t.to);
-    expect(targets.sort()).toEqual(['archived', 'cancelled', 'completed', 'idea', 'paused']);
+    expect(targets.sort()).toEqual(['archived', 'blocked', 'cancelled', 'completed', 'idea', 'paused']);
   });
 
   it('task：todo→doing/blocked/cancelled，doing→done/blocked/cancelled', () => {
@@ -79,6 +79,7 @@ describe('legalTransitions', () => {
       'blocked',
       'cancelled',
       'doing',
+	  'done',
     ]);
     expect(legalTransitions(mk('task', { status: 'doing' })).map((t) => t.to).sort()).toEqual([
       'blocked',

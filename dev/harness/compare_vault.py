@@ -25,6 +25,7 @@ def main() -> int:
         "target": str(target),
         "changed": diff.changed,
         "added": [str(path) for path in diff.added],
+        "added_directories": [str(path) for path in diff.added_directories],
         "modified": [str(path) for path in diff.modified],
         "deleted": [str(path) for path in diff.deleted],
     }
@@ -33,7 +34,7 @@ def main() -> int:
     else:
         print(f"Framework version: {payload['framework_version']}")
         print(f"Target: {target}")
-        for label, paths in [("ADD", diff.added), ("UPDATE", diff.modified), ("DELETE", diff.deleted)]:
+        for label, paths in [("ADD_DIR", diff.added_directories), ("ADD", diff.added), ("UPDATE", diff.modified), ("DELETE", diff.deleted)]:
             for path in paths:
                 print(f"{label} {path}")
         if not diff.changed:

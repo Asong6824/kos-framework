@@ -10,6 +10,7 @@ interface NodeModules {
   existsSync: typeof import('node:fs').existsSync;
   join: typeof import('node:path').join;
   resolve: typeof import('node:path').resolve;
+  dirname: typeof import('node:path').dirname;
   delimiter: typeof import('node:path').delimiter;
   homedir: typeof import('node:os').homedir;
 }
@@ -17,9 +18,9 @@ interface NodeModules {
 function nodeModules(): NodeModules {
   const { spawn, spawnSync } = require('node:child_process') as typeof import('node:child_process');
   const { existsSync } = require('node:fs') as typeof import('node:fs');
-  const { join, resolve, delimiter } = require('node:path') as typeof import('node:path');
+  const { join, resolve, dirname, delimiter } = require('node:path') as typeof import('node:path');
   const { homedir } = require('node:os') as typeof import('node:os');
-  return { spawn, spawnSync, existsSync, join, resolve, delimiter, homedir };
+  return { spawn, spawnSync, existsSync, join, resolve, dirname, delimiter, homedir };
 }
 
 export function isKosAgentSupported(app: App): boolean {
@@ -31,10 +32,11 @@ function resolveLaunch(app: App, settings: KosSettings): {
   args: string[];
   cwd: string;
   sessionDir: string;
+	pathEnv: string;
 } {
   if (!(app.vault.adapter instanceof FileSystemAdapter)) throw new Error('kos-agent 仅支持本地文件系统 vault');
   const root = app.vault.adapter.getBasePath();
-  const { spawnSync, existsSync, join, resolve, delimiter, homedir } = nodeModules();
+	const { spawnSync, existsSync, join, resolve, dirname, delimiter, homedir } = nodeModules();
   let host = settings.agentHostPath.trim();
 
   if (!host) {
@@ -85,6 +87,7 @@ function resolveLaunch(app: App, settings: KosSettings): {
     args: [...(isScript ? [host] : []), '--continue'],
     cwd: root,
     sessionDir: join(root, '.obsidian', 'kos-agent', 'sessions'),
+		pathEnv: isScript ? [dirname(host), process.env.PATH ?? ''].filter(Boolean).join(delimiter) : process.env.PATH ?? '',
   };
 }
 
@@ -98,6 +101,8 @@ export function createKosAgentClient(app: App, settings: KosSettings): KosAgentC
       env: {
         ...process.env,
         KOS_AGENT_SESSION_DIR: launch.sessionDir,
+				PATH: launch.pathEnv,
+				KOS_NODE_PATH: launch.command,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,

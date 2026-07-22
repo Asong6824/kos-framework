@@ -25,6 +25,25 @@ export function transitionStatus(root: string, input: TransitionStatusInput): Tr
 	if (!legalTargets(type, current).includes(input.target)) {
 		throw new Error(`Illegal ${type} transition: ${current} -> ${input.target}`);
 	}
+	if (type === "task" && input.target === "done") {
+		throw new Error("Task completion must use complete_task so result and per-Project contributions are recorded");
+	}
+	if (type === "task" && input.target === "blocked") {
+		if (!input.reason?.trim() || !input.unblockCondition?.trim()) {
+			throw new Error("Blocking a Task requires reason and unblockCondition");
+		}
+		document.set("blocked_reason", input.reason.trim());
+		document.set("unblock_condition", input.unblockCondition.trim());
+	}
+	if (type === "goal" && ["active", "paused", "achieved", "abandoned"].includes(input.target) && input.humanConfirmed !== true) {
+		throw new Error(`Goal transition ${current} -> ${input.target} requires explicit human confirmation`);
+	}
+	if (type === "goal" && input.target === "achieved") {
+		const evidence = document.get("result_evidence");
+		if (!Array.isArray(evidence) || evidence.length === 0) {
+			throw new Error("Goal -> achieved requires at least one result_evidence entry");
+		}
+	}
 	if (type === "method") {
 		const count = Number(document.get("validated_times") ?? 0);
 		if (input.target === "usable" && count < 1) throw new Error("method -> usable requires validated_times >= 1");
@@ -34,6 +53,9 @@ export function transitionStatus(root: string, input: TransitionStatusInput): Tr
 	document.set(machine.field, value);
 	const today = localDate();
 	if (document.has("updated")) document.set("updated", today);
+	if (type === "goal" && ["active", "paused", "achieved", "abandoned"].includes(input.target)) {
+		document.set("human_confirmed", true);
+	}
 	if (type === "task" && input.target === "done") document.set("completed", today);
 	const updated = `---\n${document.toString().trim()}\n---\n${original.slice(match[0].length)}`;
 	atomicWrite(target.absolute, updated);

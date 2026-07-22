@@ -189,6 +189,11 @@ function buildCheckers(root: string): Map<string, Checker> {
 		promotion_requires_task_contract: ["evals/contracts", "最大迭代次数"],
 		system_check_includes_task_contracts: ["90_系统/evals/contracts"],
 		task_completion_loop: ["Task Contract", "pass@1", "pass@k", "最大迭代"],
+		goal_planning_contract: ["H1/H2", "allocation_weight", "合计 100", "用户确认"],
+		daily_planning_contract: ["PlanningContext", "defer_until", "recommended", "accepted", "adjusted", "deferred", "rejected", "最多三项"],
+		period_review_contract: ["review-week", "review-month", "off_goal", "投入偏差", "不自动修改"],
+		capability_focus_contract: ["capability_focus", "applies_to", "max_daily_recommendations", "最多一个"],
+		project_alignment_contract: ["direct", "enabling", "exploratory", "off_goal", "conflicting", "过程指标", "结果指标"],
 	};
 	for (const [id, fragments] of Object.entries(bodyChecks)) checks.set(id, bodyContains(id, fragments));
 	checks.set("preserves_extend_config", childExists("preserves_extend_config", ["config", "EXTEND.md"]));
@@ -199,7 +204,7 @@ function buildCheckers(root: string): Map<string, Checker> {
 
 function skillDocuments(root: string): Map<string, SkillDocument> {
 	const documents = new Map<string, SkillDocument>();
-	const skillRoot = resolve(root, "41_Skills");
+	const skillRoot = resolve(root, "80_Skills");
 	if (!existsSync(skillRoot)) return documents;
 	const visit = (directory: string): void => {
 		for (const entry of readdirSync(directory, { withFileTypes: true })) {

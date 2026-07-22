@@ -16,7 +16,7 @@ class SkillEvalRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
             (root / ".kos.md").write_text("# test\n", encoding="utf-8")
-            (root / "41_Skills").mkdir()
+            (root / "80_Skills").mkdir()
             (root / "90_系统/evals/skills").mkdir(parents=True)
 
             completed = subprocess.run(

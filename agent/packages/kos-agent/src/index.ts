@@ -342,6 +342,20 @@ export type {
 export { createObject, sanitizeFileName } from "./kos/operations/create-object.ts";
 export { legalTargets, STATE_MACHINES as KOS_STATE_MACHINES } from "./kos/operations/state-machines.ts";
 export { transitionStatus } from "./kos/operations/transition-status.ts";
+export { setGoalWeights } from "./kos/operations/set-goal-weights.ts";
+export { reviewGoalHealth, updateGoal } from "./kos/operations/goal-management.ts";
+export { KOS_LAYOUT_VERSION, LEGACY_LAYOUT_MOVES, migrateLayout } from "./kos/operations/layout-migration.ts";
+export { migrateProjectDirectories } from "./kos/operations/project-directories.ts";
+export { archiveTask, completeTask, deferTask, listTaskPool, returnTaskToPool, updateTask } from "./kos/operations/task-pool.ts";
+export {
+	buildPlanningContext,
+	endDay,
+	migrateTaskPool,
+	recordRecommendationFeedback,
+	reviewMonth,
+	reviewWeek,
+	startDay,
+} from "./kos/operations/progress-workflows.ts";
 export { processSource, type ProcessSourceInput } from "./kos/operations/process-source.ts";
 export { updateProject, type UpdateProjectInput } from "./kos/operations/update-project.ts";
 export { generateDailyBrief, generateDailyDashboard, generateDiary } from "./kos/operations/daily-workflows.ts";
@@ -372,6 +386,35 @@ export type {
 	CreateObjectKind,
 	ObjectDirectories,
 	OperationResult,
+	GoalWeightChange,
+	GoalHealthReview,
+	UpdateGoalInput,
+	SetGoalWeightsInput,
+	SetGoalWeightsResult,
+	UpdateTaskInput,
+	TaskPoolEntry,
+	TaskPoolResult,
+	DeferTaskInput,
+	ReturnTaskToPoolInput,
+	TaskContributionInput,
+	TaskContributionLevel,
+	CompleteTaskInput,
+	CompleteTaskResult,
+	ArchiveTaskInput,
+	ArchiveTaskResult,
+	ProjectDirectoryMove,
+	ProjectDirectoryMigrationResult,
+	CapabilityFocusSummary,
+	DailyRecommendation,
+	PlanningContext,
+	PlanningGoal,
+	PlanningProject,
+	RecommendationFeedbackInput,
+	RecommendationStatus,
+	ReviewResult,
+	StartDayInput,
+	StartDayResult,
+	TaskMigrationResult,
 	TransitionStatusInput,
 	TransitionStatusResult,
 } from "./kos/operations/types.ts";

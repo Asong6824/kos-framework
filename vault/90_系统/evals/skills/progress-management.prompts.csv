@@ -1,0 +1,7 @@
+id,skill,should_trigger,prompt,expected_checks,notes
+half-year-goals,kos-plan-half-year,true,"帮我梳理 2027 H1 的三个目标，并给出 50/30/20 的投入占比",skill_exists|metadata_scope_core|core_pinned|has_required_sections|goal_planning_contract,H1/H2 与确认边界
+start-day,kos-start-my-day,true,"我今天有 2 小时，精力一般，帮我从任务池安排今天",skill_exists|metadata_scope_core|core_pinned|has_required_sections|daily_planning_contract|capability_focus_contract,结构化 PlanningContext 与反馈
+project-alignment,kos-create-project,true,"我想研究多模态大模型，看看和当前目标是否一致并建项目",skill_exists|metadata_scope_core|core_pinned|has_required_sections|project_alignment_contract,Project 支持度与指标
+period-review,kos-review-period,true,"生成本周周报，看看 off-goal 项目是不是挤占了目标",skill_exists|metadata_scope_core|core_pinned|has_required_sections|period_review_contract|capability_focus_contract,周期提醒与能力证据
+end-day,kos-end-my-day,true,"结束一天，记录完成、推迟和拒绝的任务",skill_exists|metadata_scope_core|core_pinned|has_required_sections,事实型日报
+profile-focus,kos-update-personal-profile,true,"这半年我想强化总结能力，不要让它影响每次回答",skill_exists|metadata_scope_core|core_pinned|has_required_sections|capability_focus_contract,有限触发机制

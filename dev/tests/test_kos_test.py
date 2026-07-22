@@ -32,7 +32,7 @@ class KosTestVaultTests(unittest.TestCase):
 
         self.assertEqual(marker["kind"], "kos-test-vault")
         self.assertEqual(marker["source_framework"], str(REPO_ROOT))
-        self.assertEqual(settings["skills"], ["../41_Skills/core"])
+        self.assertEqual(settings["skills"], ["../80_Skills/core"])
         self.assertTrue((self.target / ".pi/APPEND_SYSTEM.md").is_file())
         self.assertIn(
             "sync_direction: framework_to_test",
@@ -41,10 +41,10 @@ class KosTestVaultTests(unittest.TestCase):
 
     def test_refresh_restores_framework_content_and_preserves_test_content(self) -> None:
         prepare_test_vault(self.target)
-        managed = self.target / "41_Skills/core/kos-ingest/SKILL.md"
+        managed = self.target / "80_Skills/core/kos-ingest/SKILL.md"
         expected = managed.read_text(encoding="utf-8")
         managed.write_text(expected + "\ntest mutation\n", encoding="utf-8")
-        test_note = self.target / "23_日记/test-note.md"
+        test_note = self.target / "40_日记/test-note.md"
         test_note.write_text("keep me", encoding="utf-8")
 
         prepare_test_vault(self.target)
@@ -76,7 +76,7 @@ class KosTestVaultTests(unittest.TestCase):
         self.assertIn("--no-skills", argv)
         self.assertEqual(
             argv[argv.index("--skill") + 1],
-            str(self.target / "41_Skills/core"),
+            str(self.target / "80_Skills/core"),
         )
         self.assertEqual(argv[-1], "--verbose")
 

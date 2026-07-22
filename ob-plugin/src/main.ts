@@ -7,8 +7,15 @@ import { BadgeWatcher } from './actions/badges';
 import { openReportModal } from './actions/report';
 import type { ReportDeps } from './actions/report';
 import { approveReviewObject } from './actions/review';
-import { openTransitionModal, statusBadgeProcessor } from './actions/transition';
+import { openObjectTransitionModal, openTransitionModal, statusBadgeProcessor } from './actions/transition';
 import { applyTransition } from './actions/transition';
+import { openGoalAllocationModal, openGoalEditorModal } from './actions/goals';
+import type { SetGoalWeightsOperation, UpdateGoalOperation } from './actions/goals';
+import { openBlockTaskModal, openCompleteTaskModal, openDeferTaskModal, openEditTaskModal } from './actions/tasks';
+import type { TaskOperations } from './actions/tasks';
+import { vaultCreateOperation, vaultGoalWeightsOperation, vaultTaskOperations, vaultTransitionOperation, vaultUpdateGoalOperation, vaultUpdateProjectOperation } from './actions/vault-fallback';
+import { openProjectEditorModal } from './actions/projects';
+import type { UpdateProjectOperation } from './actions/projects';
 import type { TransitionOperation } from './actions/transition';
 import { createKosAgentClient, isKosAgentSupported } from './bridge/kos-agent';
 import { runAgentValidation } from './bridge/agent-validation';
@@ -61,6 +68,8 @@ export default class KosCompanionPlugin extends Plugin {
   private currentDate = '';
 
   async onload(): Promise<void> {
+    this.registerBundledFonts();
+
     // 持久化：加载 data.json（含设置项，见 store.ts DataFile 说明）
     this.store = new KosDataStore(this);
     await this.store.load();
@@ -177,6 +186,7 @@ export default class KosCompanionPlugin extends Plugin {
 
       // B5 创建向导
       this.addCommand({ id: 'create-project', name: '新建项目', callback: () => this.openCreate('project') });
+      this.addCommand({ id: 'create-goal', name: '新建半年目标', callback: () => this.openCreate('goal') });
       this.addCommand({ id: 'create-concept', name: '新建概念', callback: () => this.openCreate('concept') });
       this.addCommand({ id: 'create-method', name: '新建方法', callback: () => this.openCreate('method') });
       this.addCommand({ id: 'create-task', name: '新建任务', callback: () => this.openCreate('task') });
@@ -200,12 +210,12 @@ export default class KosCompanionPlugin extends Plugin {
     this.addCommand({
       id: 'weekly-report',
       name: '生成本周周报',
-      callback: () => openReportModal(this.app, this.reportDeps(), 'week'),
+      callback: () => void this.generateReview('week'),
     });
     this.addCommand({
       id: 'monthly-report',
       name: '生成本月月报',
-      callback: () => openReportModal(this.app, this.reportDeps(), 'month'),
+      callback: () => void this.generateReview('month'),
     });
 
     // C1/D1 健康检查（仅桌面端 + Node 可用时注册，移动端无此命令）
@@ -262,6 +272,15 @@ export default class KosCompanionPlugin extends Plugin {
     }
   }
 
+  private registerBundledFonts(): void {
+    if (!this.manifest.dir) return;
+    const source = this.app.vault.adapter.getResourcePath(`${this.manifest.dir}/assets/fonts/Doto-700.ttf`);
+    const doto = new FontFace('Doto', `url("${source}")`, { style: 'normal', weight: '700', display: 'block' });
+    document.fonts.add(doto);
+    void doto.load().catch((error) => console.error('Failed to load bundled Doto font', error));
+    this.register(() => document.fonts.delete(doto));
+  }
+
   private connectAgent(): Promise<KosAgentClient> {
     if (this.agentClient?.isRunning) return Promise.resolve(this.agentClient);
     if (this.agentConnection) return this.agentConnection;
@@ -289,17 +308,20 @@ export default class KosCompanionPlugin extends Plugin {
   }
 
   private openCreate(kind: CreateKind): void {
-    openCreateModal(this.app, kind, this.settings.objectDirs, this.agentCreateOperation()!);
+	openCreateModal(this.app, kind, this.settings.objectDirs, this.agentCreateOperation());
   }
 
-  private agentCreateOperation(): CreateObjectOperation | undefined {
-    if (!isKosAgentSupported(this.app)) return undefined;
+  private agentCreateOperation(): CreateObjectOperation {
+	const fallback = vaultCreateOperation(this.app);
+	if (!isKosAgentSupported(this.app)) return fallback;
     return async (kind: CreateKind, title: string, dirs: ObjectDirs, extra: CreateExtra) => {
-      const client = await this.connectAgent();
+	  let client: KosAgentClient;
+	  try { client = await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接创建'); return fallback(kind, title, dirs, extra); }
       const result = await client.createObject({
         kind,
         title,
         directories: {
+          goal: dirs.goal,
           project: dirs.project,
           concept: dirs.concept,
           method: dirs.method,
@@ -313,13 +335,73 @@ export default class KosCompanionPlugin extends Plugin {
     };
   }
 
-  private agentTransitionOperation(): TransitionOperation | undefined {
-    if (!isKosAgentSupported(this.app)) return undefined;
-    return async (path: string, target: string) => {
-      const client = await this.connectAgent();
-      const result = await client.transitionStatus({ path, target });
+  private agentTransitionOperation(): TransitionOperation {
+	const fallback = vaultTransitionOperation(this.app);
+	if (!isKosAgentSupported(this.app)) return fallback;
+    return async (path: string, target: string, humanConfirmed?: boolean, reason?: string, unblockCondition?: string) => {
+	  let client: KosAgentClient;
+	  try { client = await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接流转'); return fallback(path, target, humanConfirmed, reason, unblockCondition); }
+      const result = await client.transitionStatus({ path, target, humanConfirmed, reason, unblockCondition });
       new Notice(`已流转：${result.path} · ${result.from} → ${result.to}`);
       return true;
+    };
+  }
+
+  private agentSetGoalWeightsOperation(): SetGoalWeightsOperation {
+	const fallback = vaultGoalWeightsOperation(this.app);
+	if (!isKosAgentSupported(this.app)) return fallback;
+    return async (input) => {
+	  let client: KosAgentClient;
+	  try { client = await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接更新目标占比'); return fallback(input); }
+      const result = await client.setGoalWeights(input);
+      new Notice(`已更新 ${result.period} 目标占比 · 合计 ${result.activeTotal}`);
+      return true;
+    };
+  }
+
+  private agentUpdateGoalOperation(): UpdateGoalOperation {
+	const fallback = vaultUpdateGoalOperation(this.app);
+	if (!isKosAgentSupported(this.app)) return fallback;
+    return async (input) => {
+	  let client: KosAgentClient;
+	  try { client = await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接更新目标'); return fallback(input); }
+      await client.updateGoal(input); new Notice('目标已更新'); return true;
+    };
+  }
+
+	private agentTaskOperations(): TaskOperations {
+	const fallback = vaultTaskOperations(this.app);
+	if (!isKosAgentSupported(this.app)) return fallback;
+	const client = async (): Promise<KosAgentClient | null> => {
+	  try { return await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接操作任务'); return null; }
+	};
+    return {
+	  update: async (input) => { const active = await client(); if (!active) return fallback.update(input); await active.updateTask(input); new Notice('任务已更新'); return true; },
+	  defer: async (path, deferUntil, reason) => { const active = await client(); if (!active) return fallback.defer(path, deferUntil, reason); await active.deferTask({ path, deferUntil, reason }); new Notice(`已推迟至 ${deferUntil}`); return true; },
+	  returnToPool: async (path, reason) => { const active = await client(); if (!active) return fallback.returnToPool(path, reason); await active.returnTaskToPool({ path, reason }); new Notice('已退回任务池'); return true; },
+	  complete: async (input) => {
+		const active = await client();
+		if (!active) { const completed = await fallback.complete(input); if (completed && input.contributions.length) new Notice('任务已完成，可在“待归档”中移入归档'); return completed; }
+		const result = await active.completeTask(input);
+		new Notice(result.archiveRecommended ? '任务已完成，可在“待归档”中移入归档' : '零散任务已完成');
+		return true;
+	  },
+	  archive: async (path) => { const active = await client(); if (!active) return fallback.archive(path); await active.archiveTask({ path }); new Notice('任务已移入归档'); return true; },
+	  block: async (path, reason, unblockCondition) => {
+		const active = await client(); if (!active) return fallback.block(path, reason, unblockCondition);
+		await active.transitionStatus({ path, target: 'blocked', reason, unblockCondition });
+        new Notice('已记录阻塞'); return true;
+      },
+    };
+  }
+
+  private agentUpdateProjectOperation(): UpdateProjectOperation {
+    const fallback = vaultUpdateProjectOperation(this.app);
+    if (!isKosAgentSupported(this.app)) return fallback;
+    return async (input) => {
+      let client: KosAgentClient;
+      try { client = await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接更新项目'); return fallback(input); }
+      await client.updateProject(input); new Notice('项目已更新'); return true;
     };
   }
 
@@ -338,11 +420,43 @@ export default class KosCompanionPlugin extends Plugin {
       openAgent: (path, prompt) => this.openAgentFrom(path, prompt),
       runAgent: (module, intent, objects, path) => this.runDashboardAgent(module, intent, objects, path),
       transition: (object, target) => this.transitionObject(object, target),
+      manageStatus: (object) => openObjectTransitionModal(this.app, object, this.settings, this.agentTransitionOperation()),
       approve: (object) => this.approveObject(object),
       create: (kind) => this.openCreate(kind),
+      adjustGoalWeights: (period, goals) => {
+		openGoalAllocationModal(this.app, period, goals, this.agentSetGoalWeightsOperation());
+      },
+      editGoal: (goal) => openGoalEditorModal(this.app, goal, this.agentUpdateGoalOperation()),
+      editProject: (project) => openProjectEditorModal(this.app, project, this.agentUpdateProjectOperation()),
+	  editTask: (task) => {
+		openEditTaskModal(this.app, task, this.index.getAll().filter((object) => object.type === 'project'), this.agentTaskOperations());
+	  },
+	  scheduleTask: async (task) => this.agentTaskOperations()?.update({ path: task.filePath, scheduledFor: localToday(), deferUntil: '' }) ?? false,
+	  deferTask: (task) => {
+		openDeferTaskModal(this.app, task, this.agentTaskOperations());
+	  },
+	  returnTaskToPool: async (task) => this.agentTaskOperations()?.returnToPool(task.filePath) ?? false,
+	  blockTask: (task) => {
+		openBlockTaskModal(this.app, task, this.agentTaskOperations());
+	  },
+      completeTask: (task) => {
+		openCompleteTaskModal(this.app, task, this.agentTaskOperations());
+	  },
+	  archiveTask: async (task) => this.agentTaskOperations().archive(task.filePath),
+      startDay: (input) => this.connectAgent().then((client) => client.startDay({ ...input, date: localToday() })),
+      recommendationFeedback: async (input) => {
+        await (await this.connectAgent()).recordRecommendationFeedback(input);
+        new Notice(`建议已${input.action === 'accepted' ? '接受' : input.action === 'adjusted' ? '调整' : input.action === 'deferred' ? '推迟' : '拒绝'}`);
+        return true;
+      },
+      endDay: async () => {
+        const result = await (await this.connectAgent()).endDay(localToday());
+        new Notice(`日报已生成：${result.path}`);
+        await this.app.workspace.openLinkText(result.path, '', false);
+      },
       capture: () => openCaptureModal(this.app, this.settings.objectDirs),
       openReader: (path) => this.openReader(path),
-      report: (period) => openReportModal(this.app, this.reportDeps(), period),
+      report: (period) => void this.generateReview(period),
       getAgentSnapshot: async () => {
         const client = await this.connectAgent();
         const [state, stats, webSearch] = await Promise.all([
@@ -509,6 +623,19 @@ export default class KosCompanionPlugin extends Plugin {
   }
 
   /** 报告命令注入上下文 */
+  private async generateReview(period: 'week' | 'month'): Promise<void> {
+    try {
+      const client = await this.connectAgent();
+      const result = period === 'week' ? await client.reviewWeek(localToday()) : await client.reviewMonth(localToday());
+      new Notice(`已生成：${result.path}`);
+      await this.app.workspace.openLinkText(result.path, '', false);
+    } catch (error) {
+      new Notice(`kos-agent 不可用，改用本地${period === 'week' ? '周报' : '月报'}汇总`);
+      openReportModal(this.app, this.reportDeps(), period);
+      if (error instanceof Error && !/不支持|不可用|退出|ENOENT|spawn/i.test(error.message)) console.error(error);
+    }
+  }
+
   private reportDeps(): ReportDeps {
     return {
       index: this.index,

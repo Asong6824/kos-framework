@@ -55,7 +55,7 @@ agent/packages/kos-agent/src/kos/
 - kos-agent RPC 已增加系统级 `validate` command。它不是模型 tool；Obsidian 健康检查和 Agent 侧栏使用该 command 展示结构化结果。
 - `create_object` 与 `transition_status` deterministic operations 已进入 kos-agent RPC，包含路径限制、模板读取、原子写入、合法状态图、证据要求、写后验证和失败回滚。
 - Obsidian Desktop 的创建向导、状态徽章、流转命令和审核中心调用 kos-agent operations。
-- kos-agent 默认加载 Vault 根 `.kos.md` 与 `41_Skills/`，产品 system prompt 已从 Pi coding assistant 语义改为 kos Harness 语义。
+- kos-agent 默认加载 Vault 根 `.kos.md` 与 `80_Skills/`，产品 system prompt 已从 Pi coding assistant 语义改为 kos Harness 语义。
 - TypeScript fixture 覆盖路径、字段、状态、对象创建、跨文件回链、每日工作流、Task Completion 和 Skill Eval。
 - legacy Python、Vault machine schema 和 Obsidian Python bridge 已退出 runtime distribution。
 

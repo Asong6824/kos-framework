@@ -8,7 +8,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from framework_sync import FRAMEWORK_VAULT, apply_sync, compare, framework_version
+from framework_sync import LAYOUT_VERSION, FRAMEWORK_VAULT, apply_sync, compare, framework_version
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -98,6 +98,7 @@ def write_test_manifest(target: Path) -> None:
             [
                 "framework: kos-framework",
                 f'version: "{framework_version()}"',
+                f"layout_version: {LAYOUT_VERSION}",
                 f'synced_at: "{prepared_at}"',
                 "sync_direction: framework_to_test",
                 "",
@@ -113,7 +114,7 @@ def write_pi_adapter(target: Path) -> None:
     pi_dir = target / ".pi"
     pi_dir.mkdir(parents=True, exist_ok=True)
     settings = {
-        "skills": ["../41_Skills/core"],
+        "skills": ["../80_Skills/core"],
         "enableSkillCommands": True,
     }
     (pi_dir / "settings.json").write_text(
@@ -148,7 +149,7 @@ def prepare_test_vault(target: Path, *, reset: bool = False) -> Path:
         apply_sync(target, diff)
         print(
             f"Refreshed {target}: "
-            f"add={len(diff.added)} update={len(diff.modified)} delete={len(diff.deleted)}"
+            f"add_dir={len(diff.added_directories)} add={len(diff.added)} update={len(diff.modified)} delete={len(diff.deleted)}"
         )
     else:
         if target.exists():
@@ -170,7 +171,7 @@ def build_pi_argv(pi_path: str, target: Path, pi_args: list[str]) -> list[str]:
         "--approve",
         "--no-skills",
         "--skill",
-        str(target / "41_Skills/core"),
+        str(target / "80_Skills/core"),
         *pi_args,
     ]
 

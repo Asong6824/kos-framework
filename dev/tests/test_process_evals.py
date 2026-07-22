@@ -92,7 +92,7 @@ class ProcessEvalTests(unittest.TestCase):
     def test_pi_json_normalization_keeps_actions_but_drops_reasoning(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             cwd = Path(tempdir)
-            skill_path = cwd / "41_Skills/core/kos-system-check/SKILL.md"
+            skill_path = cwd / "80_Skills/core/kos-system-check/SKILL.md"
             lines = [
                 {"type": "message_update", "secret_reasoning": "must-not-survive"},
                 {
@@ -137,7 +137,7 @@ class ProcessEvalTests(unittest.TestCase):
         self.assertEqual(normalized["model"], "gpt-test")
         self.assertEqual(
             normalized["events"][0]["args"]["path"],
-            "41_Skills/core/kos-system-check/SKILL.md",
+            "80_Skills/core/kos-system-check/SKILL.md",
         )
         self.assertEqual(normalized["final_text"], "finished")
 
@@ -158,7 +158,7 @@ class ProcessEvalTests(unittest.TestCase):
                     "type": "tool_call",
                     "id": "2",
                     "tool": "read",
-                    "args": {"path": "41_Skills/core/kos-system-check/SKILL.md"},
+                    "args": {"path": "80_Skills/core/kos-system-check/SKILL.md"},
                 },
                 {
                     "type": "tool_call",
@@ -195,13 +195,13 @@ class ProcessEvalTests(unittest.TestCase):
                     "type": "tool_call",
                     "id": "1",
                     "tool": "read",
-                    "args": {"path": "41_Skills/core/kos-eval-skill/SKILL.md"},
+                    "args": {"path": "80_Skills/core/kos-eval-skill/SKILL.md"},
                 },
                 {
                     "type": "tool_call",
                     "id": "2",
                     "tool": "write",
-                    "args": {"path": "30_项目/unexpected.md"},
+                    "args": {"path": "31_项目/unexpected.md"},
                 },
             ]
         )
@@ -210,7 +210,7 @@ class ProcessEvalTests(unittest.TestCase):
             current_contract,
             prompt(),
             current_trace,
-            {"added": ["30_项目/unexpected.md"], "modified": [], "deleted": []},
+            {"added": ["31_项目/unexpected.md"], "modified": [], "deleted": []},
         )
 
         failures = {item["id"] for item in result["checks"] if not item["pass"]}
@@ -228,7 +228,7 @@ class ProcessEvalTests(unittest.TestCase):
                     "type": "tool_call",
                     "id": "1",
                     "tool": "read",
-                    "args": {"path": "41_Skills/core/kos-create-project/SKILL.md"},
+                    "args": {"path": "80_Skills/core/kos-create-project/SKILL.md"},
                 }
             ]
         )
@@ -264,7 +264,7 @@ class ProcessEvalTests(unittest.TestCase):
     def test_run_pi_trace_accepts_a_fake_json_backend(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
-            (root / "41_Skills/core").mkdir(parents=True)
+            (root / "80_Skills/core").mkdir(parents=True)
             fake_pi = root / "fake-pi"
             fake_pi.write_text(
                 "#!/usr/bin/env python3\n"

@@ -29,6 +29,11 @@ const CHECKER_IDS = new Set([
 	"promotion_requires_task_contract",
 	"system_check_includes_task_contracts",
 	"task_completion_loop",
+	"goal_planning_contract",
+	"daily_planning_contract",
+	"period_review_contract",
+	"capability_focus_contract",
+	"project_alignment_contract",
 ]);
 const CHECK_TYPES = new Set([
 	"path_exists",

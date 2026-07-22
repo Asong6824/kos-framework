@@ -1,6 +1,6 @@
 type: diary
 paths:
-  - 23_日记
+  - 40_日记
 required:
   type:
     kind: enum

@@ -17,6 +17,24 @@ import type {
   KosSlashCommand,
   KosTransitionStatusInput,
   KosTransitionStatusResult,
+  KosSetGoalWeightsInput,
+  KosSetGoalWeightsResult,
+  KosGoalHealthReview,
+  KosUpdateGoalInput,
+  KosUpdateProjectInput,
+  KosUpdateTaskInput,
+  KosTaskPoolResult,
+  KosDeferTaskInput,
+  KosReturnTaskToPoolInput,
+  KosCompleteTaskInput,
+  KosCompleteTaskResult,
+  KosArchiveTaskInput,
+  KosArchiveTaskResult,
+  KosRecommendationFeedbackInput,
+  KosReviewResult,
+  KosStartDayInput,
+  KosStartDayResult,
+  KosTaskMigrationResult,
   KosValidationReport,
 } from './protocol';
 
@@ -176,6 +194,70 @@ export class KosAgentClient {
 
   transitionStatus(input: KosTransitionStatusInput): Promise<KosTransitionStatusResult> {
     return this.send<KosTransitionStatusResult>({ type: 'transition_status', ...input });
+  }
+
+  setGoalWeights(input: KosSetGoalWeightsInput): Promise<KosSetGoalWeightsResult> {
+    return this.send<KosSetGoalWeightsResult>({ type: 'set_goal_weights', ...input });
+  }
+
+  updateGoal(input: KosUpdateGoalInput): Promise<KosOperationResult> {
+    return this.send({ type: 'update_goal', ...input });
+  }
+
+  reviewGoalHealth(path: string, date?: string): Promise<KosGoalHealthReview> {
+    return this.send({ type: 'review_goal_health', path, date });
+  }
+
+  updateProject(input: KosUpdateProjectInput): Promise<KosOperationResult> {
+    return this.send({ type: 'update_project', ...input });
+  }
+
+  updateTask(input: KosUpdateTaskInput): Promise<KosOperationResult> {
+    return this.send<KosOperationResult>({ type: 'update_task', ...input });
+  }
+
+  listTaskPool(today?: string): Promise<KosTaskPoolResult> {
+    return this.send<KosTaskPoolResult>({ type: 'list_task_pool', today });
+  }
+
+  deferTask(input: KosDeferTaskInput): Promise<KosOperationResult> {
+    return this.send<KosOperationResult>({ type: 'defer_task', ...input });
+  }
+
+  returnTaskToPool(input: KosReturnTaskToPoolInput): Promise<KosOperationResult> {
+    return this.send<KosOperationResult>({ type: 'return_task_to_pool', ...input });
+  }
+
+  completeTask(input: KosCompleteTaskInput): Promise<KosCompleteTaskResult> {
+    return this.send<KosCompleteTaskResult>({ type: 'complete_task', ...input });
+  }
+
+  archiveTask(input: KosArchiveTaskInput): Promise<KosArchiveTaskResult> {
+    return this.send<KosArchiveTaskResult>({ type: 'archive_task', ...input });
+  }
+
+  migrateTaskPool(dryRun = false): Promise<KosTaskMigrationResult> {
+    return this.send({ type: 'migrate_task_pool', dryRun });
+  }
+
+  startDay(input: KosStartDayInput = {}): Promise<KosStartDayResult> {
+    return this.send({ type: 'start_day', ...input });
+  }
+
+  recordRecommendationFeedback(input: KosRecommendationFeedbackInput): Promise<KosOperationResult> {
+    return this.send({ type: 'recommendation_feedback', ...input });
+  }
+
+  endDay(date?: string): Promise<KosReviewResult> {
+    return this.send({ type: 'end_day', date });
+  }
+
+  reviewWeek(date?: string): Promise<KosReviewResult> {
+    return this.send({ type: 'review_week', date });
+  }
+
+  reviewMonth(date?: string): Promise<KosReviewResult> {
+    return this.send({ type: 'review_month', date });
   }
 
   runDailyWorkflow(workflow: 'dashboard' | 'brief' | 'diary', date?: string): Promise<KosOperationResult> {

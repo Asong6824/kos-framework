@@ -1,6 +1,6 @@
 type: personal_operating_profile
 paths:
-  - 25_个人操作画像
+  - 42_个人操作画像
 required:
   type:
     kind: enum
@@ -32,3 +32,5 @@ optional:
     kind: bool
   tags:
     kind: list
+  capability_focus:
+    kind: map

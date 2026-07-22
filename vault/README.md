@@ -11,6 +11,7 @@ Start here:
 - `90_系统/文档/22_个人操作画像.md`
 - `90_系统/文档/23_项目与任务.md`
 - `90_系统/文档/24_读书与阅读.md`
+- `90_系统/文档/25_半年目标与推进.md`
 - `90_系统/文档/30_Harness与系统检查.md`
 - `90_系统/文档/40_Skill管理与防腐.md`
 - `90_系统/文档/41_Skill Eval与防腐.md`
@@ -22,5 +23,5 @@ Start here:
 Run the health check from this directory:
 
 ```bash
-kos-harness validate
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate
 ```

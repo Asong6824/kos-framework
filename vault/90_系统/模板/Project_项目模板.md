@@ -5,9 +5,21 @@ status: idea
 category: learning
 priority: P2
 area: "[[领域]]"
-goal: ""
+primary_goal: ""
+supporting_goals: []
+goal_alignment: off_goal
+alignment_reviewed: ""
+exploration_review_due: ""
+process_metrics: []
+result_metrics: []
 current_stage: ""
+next_milestone: ""
 due: ""
+off_goal_override: false
+override_reason: ""
+override_review_due: ""
+validation_completed: false
+expected_result_achieved: false
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 related_sources: []
@@ -18,21 +30,19 @@ tags: []
 ---
 # 项目名
 
-## 背景
-
-### 为什么做
+## 背景与策略假设
 
 
-### 项目目标
+## 与当前目标的关系
 
 
-### 当前阶段
+## 过程指标
 
 
-### 当前问题
+## 结果指标
 
 
-### 成功指标
+## 当前阶段与下一里程碑
 
 - [ ] 
 
@@ -51,11 +61,11 @@ tags: []
   - 理由：
   - 风险：
 
-## 进展
+## 进展证据
 
 - YYYY-MM-DD：
 
-## 当前任务
+## 阻塞与风险
 
 - [ ] 
 
@@ -65,7 +75,7 @@ tags: []
 ## 最终成果
 
 
-## 最终沉淀
+## 最终结论与沉淀
 
 
 ## 相关

@@ -13,6 +13,12 @@
 
 Never place framework development tooling under `vault/`.
 
+## Product Development Principle
+
+- Effect is the first priority and the primary acceptance criterion for all development.
+- When a reference design or target behavior is provided, reproduce the final visible and interactive result faithfully. Do not weaken the target effect for adaptability, compatibility, abstraction, reuse, fallback behavior, or speculative future requirements unless the requirement explicitly asks for them.
+- Validate the primary target environment first. Treat adaptation work as out of scope by default when it would change or compromise the intended result.
+
 ## Agent Terminology
 
 - In this repository, `Agent = LLM + Harness`.

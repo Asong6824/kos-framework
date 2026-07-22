@@ -16,9 +16,6 @@ Contract Gate -> Process Eval -> Task Contract -> evidence -> controlled iterati
 |---|---|
 | `skills/*.prompts.csv` | 每个 Skill 的小型 prompt 集，包含正例、反例和上下文噪声 |
 | `contracts/**/*.task.yaml` | 执行前定义的任务目标、完成检查、rubric 和最大迭代次数 |
-| `schemas/skill_eval_result.schema.json` | eval 结果的结构化输出 schema |
-| `schemas/task_contract.schema.json` | Task Contract 结构 schema |
-| `schemas/task_eval_result.schema.json` | 多轮任务完成结果 schema |
 | `artifacts/` | 实际执行后的输出、日志和评分结果 |
 
 ## Eval Case 字段
@@ -49,6 +46,8 @@ id,skill,should_trigger,prompt,expected_checks,notes
 - 是否保留关键防腐规则，例如不写旧路径、不跳过人工确认、不虚构素材。
 - 是否保留必要附属文件，例如 `rules/`、`strategies/`、`config/EXTEND.md`。
 
+结构化 schema 和执行器随 kos-agent 安装，不复制到 Vault。
+
 真实 Process Eval 仍需要外部 Agent runner，后续可扩展为：
 
 - 捕获 Hermes/Codex 执行输出。
@@ -68,7 +67,7 @@ max_iterations: 3
 checks:
   - id: project_exists
     type: path_exists
-    path: 30_项目/示例项目.md
+    path: 31_项目/示例项目.md
   - id: schema_valid
     type: harness_passes
     validator: schema
@@ -81,7 +80,7 @@ rubric:
 Agent 执行任务后提交 rubric 分数和具体证据。运行：
 
 ```bash
-kos-harness task-eval \
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs task-eval \
   --contract 90_系统/evals/contracts/kos-create-project/create-project-basic.task.yaml \
   --self-assessment /tmp/create-project-basic.assessment.yaml \
   --state 90_系统/evals/artifacts/create-project-basic-run.json \

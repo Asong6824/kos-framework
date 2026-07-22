@@ -192,7 +192,7 @@ ${items(questions)}
 
 <!-- /人手动添加 -->
 `;
-	return writeGenerated(root, `50_信息雷达/每日简报/${date}.md`, content);
+	return writeGenerated(root, `12_信息雷达/每日简报/${date}.md`, content);
 }
 
 export function generateDiary(root: string, now = new Date()): OperationResult {
@@ -241,7 +241,7 @@ ${manual("可提炼为认知记录的内容")}
 
 - [[00_工作台/今日工作台]]
 `;
-	return writeGenerated(root, `23_日记/${date.slice(0, 4)}/${date.slice(5, 7)}/${date}.md`, content);
+	return writeGenerated(root, `40_日记/${date.slice(0, 4)}/${date.slice(5, 7)}/${date}.md`, content);
 }
 
 function writeGenerated(root: string, path: string, content: string): OperationResult {
@@ -260,7 +260,7 @@ function writeGenerated(root: string, path: string, content: string): OperationR
 }
 
 function objectRecords(root: string): RecordItem[] {
-	return ["11_原材料", "20_处理区", "21_研究", "22_知识库", "24_认知记录", "30_项目", "31_任务", "40_方法库", "50_信息雷达"]
+	return ["11_原材料", "20_处理区", "21_研究", "22_知识库", "41_认知记录", "31_项目", "32_任务", "23_方法库", "12_信息雷达"]
 		.flatMap((directory) => markdownFiles(resolve(root, directory)))
 		.map((path) => {
 			const parsed = parseFrontmatterFile(path);

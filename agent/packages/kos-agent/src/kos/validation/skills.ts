@@ -25,7 +25,7 @@ function nestedGet(data: Record<string, unknown>, ...keys: string[]): unknown {
 }
 
 function collectSkillFiles(root: string): string[] {
-	const skillRoot = resolve(root, "41_Skills");
+	const skillRoot = resolve(root, "80_Skills");
 	if (!existsSync(skillRoot)) return [];
 	const files: string[] = [];
 	const visit = (directory: string): void => {
@@ -40,7 +40,7 @@ function collectSkillFiles(root: string): string[] {
 }
 
 function expectedScope(path: string, root: string): string | undefined {
-	const parts = relpath(path, resolve(root, "41_Skills")).split("/");
+	const parts = relpath(path, resolve(root, "80_Skills")).split("/");
 	if (parts.length < 3 || parts[parts.length - 1] !== "SKILL.md") return undefined;
 	return Object.entries(SCOPE_DIRS).find(([, directory]) => directory === parts[0])?.[0];
 }
@@ -119,22 +119,22 @@ function buildReport(root: string, files: string[], findings: ValidationFinding[
 export function validateSkillFiles(root: string, paths: readonly string[]): ValidationReport {
 	const resolvedRoot = resolve(root);
 	const files = [...new Set(paths.map((path) => resolve(resolvedRoot, path)))].filter(
-		(path) => existsSync(path) && basename(path) === "SKILL.md" && relpath(path, resolvedRoot).startsWith("41_Skills/"),
+		(path) => existsSync(path) && basename(path) === "SKILL.md" && relpath(path, resolvedRoot).startsWith("80_Skills/"),
 	);
 	return buildReport(resolvedRoot, files, files.flatMap((path) => validateSkillFile(path, resolvedRoot)));
 }
 
 export function validateSkills(root: string): ValidationReport {
 	const resolvedRoot = resolve(root);
-	const skillRoot = resolve(resolvedRoot, "41_Skills");
+	const skillRoot = resolve(resolvedRoot, "80_Skills");
 	const findings: ValidationFinding[] = [];
 	if (!existsSync(skillRoot)) {
-		findings.push({ level: "ERROR", validator: "skills", path: "41_Skills", message: "缺少 Skill 根目录" });
+		findings.push({ level: "ERROR", validator: "skills", path: "80_Skills", message: "缺少 Skill 根目录" });
 		return buildReport(resolvedRoot, [], findings);
 	}
 	for (const directory of Object.values(SCOPE_DIRS)) {
 		if (!existsSync(resolve(skillRoot, directory))) {
-			findings.push({ level: "ERROR", validator: "skills", path: `41_Skills/${directory}`, message: "缺少 Skill scope 目录" });
+			findings.push({ level: "ERROR", validator: "skills", path: `80_Skills/${directory}`, message: "缺少 Skill scope 目录" });
 		}
 	}
 	const files = collectSkillFiles(resolvedRoot);

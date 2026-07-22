@@ -370,9 +370,9 @@ describe('M10 projectProgress', () => {
   it('推进度 = done/全部任务；wikilink 各种写法都能匹配', () => {
     const objects = [
       mk('project', { title: '写书', status: 'active', updated: TODAY }),
-      mk('task', { project: '[[30_项目/写书]]', status: 'done' }),
+      mk('task', { project: '[[31_项目/写书]]', status: 'done' }),
       mk('task', { project: '[[写书]]', status: 'todo' }),
-      mk('task', { project: '[[30_项目/写书|写书项目]]', status: 'doing' }),
+      mk('task', { project: '[[31_项目/写书|写书项目]]', status: 'doing' }),
       mk('task', { project: '[[别的项目]]', status: 'done' }),
     ];
     const [p] = projectProgress(objects, TODAY);
@@ -409,7 +409,7 @@ describe('M10 projectProgress', () => {
   });
 
   it('wikilinkTarget 归一化', () => {
-    expect(wikilinkTarget('[[30_项目/写书]]')).toBe('写书');
+    expect(wikilinkTarget('[[31_项目/写书]]')).toBe('写书');
     expect(wikilinkTarget('[[写书|别名]]')).toBe('写书');
     expect(wikilinkTarget('写书.md')).toBe('写书');
   });

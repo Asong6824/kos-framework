@@ -50,6 +50,7 @@ const OBJECT_DIR_ITEMS: { key: keyof ObjectDirs; label: string; usage: string }[
   { key: 'research', label: '研究（research）', usage: '研究目录（同上）' },
   { key: 'concept', label: '知识库（concept）', usage: '新建概念落盘目录' },
   { key: 'method', label: '方法库（method）', usage: '新建方法落盘目录' },
+  { key: 'goal', label: '半年目标（goal）', usage: 'H1/H2 Goal 落盘根目录，创建时按 YYYY-H1/H2 分期' },
   { key: 'project', label: '项目（project）', usage: '新建项目落盘目录' },
   { key: 'task', label: '任务（task）', usage: '新建任务落盘目录' },
   { key: 'diary', label: '日记（diary）', usage: '日记落盘根目录，仍拼 YYYY/MM；周报/月报写入共用' },

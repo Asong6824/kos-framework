@@ -32,7 +32,14 @@ import { validateChangedFiles, validateVault } from "../../kos/validation/valida
 import { createObject } from "../../kos/operations/create-object.ts";
 import { appendReaderExtract } from "../../kos/operations/append-reader-extract.ts";
 import { transitionStatus } from "../../kos/operations/transition-status.ts";
+import { setGoalWeights } from "../../kos/operations/set-goal-weights.ts";
+import { reviewGoalHealth, updateGoal } from "../../kos/operations/goal-management.ts";
+import { archiveTask, completeTask, deferTask, listTaskPool, returnTaskToPool, updateTask } from "../../kos/operations/task-pool.ts";
 import { generateDailyBrief, generateDailyDashboard, generateDiary } from "../../kos/operations/daily-workflows.ts";
+import { updateProject } from "../../kos/operations/update-project.ts";
+import { endDay, migrateTaskPool, recordRecommendationFeedback, reviewMonth, reviewWeek, startDay } from "../../kos/operations/progress-workflows.ts";
+import { migrateLayout } from "../../kos/operations/layout-migration.ts";
+import { migrateProjectDirectories } from "../../kos/operations/project-directories.ts";
 import { normalizeModelConfiguration, writeModelConfiguration } from "../../kos/model-configuration.ts";
 import { type Theme, theme } from "../interactive/theme/theme.ts";
 import { attachJsonlLineReader, serializeJsonLine } from "./jsonl.ts";
@@ -492,6 +499,62 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				const result = transitionStatus(session.sessionManager.getCwd(), command);
 				return success(id, "transition_status", result);
 			}
+
+			case "set_goal_weights": {
+				const result = setGoalWeights(session.sessionManager.getCwd(), command);
+				return success(id, "set_goal_weights", result);
+			}
+
+			case "update_goal":
+				return success(id, "update_goal", updateGoal(session.sessionManager.getCwd(), command));
+
+			case "review_goal_health":
+				return success(id, "review_goal_health", reviewGoalHealth(session.sessionManager.getCwd(), command.path, command.date));
+
+			case "update_project":
+				return success(id, "update_project", updateProject(session.sessionManager.getCwd(), command));
+
+			case "update_task":
+				return success(id, "update_task", updateTask(session.sessionManager.getCwd(), command));
+
+			case "list_task_pool":
+				return success(id, "list_task_pool", listTaskPool(session.sessionManager.getCwd(), command.today));
+
+			case "defer_task":
+				return success(id, "defer_task", deferTask(session.sessionManager.getCwd(), command));
+
+			case "return_task_to_pool":
+				return success(id, "return_task_to_pool", returnTaskToPool(session.sessionManager.getCwd(), command));
+
+			case "complete_task":
+				return success(id, "complete_task", completeTask(session.sessionManager.getCwd(), command));
+
+			case "archive_task":
+				return success(id, "archive_task", archiveTask(session.sessionManager.getCwd(), command));
+
+			case "migrate_task_pool":
+				return success(id, "migrate_task_pool", migrateTaskPool(session.sessionManager.getCwd(), command.dryRun));
+
+			case "migrate_layout":
+				return success(id, "migrate_layout", migrateLayout(session.sessionManager.getCwd(), command.dryRun));
+
+			case "migrate_project_directories":
+				return success(id, "migrate_project_directories", migrateProjectDirectories(session.sessionManager.getCwd(), command.dryRun));
+
+			case "start_day":
+				return success(id, "start_day", startDay(session.sessionManager.getCwd(), command));
+
+			case "recommendation_feedback":
+				return success(id, "recommendation_feedback", recordRecommendationFeedback(session.sessionManager.getCwd(), command));
+
+			case "end_day":
+				return success(id, "end_day", endDay(session.sessionManager.getCwd(), command.date));
+
+			case "review_week":
+				return success(id, "review_week", reviewWeek(session.sessionManager.getCwd(), command.date));
+
+			case "review_month":
+				return success(id, "review_month", reviewMonth(session.sessionManager.getCwd(), command.date));
 
 			case "daily_workflow": {
 				const cwd = session.sessionManager.getCwd();

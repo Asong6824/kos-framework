@@ -1,8 +1,8 @@
 # 开发阶段：将以下片段合并到 ~/.hermes/profiles/kos/config.yaml
-# 正式阶段：将路径替换为正式 kos vault 下的 41_Skills
+# 正式阶段：将路径替换为正式 kos vault 下的 80_Skills
 skills:
   external_dirs:
-    - /path/to/your/kos-vault/41_Skills
+    - /path/to/your/kos-vault/80_Skills
   guard_agent_created: true
 
 curator:

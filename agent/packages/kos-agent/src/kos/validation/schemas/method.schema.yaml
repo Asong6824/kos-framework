@@ -1,6 +1,6 @@
 type: method
 paths:
-  - 40_方法库
+  - 23_方法库
 required:
   type:
     kind: enum

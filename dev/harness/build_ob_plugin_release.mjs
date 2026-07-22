@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -22,6 +22,7 @@ await mkdir(join(output, 'kos-agent/THIRD_PARTY_LICENSES'), { recursive: true })
 for (const name of ['main.js', 'manifest.json', 'styles.css', 'THIRD_PARTY_NOTICES.md']) {
   await cp(join(pluginDir, name), join(output, name));
 }
+await cp(join(pluginDir, 'assets'), join(output, 'assets'), { recursive: true });
 await cp(join(agentDir, 'package.json'), join(output, 'kos-agent/package.json'));
 await cp(
   join(agentDir, 'src/modes/interactive/theme'),
@@ -71,6 +72,13 @@ await build({
   },
   logLevel: 'warning',
 });
+const harnessLauncher = join(output, 'kos-agent/dist/kos-harness');
+await writeFile(harnessLauncher, '#!/usr/bin/env sh\nexec "${KOS_NODE_PATH:-node}" "$(dirname "$0")/kos-harness.mjs" "$@"\n');
+await chmod(harnessLauncher, 0o755);
+await writeFile(
+  join(output, 'kos-agent/dist/kos-harness.cmd'),
+  '@echo off\r\nif defined KOS_NODE_PATH (\r\n  "%KOS_NODE_PATH%" "%~dp0kos-harness.mjs" %*\r\n) else (\r\n  node "%~dp0kos-harness.mjs" %*\r\n)\r\n',
+);
 await build({
   entryPoints: [join(agentDir, 'src/kos-cli.ts')],
   outfile: join(output, 'kos-agent/dist/kos-harness.mjs'),
@@ -117,9 +125,10 @@ await writeFile(join(output, 'INSTALL.md'), [
   `# ${manifest.name} ${manifest.version}`,
   '',
   'Copy this directory to `<Vault>/.obsidian/plugins/kos-companion`, then enable the plugin in Obsidian.',
+  'Keep plugin backups outside `<Vault>/.obsidian/plugins/`. A backup that still contains `manifest.json` with the same plugin id can be loaded instead of the active directory.',
   'The bundled kos-agent host is discovered automatically. Node.js 22.19+ must be installed.',
   'Configure the model from the Agent sidebar. If Node auto-discovery fails, set its executable in plugin settings.',
-  'The deterministic Harness CLI is available at `kos-agent/dist/kos-harness.mjs`.',
+  'From the Vault root, run the deterministic Harness with `node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs <command>`.',
   '',
 ].join('\n'));
 

@@ -11,10 +11,10 @@ const entry = resolve(import.meta.dirname, '../../agent/packages/kos-agent/dist/
 const vaultTemplates = resolve(import.meta.dirname, '../../vault/90_系统/模板');
 const tempDirs: string[] = [];
 const directories = {
-  project: '30_项目',
+  project: '31_项目',
   concept: '22_知识库',
-  method: '40_方法库',
-  task: '31_任务',
+  method: '23_方法库',
+  task: '32_任务',
   source: '11_原材料',
 };
 

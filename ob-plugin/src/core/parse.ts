@@ -8,6 +8,8 @@
 import {
   CONCEPT_STATUSES,
   DASHBOARD_TYPES,
+  GOAL_HEALTH,
+  GOAL_STATUSES,
   KOS_OBJECT_TYPES,
   METHOD_STATUSES,
   PRIORITIES,
@@ -26,11 +28,13 @@ import type {
   DashboardObject,
   DiaryObject,
   ExtractObject,
+  GoalObject,
   KosObject,
   KosObjectType,
   MethodObject,
   PersonalOperatingProfileObject,
   ProjectObject,
+  ProjectMetric,
   ReflectionObject,
   ResearchObject,
   SignalObject,
@@ -40,6 +44,18 @@ import type {
 } from './model';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+
+function asMetrics(value: unknown, kind: 'process' | 'result'): Array<ProjectMetric | string> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): Array<ProjectMetric | string> => {
+    if (typeof item === 'string') return [item];
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+    const raw = item as Record<string, unknown>;
+    const id = asStr(raw.id); const name = asStr(raw.name); const unit = asStr(raw.unit);
+    if (!id || !name || !unit) return [];
+    return [{ id, kind, name, unit, baseline: Number(raw.baseline ?? 0), target: Number(raw.target ?? 0), current: Number(raw.current ?? 0), updated: asDate(raw.updated), evidence: asStrArray(raw.evidence) }];
+  });
+}
 
 /** 日期归一化：取前 10 位（YYYY-MM-DD）；非法输入返回 null */
 function asDate(v: unknown): string | null {
@@ -66,6 +82,13 @@ function asStrArray(v: unknown): string[] {
   if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
   if (typeof v === 'string' && v.length > 0) return [v];
   return [];
+}
+
+const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+/** 本地 24 小时时刻数组：接受单字符串或数组，过滤非法值后去重升序。 */
+function asTimeArray(v: unknown): string[] {
+  return [...new Set(asStrArray(v).filter((value) => TIME_RE.test(value)))].sort();
 }
 
 /** 枚举字段：不在合法值集合内按缺失处理，返回默认值 */
@@ -113,6 +136,24 @@ export function parseKosObject(raw: Record<string, unknown>, filePath: string): 
   };
 
   switch (type) {
+	case 'goal': {
+		const obj: GoalObject = {
+			...base,
+			type,
+			title: asStr(raw.title),
+			horizon: asEnum(raw.horizon, ['H1', 'H2'] as const, 'H1'),
+			period: asStr(raw.period) ?? '',
+			status: asEnum(raw.status, GOAL_STATUSES, 'draft'),
+			allocation_weight: Math.max(0, asInt(raw.allocation_weight) ?? 0),
+			health: asEnum(raw.health, GOAL_HEALTH, 'unknown'),
+			period_start: asDate(raw.period_start),
+			period_end: asDate(raw.period_end),
+			updated: asDate(raw.updated),
+			human_confirmed: asBool(raw.human_confirmed, false),
+			result_evidence: asStrArray(raw.result_evidence),
+		};
+		return obj;
+	}
     case 'source': {
       const obj: SourceObject = {
         ...base,
@@ -186,22 +227,51 @@ export function parseKosObject(raw: Record<string, unknown>, filePath: string): 
         priority: asOptEnum(raw.priority, PRIORITIES),
         area: asStr(raw.area),
         goal: asStr(raw.goal),
+        primary_goal: asStr(raw.primary_goal),
+        supporting_goals: asStrArray(raw.supporting_goals),
+        goal_alignment: asOptEnum(raw.goal_alignment, ['direct', 'enabling', 'exploratory', 'off_goal', 'conflicting'] as const),
+        alignment_reviewed: asDate(raw.alignment_reviewed),
+        exploration_review_due: asDate(raw.exploration_review_due),
+        process_metrics: asMetrics(raw.process_metrics, 'process'),
+        result_metrics: asMetrics(raw.result_metrics, 'result'),
         current_stage: asStr(raw.current_stage),
+        next_milestone: asStr(raw.next_milestone),
         due: asDate(raw.due),
         updated: asDate(raw.updated),
+		off_goal_override: asBool(raw.off_goal_override, false),
+		override_reason: asStr(raw.override_reason),
+		override_review_due: asDate(raw.override_review_due),
+		validation_completed: asBool(raw.validation_completed, false),
+		expected_result_achieved: asBool(raw.expected_result_achieved, false),
       };
       return obj;
     }
     case 'task': {
+		const legacyProject = asStr(raw.project);
+		const projects = [...new Set([...asStrArray(raw.projects), ...(legacyProject ? [legacyProject] : [])])];
       const obj: TaskObject = {
         ...base,
         type,
         status: asEnum(raw.status, TASK_STATUSES, 'todo'),
         title: asStr(raw.title),
-        project: asStr(raw.project),
+        project: legacyProject,
+		projects,
         priority: asOptEnum(raw.priority, PRIORITIES),
+		scheduled_for: asDate(raw.scheduled_for),
+		defer_until: asDate(raw.defer_until),
         due: asDate(raw.due),
+		estimate_minutes: Math.max(1, asInt(raw.estimate_minutes) ?? 30),
+		energy: asEnum(raw.energy, ['low', 'medium', 'high'] as const, 'medium'),
+		work_mode: asEnum(raw.work_mode, ['deep', 'shallow', 'collaborative', 'administrative'] as const, 'shallow'),
+		growth_mode: asEnum(raw.growth_mode, ['neutral', 'practice', 'stretch'] as const, 'neutral'),
+        scheduled_times: asTimeArray(raw.scheduled_times),
         completed: asDate(raw.completed),
+		result: asStr(raw.result),
+		outputs: asStrArray(raw.outputs),
+		blocked_reason: asStr(raw.blocked_reason),
+		unblock_condition: asStr(raw.unblock_condition),
+		project_contributions: asStrArray(raw.project_contributions),
+		recommendation_history: asStrArray(raw.recommendation_history),
       };
       return obj;
     }

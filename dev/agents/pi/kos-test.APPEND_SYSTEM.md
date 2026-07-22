@@ -13,7 +13,7 @@ user `kos` vault.
   validation after changes.
 - `AGENTS.md` may describe itself as a Codex adapter. Its operating rules are
   backend-agnostic here; Pi is the active backend.
-- Core Skills are loaded from `41_Skills/core/`. Use them as runtime procedures,
+- Core Skills are loaded from `80_Skills/core/`. Use them as runtime procedures,
   while respecting their draft, confirmation, and permission boundaries.
 - Never synchronize this test vault into a personal vault. Report framework
   defects with reproducible evidence so they can be fixed in `kos-framework`.

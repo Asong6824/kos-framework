@@ -3,11 +3,11 @@
 Skill 是 kos 的执行层。所有 Skill 必须有明确 scope。
 
 ```text
-41_Skills/core/
-41_Skills/integrations/
-41_Skills/personal/
-41_Skills/incubator/
-41_Skills/archived/
+80_Skills/core/
+80_Skills/integrations/
+80_Skills/personal/
+80_Skills/incubator/
+80_Skills/archived/
 ```
 
 本框架只内置 `core`。
@@ -25,7 +25,7 @@ Skill 应该回答：
 - 产物写到哪里。
 - 哪些步骤必须用户确认。
 
-如果一个流程只是人的经验总结，先写成 `40_方法库/` 里的 Method；只有当它需要被 Agent 反复执行，并且有清晰触发边界时，才应该变成 Skill。
+如果一个流程只是人的经验总结，先写成 `23_方法库/` 里的 Method；只有当它需要被 Agent 反复执行，并且有清晰触发边界时，才应该变成 Skill。
 
 ## Scope 判断
 
@@ -44,7 +44,7 @@ Skill 应该回答：
 新 Skill 默认进入：
 
 ```text
-41_Skills/incubator/<skill-name>/SKILL.md
+80_Skills/incubator/<skill-name>/SKILL.md
 ```
 
 晋升前必须：
@@ -73,18 +73,18 @@ Agent 可以新建 incubator Skill 和 eval 草稿，但不能自行晋升到正
 ## 运行 Eval
 
 ```bash
-kos-harness validate
-kos-harness skill-eval --write-artifact
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs skill-eval --write-artifact
 ```
 
 指定单个 Skill：
 
 ```bash
-kos-harness skill-eval --suite <skill-name> --write-artifact
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs skill-eval --suite <skill-name> --write-artifact
 ```
 
 ## 系统检查
 
 ```bash
-kos-harness validate
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate
 ```

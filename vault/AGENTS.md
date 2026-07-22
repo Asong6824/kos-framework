@@ -16,12 +16,12 @@ Use `.kos.md` as shared Vault context. kos-agent is the official Agent product a
 ## Common Commands
 
 ```bash
-kos-harness validate
-kos-harness daily-dashboard
-kos-harness daily-brief
-kos-harness diary
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs daily-dashboard
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs daily-brief
+node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs diary
 ```
 
 ## Skill Handling
 
-`41_Skills/` stores kos-agent procedures. Follow their object rules and run the Harness checks; compatibility metadata is not an alternate runtime contract.
+`80_Skills/` stores kos-agent procedures. Follow their object rules and run the Harness checks; compatibility metadata is not an alternate runtime contract.

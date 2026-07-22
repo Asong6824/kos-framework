@@ -1,6 +1,6 @@
 type: reflection
 paths:
-  - 24_认知记录
+  - 41_认知记录
 required:
   type:
     kind: enum

@@ -413,8 +413,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.extensionsResult = this.extensionsOverride ? this.extensionsOverride(extensionsResult) : extensionsResult;
 		this.applyExtensionSourceInfo(this.extensionsResult.extensions, metadataByPath);
 
-		const kosVaultSkills = APP_NAME === "kos-agent" && !this.noSkills && existsSync(join(this.cwd, "41_Skills"))
-			? [join(this.cwd, "41_Skills")]
+		const kosVaultSkills = APP_NAME === "kos-agent" && !this.noSkills && existsSync(join(this.cwd, "80_Skills"))
+			? [join(this.cwd, "80_Skills")]
 			: [];
 		const skillPaths = this.noSkills
 			? this.mergePaths(cliEnabledSkills, this.additionalSkillPaths)
@@ -762,7 +762,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 			join(this.agentDir, "extensions"),
 		];
 		const projectRoots = [
-			join(this.cwd, "41_Skills"),
+			join(this.cwd, "80_Skills"),
 			join(this.cwd, CONFIG_DIR_NAME, "skills"),
 			join(this.cwd, CONFIG_DIR_NAME, "prompts"),
 			join(this.cwd, CONFIG_DIR_NAME, "themes"),

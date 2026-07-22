@@ -19,7 +19,7 @@ describe("kos runtime context", () => {
 		const agentDir = join(root, ".config");
 		mkdirSync(agentDir, { recursive: true });
 		writeFileSync(join(root, ".kos.md"), "# kos runtime rules");
-		const skillDir = join(root, "41_Skills", "core", "test-skill");
+		const skillDir = join(root, "80_Skills", "core", "test-skill");
 		mkdirSync(skillDir, { recursive: true });
 		writeFileSync(join(skillDir, "SKILL.md"), `---\nname: test-skill\ndescription: Test kos skill\n---\nRun the workflow.`);
 

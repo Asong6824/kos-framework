@@ -19,7 +19,13 @@ import { parseKosObject } from '../core/parse';
 import type { KosSettings } from '../settings';
 import { TYPE_LABELS, objectTitle } from '../views/view-context';
 
-export type TransitionOperation = (path: string, target: string) => Promise<boolean>;
+export type TransitionOperation = (
+  path: string,
+  target: string,
+  humanConfirmed?: boolean,
+  reason?: string,
+  unblockCondition?: string,
+) => Promise<boolean>;
 
 /** 流转确认对话框：展示规范依据（TransitionRule.note），返回用户是否确认 */
 class TransitionConfirmModal extends Modal {
@@ -89,7 +95,7 @@ export async function applyTransition(
     if (!ok) return false;
   }
 
-  return operation(obj.filePath, target);
+  return operation(obj.filePath, target, rule?.requiresConfirmation === true);
 }
 
 /** 状态选择 Modal（命令 transition-current-file 用） */
@@ -137,6 +143,15 @@ class TransitionPickerModal extends Modal {
   }
 }
 
+export function openObjectTransitionModal(
+  app: App,
+  object: KosObject,
+  settings: KosSettings,
+  operation: TransitionOperation,
+): void {
+  new TransitionPickerModal(app, object, settings, operation).open();
+}
+
 /** 命令入口：对当前文件弹状态选择 Modal */
 export function openTransitionModal(app: App, settings: KosSettings, operation: TransitionOperation): void {
   const file = app.workspace.getActiveFile();
@@ -154,7 +169,7 @@ export function openTransitionModal(app: App, settings: KosSettings, operation: 
     new Notice(`${TYPE_LABELS[obj.type]}没有状态机，不支持流转`);
     return;
   }
-  new TransitionPickerModal(app, obj, settings, operation).open();
+  openObjectTransitionModal(app, obj, settings, operation);
 }
 
 /**

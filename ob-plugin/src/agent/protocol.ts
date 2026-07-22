@@ -10,6 +10,20 @@ export type KosRpcCommand =
   | ({ type: 'create_object' } & KosCreateObjectInput)
   | ({ type: 'append_reader_extract' } & KosAppendReaderExtractInput)
   | ({ type: 'transition_status' } & KosTransitionStatusInput)
+  | ({ type: 'set_goal_weights' } & KosSetGoalWeightsInput)
+  | ({ type: 'update_goal' } & KosUpdateGoalInput)
+  | { type: 'review_goal_health'; path: string; date?: string }
+  | ({ type: 'update_project' } & KosUpdateProjectInput)
+  | ({ type: 'update_task' } & KosUpdateTaskInput)
+  | { type: 'list_task_pool'; today?: string }
+  | ({ type: 'defer_task' } & KosDeferTaskInput)
+  | ({ type: 'return_task_to_pool' } & KosReturnTaskToPoolInput)
+  | ({ type: 'complete_task' } & KosCompleteTaskInput)
+  | ({ type: 'archive_task' } & KosArchiveTaskInput)
+  | { type: 'migrate_task_pool'; dryRun?: boolean }
+  | ({ type: 'start_day' } & KosStartDayInput)
+  | ({ type: 'recommendation_feedback' } & KosRecommendationFeedbackInput)
+  | { type: 'end_day' | 'review_week' | 'review_month'; date?: string }
   | { type: 'daily_workflow'; workflow: 'dashboard' | 'brief' | 'diary'; date?: string }
   | { type: 'get_available_models' }
   | { type: 'cycle_thinking_level' }
@@ -52,10 +66,14 @@ export interface KosModelInfo {
 }
 
 export interface KosCreateObjectInput {
-  kind: 'project' | 'concept' | 'method' | 'task' | 'source';
+  kind: 'goal' | 'project' | 'concept' | 'method' | 'task' | 'source';
   title: string;
-  directories: { project: string; concept: string; method: string; task: string; source: string };
-  extra?: { goal?: string; priority?: string; format?: string };
+  directories: { goal?: string; project: string; concept: string; method: string; task: string; source: string };
+  extra?: {
+    goal?: string; priority?: string; format?: string; period?: string; allocation_weight?: number; metric?: string[];
+    primary_goal?: string; goal_alignment?: string; process_metric?: string[]; result_metric?: string[];
+    projects?: string[]; estimate_minutes?: number; energy?: string; work_mode?: string; growth_mode?: string;
+  };
 }
 
 export interface KosOperationResult {
@@ -94,6 +112,9 @@ export interface KosAppendReaderExtractResult extends KosOperationResult {
 export interface KosTransitionStatusInput {
   path: string;
   target: string;
+  humanConfirmed?: boolean;
+  reason?: string;
+  unblockCondition?: string;
 }
 
 export interface KosTransitionStatusResult extends KosOperationResult {
@@ -101,6 +122,112 @@ export interface KosTransitionStatusResult extends KosOperationResult {
   from: string;
   to: string;
 }
+
+export interface KosSetGoalWeightsInput {
+  period: string;
+  changes: Array<{
+    path: string;
+    allocationWeight?: number;
+    targetStatus?: 'active' | 'paused' | 'achieved' | 'abandoned' | 'archived';
+  }>;
+  humanConfirmed: boolean;
+}
+
+export interface KosSetGoalWeightsResult {
+  period: string;
+  activeTotal: number;
+  changedPaths: string[];
+  validation: KosValidationReport;
+}
+export interface KosUpdateGoalInput {
+  path: string; title?: string; health?: 'unknown' | 'on_track' | 'at_risk' | 'off_track'; expectedResults?: string[]; metrics?: string[];
+  notDoing?: string[]; constraints?: string[]; appendEvidence?: string[]; humanConfirmed?: boolean;
+}
+export interface KosGoalHealthReview { path: string; current: string; suggested: 'unknown' | 'on_track' | 'at_risk' | 'off_track'; reasons: string[]; evidenceCount: number; requiresConfirmation: true }
+
+export interface KosProjectMetric {
+  id: string; kind: 'process' | 'result'; name: string; unit: string; baseline: number; target: number; current: number; updated: string; evidence: string[];
+}
+export interface KosUpdateProjectInput {
+  query: string; status?: string; currentStage?: string; nextMilestone?: string; due?: string; primaryGoal?: string; supportingGoals?: string[];
+  goalAlignment?: 'direct' | 'enabling' | 'exploratory' | 'off_goal' | 'conflicting'; alignmentReviewed?: string; explorationReviewDue?: string;
+  metrics?: KosProjectMetric[]; metricUpdates?: Array<{ id: string; current: number; evidence: string }>;
+  offGoalOverride?: boolean; overrideReason?: string; overrideReviewDue?: string; validationCompleted?: boolean; expectedResultAchieved?: boolean;
+  progress?: string[]; decisions?: string[]; reviews?: string[];
+}
+
+export interface KosUpdateTaskInput {
+  path: string;
+  title?: string;
+  projects?: string[];
+  priority?: string;
+  scheduledFor?: string;
+  deferUntil?: string;
+  due?: string;
+  estimateMinutes?: number;
+  energy?: 'low' | 'medium' | 'high';
+  workMode?: 'deep' | 'shallow' | 'collaborative' | 'administrative';
+  growthMode?: 'neutral' | 'practice' | 'stretch';
+  scheduledTimes?: string[];
+}
+
+export interface KosTaskPoolEntry {
+  path: string;
+  title: string;
+  status: string;
+  projects: string[];
+  priority: string;
+  scheduledFor: string;
+  deferUntil: string;
+  due: string;
+  estimateMinutes: number;
+  energy: 'low' | 'medium' | 'high';
+  workMode: 'deep' | 'shallow' | 'collaborative' | 'administrative';
+  growthMode: 'neutral' | 'practice' | 'stretch';
+}
+
+export interface KosTaskPoolResult {
+  today: string;
+  available: KosTaskPoolEntry[];
+  scheduled: KosTaskPoolEntry[];
+  deferred: KosTaskPoolEntry[];
+  doing: KosTaskPoolEntry[];
+  blocked: KosTaskPoolEntry[];
+  archiveCandidates: KosTaskPoolEntry[];
+}
+
+export interface KosDeferTaskInput { path: string; deferUntil: string; reason?: string }
+export interface KosReturnTaskToPoolInput { path: string; reason?: string }
+export interface KosTaskContributionInput { project: string; level: 'strong' | 'supporting' | 'incidental'; evidence: string }
+export interface KosCompleteTaskInput { path: string; result: string; outputs?: string[]; contributions: KosTaskContributionInput[] }
+export interface KosCompleteTaskResult extends KosOperationResult { projectPaths: string[]; completed: string; archiveRecommended: boolean }
+export interface KosArchiveTaskInput { path: string }
+export interface KosArchiveTaskResult extends KosOperationResult { fromPath: string; archived: string; rewrittenPaths: string[] }
+
+export type KosRecommendationStatus = 'recommended' | 'accepted' | 'adjusted' | 'deferred' | 'rejected';
+export interface KosCapabilityFocusSummary { period: string; name: string; behavior: string; appliesTo: string[]; maxDailyRecommendations: number }
+export interface KosPlanningGoal { path: string; title: string; weight: number; health: string; recentMinutes: number; recentShare: number; allocationDelta: number }
+export interface KosPlanningProject { path: string; title: string; status: string; alignment: string; goals: string[]; nextMilestone: string; due: string }
+export interface KosPlanningContext {
+  date: string; period: string; goals: KosPlanningGoal[]; projects: KosPlanningProject[]; taskPool: KosTaskPoolResult;
+  yesterdayUnfinished: string[]; constraints: { availableMinutes?: number; energy?: 'low' | 'medium' | 'high'; hardConstraints: string[] };
+  capabilityFocus?: KosCapabilityFocusSummary; validatorFindings: Array<{ level: string; path: string; message: string }>; fingerprint: string;
+}
+export interface KosDailyRecommendation {
+  id: string; taskPath: string; title: string; status: KosRecommendationStatus; reason: string; goals: string[]; projects: string[];
+  estimateMinutes: number; tradeoff: string; capabilityFocusUsed: boolean;
+}
+export interface KosStartDayInput { date?: string; availableMinutes?: number; energy?: 'low' | 'medium' | 'high'; hardConstraints?: string[] }
+export interface KosStartDayResult extends KosOperationResult { runId: string; context: KosPlanningContext; recommendations: KosDailyRecommendation[] }
+export interface KosRecommendationFeedbackInput {
+  date: string; runId: string; recommendationId: string; action: Exclude<KosRecommendationStatus, 'recommended'>;
+  reason?: string; deferUntil?: string; estimateMinutes?: number;
+}
+export interface KosReviewResult extends KosOperationResult {
+  period: string;
+  summary: { goalEffort: KosPlanningGoal[]; repeatedlyDeferred: string[]; offGoalProjects: string[]; capabilityEvidence: string[] };
+}
+export interface KosTaskMigrationResult { scanned: number; changedPaths: string[]; validation: KosValidationReport }
 
 export interface KosRpcState {
   protocolVersion: 1;

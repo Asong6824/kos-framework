@@ -1,4 +1,4 @@
-import { FuzzySuggestModal, ItemView, MarkdownView, Modal, Notice, Setting, TFile, TFolder, setIcon } from 'obsidian';
+import { Component, FuzzySuggestModal, ItemView, MarkdownRenderer, MarkdownView, Modal, Notice, Setting, TFile, TFolder, setIcon } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { KosAgentClient } from '../agent/client';
 import { buildAgentPrompt, mentionedVaultPaths } from '../agent/context';
@@ -25,6 +25,12 @@ export const AGENT_VIEW_TYPE = 'kos-agent';
 export interface AgentViewDeps {
   autoStart(): boolean;
   connect(): Promise<KosAgentClient>;
+}
+
+interface AssistantMarkdownState {
+  version: number;
+  timer?: number;
+  component?: Component;
 }
 
 class ModelPickerModal extends FuzzySuggestModal<KosModelInfo> {
@@ -394,6 +400,7 @@ export class AgentView extends ItemView {
   private titleEl!: HTMLElement;
   private commands: KosSlashCommand[] = [];
   private readonly toolEls = new Map<string, HTMLDetailsElement>();
+  private readonly assistantMarkdown = new Map<HTMLElement, AssistantMarkdownState>();
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -423,6 +430,7 @@ export class AgentView extends ItemView {
   async onClose(): Promise<void> {
     this.unsubscribeEvent?.();
     this.unsubscribeError?.();
+    this.clearAssistantMarkdown();
   }
 
   async beginConversation(path?: string, prompt?: string): Promise<void> {
@@ -558,6 +566,7 @@ export class AgentView extends ItemView {
       this.commands = commands;
       this.idleStatus = state.model?.id && state.model.id !== 'unknown' ? state.model.id : '未配置模型';
       this.setStatus(this.idleStatus);
+      this.clearAssistantMarkdown();
       this.messagesEl.empty();
       for (const message of messages) this.renderStoredMessage(message);
       if (messages.length === 0) this.messagesEl.createDiv({ cls: 'kos-agent-empty', text: '开始一个会话' });
@@ -736,6 +745,7 @@ export class AgentView extends ItemView {
     this.commands = commands;
     this.streamingMessageEl = null;
     this.toolEls.clear();
+    this.clearAssistantMarkdown();
     this.messagesEl.empty();
     for (const message of messages) this.renderStoredMessage(message);
     if (!messages.length) this.messagesEl.createDiv({ cls: 'kos-agent-empty', text: emptyText });
@@ -1012,10 +1022,13 @@ export class AgentView extends ItemView {
     const body = this.streamingMessageEl.querySelector<HTMLElement>('.kos-agent-message-body');
     const thinkingText = messageThinking(message);
     if (thinking) {
-      thinking.setText(thinkingText);
       thinking.hidden = !thinkingText;
+      this.renderAssistantMarkdown(thinking, thinkingText, event.type === 'message_end');
     }
-    body?.setText(messageText(message));
+    if (body) {
+      body.toggleClass('is-streaming', event.type !== 'message_end');
+      this.renderAssistantMarkdown(body, messageText(message), event.type === 'message_end');
+    }
     if (event.type === 'message_end') this.streamingMessageEl = null;
     this.scrollToBottom();
   }
@@ -1023,11 +1036,77 @@ export class AgentView extends ItemView {
   private createMessage(role: string, text: string, thinking = ''): HTMLElement {
     const message = this.messagesEl.createDiv({ cls: `kos-agent-message kos-agent-message-${role}` });
     message.createDiv({ cls: 'kos-agent-message-role', text: role === 'user' ? '你' : 'kos-agent' });
-    const thinkingEl = message.createEl('pre', { cls: 'kos-agent-thinking', text: thinking });
+    const thinkingEl = message.createDiv({ cls: 'kos-agent-thinking markdown-rendered' });
     thinkingEl.hidden = !thinking;
-    message.createEl('pre', { cls: 'kos-agent-message-body', text });
+    if (thinking) this.renderAssistantMarkdown(thinkingEl, thinking, true);
+    const body = message.createDiv({ cls: 'kos-agent-message-body' });
+    if (role === 'assistant') {
+      body.addClass('markdown-rendered');
+      this.renderAssistantMarkdown(body, text, true);
+    } else {
+      body.setText(text);
+    }
     this.scrollToBottom();
     return message;
+  }
+
+  private renderAssistantMarkdown(body: HTMLElement, markdown: string, immediate = false): void {
+    let state = this.assistantMarkdown.get(body);
+    if (!state) {
+      state = { version: 0 };
+      this.assistantMarkdown.set(body, state);
+    }
+    state.version += 1;
+    const version = state.version;
+    if (state.timer !== undefined) {
+      window.clearTimeout(state.timer);
+      state.timer = undefined;
+    }
+    if (!markdown) {
+      if (state.component) this.removeChild(state.component);
+      state.component = undefined;
+      body.empty();
+      return;
+    }
+
+    const render = async () => {
+      state!.timer = undefined;
+      const component = new Component();
+      this.addChild(component);
+      const scratch = document.createElement('div');
+      try {
+        await MarkdownRenderer.render(
+          this.app,
+          markdown,
+          scratch,
+          this.app.workspace.getActiveFile()?.path ?? '',
+          component,
+        );
+      } catch {
+        this.removeChild(component);
+        if (this.assistantMarkdown.get(body) === state && state!.version === version) body.setText(markdown);
+        return;
+      }
+      if (this.assistantMarkdown.get(body) !== state || state!.version !== version || !body.isConnected) {
+        this.removeChild(component);
+        return;
+      }
+      if (state!.component) this.removeChild(state!.component);
+      body.replaceChildren(...scratch.childNodes);
+      state!.component = component;
+      this.scrollToBottom();
+    };
+
+    if (immediate) void render();
+    else state.timer = window.setTimeout(() => void render(), 80);
+  }
+
+  private clearAssistantMarkdown(): void {
+    for (const state of this.assistantMarkdown.values()) {
+      if (state.timer !== undefined) window.clearTimeout(state.timer);
+      if (state.component) this.removeChild(state.component);
+    }
+    this.assistantMarkdown.clear();
   }
 
   private renderToolStart(id: string, name: string, args: unknown): void {

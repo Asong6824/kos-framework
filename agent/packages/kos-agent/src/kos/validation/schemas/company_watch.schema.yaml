@@ -1,6 +1,6 @@
 type: company_watch
 paths:
-  - 50_信息雷达/公司监控
+  - 12_信息雷达/公司监控
 required:
   type:
     kind: enum

@@ -14,7 +14,7 @@ describe('parseKosObject 入口', () => {
   it('公共字段：created 截前 10 位，tags 归一为数组', () => {
     const o = parseKosObject(
       { type: 'task', created: '2026-07-19T08:30:00', tags: 'single' },
-      '31_任务/t.md',
+      '32_任务/t.md',
     );
     expect(o?.created).toBe('2026-07-19');
     expect(o?.tags).toEqual(['single']);
@@ -58,14 +58,18 @@ describe('各类型字段归一化', () => {
     expect(parseKosObject({ type: 'summary', reviewed: true }, 's.md')).toMatchObject({ reviewed: true });
   });
 
-  it('task：due/completed 归一化为日期或 null', () => {
+  it('task：日期归一化，scheduled_times 过滤、去重并排序', () => {
     const o = parseKosObject(
-      { type: 'task', status: 'done', due: '2026-07-20', completed: '2026-07-19 18:00' },
+      {
+        type: 'task', status: 'done', due: '2026-07-20', completed: '2026-07-19 18:00',
+        scheduled_times: ['21:00', '09:00', '25:00', '09:00', 7],
+      },
       't.md',
     );
-    expect(o).toMatchObject({ due: '2026-07-20', completed: '2026-07-19' });
+    expect(o).toMatchObject({ due: '2026-07-20', scheduled_times: ['09:00', '21:00'], completed: '2026-07-19' });
     const empty = parseKosObject({ type: 'task', due: '', completed: '' }, 't.md');
-    expect(empty).toMatchObject({ due: null, completed: null });
+    expect(empty).toMatchObject({ due: null, scheduled_times: [], completed: null });
+    expect(parseKosObject({ type: 'task', scheduled_times: '07:30' }, 't.md')).toMatchObject({ scheduled_times: ['07:30'] });
   });
 
   it('diary：date 取自 frontmatter，energy 只收整数', () => {
@@ -93,6 +97,26 @@ describe('各类型字段归一化', () => {
     expect(o).toMatchObject({ status: 'active', goal: 'g', priority: 'P1', updated: '2026-07-18', due: null });
   });
 
+  it('goal：解析周期、占比、健康度和结果证据', () => {
+    const goal = parseKosObject({
+      type: 'goal', title: '研究表达', horizon: 'H1', period: '2027-H1', status: 'active',
+      allocation_weight: 60, health: 'on_track', period_start: '2027-01-01', period_end: '2027-06-30',
+      updated: '2027-01-10', human_confirmed: true, result_evidence: ['[[成果]]'],
+    }, '30_目标/2027-H1/研究表达.md');
+    expect(goal).toMatchObject({
+      type: 'goal', horizon: 'H1', period: '2027-H1', status: 'active', allocation_weight: 60,
+      health: 'on_track', human_confirmed: true, result_evidence: ['[[成果]]'],
+    });
+  });
+
+  it('project：blocked 不回落为 active，并解析 Goal 关系与指标', () => {
+    const project = parseKosObject({
+      type: 'project', status: 'blocked', primary_goal: '[[Goal]]', supporting_goals: ['[[Support]]'],
+      goal_alignment: 'direct', process_metrics: ['weekly | 每周研究 | 2'], result_metrics: [],
+    }, '31_项目/研究.md');
+    expect(project).toMatchObject({ status: 'blocked', primary_goal: '[[Goal]]', goal_alignment: 'direct', process_metrics: ['weekly | 每周研究 | 2'] });
+  });
+
   it('dashboard：last_updated 保留完整 datetime 不截断', () => {
     const o = parseKosObject(
       { type: 'dashboard', date: '2026-07-19', last_updated: '2026-07-19T08:00:00' },
@@ -108,6 +132,7 @@ describe('各类型字段归一化', () => {
       'summary',
       'research',
       'concept',
+      'goal',
       'project',
       'task',
       'diary',

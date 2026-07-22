@@ -18,6 +18,16 @@ for (const from of ["idea", "active", "paused", "blocked", "completed"]) {
 }
 
 export const STATE_MACHINES: Readonly<Record<string, StateMachine | undefined>> = {
+	goal: {
+		field: "status",
+		edges: new Map([
+			["draft", ["active", "abandoned"]],
+			["active", ["paused", "achieved", "abandoned"]],
+			["paused", ["active", "abandoned"]],
+			["achieved", ["archived"]],
+			["abandoned", ["archived"]],
+		]),
+	},
 	source: { field: "status", edges: chain(["captured", "extracted", "summarized", "reviewed", "linked", "archived"], ["ignored"]) },
 	extract: { field: "review_status", edges: chain(["pending", "reviewed"]) },
 	summary: { field: "reviewed", edges: chain(["false", "true"]) },
@@ -27,8 +37,9 @@ export const STATE_MACHINES: Readonly<Record<string, StateMachine | undefined>> 
 	task: {
 		field: "status",
 		edges: new Map([
-			["todo", ["doing", "blocked", "cancelled"]],
+			["todo", ["doing", "blocked", "done", "cancelled"]],
 			["doing", ["done", "blocked", "cancelled"]],
+			["blocked", ["todo", "doing", "cancelled"]],
 		]),
 	},
 	reflection: { field: "status", edges: chain(["raw", "developed", "archived"]) },

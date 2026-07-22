@@ -134,7 +134,7 @@ export class KosIndex {
   }
 
   /**
-   * M10 用：core projectProgress 只统计 31_任务 的 task 对象，
+   * M10 用：core projectProgress 只统计 32_任务 的 task 对象，
    * 此处叠加项目页"当前任务"章节 checkbox 的 done/total。
    */
   mergedProjectProgress(project: ProjectObject, today: string, settings?: MetricSettings): ProjectProgress {

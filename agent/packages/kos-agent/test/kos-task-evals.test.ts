@@ -17,7 +17,7 @@ function vault(): string {
 	const root = mkdtempSync(join(tmpdir(), "kos-task-eval-"));
 	roots.push(root);
 	writeFileSync(join(root, ".kos.md"), "# test\n");
-	mkdirSync(join(root, "30_项目"));
+	mkdirSync(join(root, "31_项目"));
 	return root;
 }
 
@@ -29,11 +29,11 @@ function contract(): TaskContract {
 		objective: "创建结构完整的 Project",
 		max_iterations: 3,
 		checks: [
-			{ id: "project_exists", type: "path_exists", path: "30_项目/测试项目.md" },
+			{ id: "project_exists", type: "path_exists", path: "31_项目/测试项目.md" },
 			{
 				id: "project_status",
 				type: "frontmatter",
-				path: "30_项目/测试项目.md",
+				path: "31_项目/测试项目.md",
 				field: "status",
 				operator: "equals",
 				expected: "idea",
@@ -41,7 +41,7 @@ function contract(): TaskContract {
 			{
 				id: "has_success_section",
 				type: "text_contains",
-				path: "30_项目/测试项目.md",
+				path: "31_项目/测试项目.md",
 				values: ["### 成功指标"],
 			},
 		],
@@ -59,7 +59,7 @@ function assessment(withEvidence = true): TaskSelfAssessment {
 		rubric: {
 			actionability: {
 				score: 4,
-				evidence: withEvidence ? ["30_项目/测试项目.md#成功指标"] : [],
+				evidence: withEvidence ? ["31_项目/测试项目.md#成功指标"] : [],
 			},
 		},
 	};
@@ -67,7 +67,7 @@ function assessment(withEvidence = true): TaskSelfAssessment {
 
 function writeProject(root: string): void {
 	writeFileSync(
-		join(root, "30_项目/测试项目.md"),
+		join(root, "31_项目/测试项目.md"),
 		"---\ntype: project\nstatus: idea\n---\n\n### 成功指标\n\n- 可以验收\n",
 	);
 }
