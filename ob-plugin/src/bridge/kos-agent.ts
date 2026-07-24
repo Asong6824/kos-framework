@@ -3,28 +3,88 @@ import type { App } from 'obsidian';
 import { KosAgentClient } from '../agent/client';
 import type { KosAgentProcess } from '../agent/client';
 import type { KosSettings } from '../settings';
+import {
+  ensureAgentVaultId,
+  migrateLegacySessions,
+  resolveAgentSessionStorage,
+} from './session-storage';
 
 interface NodeModules {
   spawn: typeof import('node:child_process').spawn;
   spawnSync: typeof import('node:child_process').spawnSync;
   existsSync: typeof import('node:fs').existsSync;
+  copyFileSync: typeof import('node:fs').copyFileSync;
+  mkdirSync: typeof import('node:fs').mkdirSync;
+  readFileSync: typeof import('node:fs').readFileSync;
+  readdirSync: typeof import('node:fs').readdirSync;
+  renameSync: typeof import('node:fs').renameSync;
+  rmSync: typeof import('node:fs').rmSync;
   join: typeof import('node:path').join;
   resolve: typeof import('node:path').resolve;
   dirname: typeof import('node:path').dirname;
   delimiter: typeof import('node:path').delimiter;
   homedir: typeof import('node:os').homedir;
+  randomUUID: typeof import('node:crypto').randomUUID;
 }
 
 function nodeModules(): NodeModules {
   const { spawn, spawnSync } = require('node:child_process') as typeof import('node:child_process');
-  const { existsSync } = require('node:fs') as typeof import('node:fs');
+  const { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync } = require('node:fs') as typeof import('node:fs');
   const { join, resolve, dirname, delimiter } = require('node:path') as typeof import('node:path');
   const { homedir } = require('node:os') as typeof import('node:os');
-  return { spawn, spawnSync, existsSync, join, resolve, dirname, delimiter, homedir };
+  const { randomUUID } = require('node:crypto') as typeof import('node:crypto');
+  return {
+    spawn,
+    spawnSync,
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    readdirSync,
+    renameSync,
+    rmSync,
+    join,
+    resolve,
+    dirname,
+    delimiter,
+    homedir,
+    randomUUID,
+  };
 }
 
 export function isKosAgentSupported(app: App): boolean {
   return Platform.isDesktopApp && app.vault.adapter instanceof FileSystemAdapter && typeof require === 'function';
+}
+
+export function initializeAgentVaultId(settings: KosSettings): boolean {
+  const next = ensureAgentVaultId(settings.agentVaultId, nodeModules().randomUUID);
+  if (next === settings.agentVaultId) return false;
+  settings.agentVaultId = next;
+  return true;
+}
+
+export function prepareAgentSessionStorage(app: App, settings: KosSettings): string {
+  if (!(app.vault.adapter instanceof FileSystemAdapter)) throw new Error('kos-agent 仅支持本地文件系统 vault');
+  const root = app.vault.adapter.getBasePath();
+  const modules = nodeModules();
+  const storage = resolveAgentSessionStorage(root, settings.agentVaultId, modules.homedir(), {
+    join: modules.join,
+    dirname: modules.dirname,
+  });
+  const migration = migrateLegacySessions(storage, {
+    fs: {
+      copyFileSync: modules.copyFileSync,
+      existsSync: modules.existsSync,
+      mkdirSync: modules.mkdirSync,
+      readFileSync: modules.readFileSync,
+      readdirSync: modules.readdirSync,
+      renameSync: modules.renameSync,
+      rmSync: modules.rmSync,
+    },
+    path: { join: modules.join, dirname: modules.dirname },
+  });
+  if (migration !== 'not-needed') console.info(`kos-agent Session 已迁移到 Vault 外部目录：${storage.sessionDir}`);
+  return storage.sessionDir;
 }
 
 function resolveLaunch(app: App, settings: KosSettings): {
@@ -36,7 +96,8 @@ function resolveLaunch(app: App, settings: KosSettings): {
 } {
   if (!(app.vault.adapter instanceof FileSystemAdapter)) throw new Error('kos-agent 仅支持本地文件系统 vault');
   const root = app.vault.adapter.getBasePath();
-	const { spawnSync, existsSync, join, resolve, dirname, delimiter, homedir } = nodeModules();
+	const modules = nodeModules();
+	const { spawnSync, existsSync, join, resolve, dirname, delimiter, homedir } = modules;
   let host = settings.agentHostPath.trim();
 
   if (!host) {
@@ -82,11 +143,12 @@ function resolveLaunch(app: App, settings: KosSettings): {
       throw new Error(`Node.js 版本过低（${versionResult.stdout.trim()}），kos-agent 需要 22.19+。`);
     }
   }
+  const sessionDir = prepareAgentSessionStorage(app, settings);
   return {
     command: isScript ? nodeCommand : host,
     args: [...(isScript ? [host] : []), '--continue'],
     cwd: root,
-    sessionDir: join(root, '.obsidian', 'kos-agent', 'sessions'),
+    sessionDir,
 		pathEnv: isScript ? [dirname(host), process.env.PATH ?? ''].filter(Boolean).join(delimiter) : process.env.PATH ?? '',
   };
 }

@@ -25,6 +25,7 @@ describe('day schedule component model', () => {
       new Date(2026, 6, 22, 8, 16, 39),
     );
     expect(snapshot.time).toBe('08:16:39');
+    expect(snapshot.dateLabel).toBe('2026 年 07 月 22 日 · 星期三');
     expect(snapshot.currentSlot).toBe(16);
     expect(snapshot.next).toEqual({ title: '双次抓取', time: '09:00' });
     expect([...snapshot.scheduledSlots]).toEqual([15, 18, 42]);

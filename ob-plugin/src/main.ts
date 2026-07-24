@@ -4,22 +4,21 @@ import { openCaptureModal } from './actions/capture';
 import { openCreateModal } from './actions/create';
 import type { CreateExtra, CreateKind, CreateObjectOperation } from './actions/create';
 import { BadgeWatcher } from './actions/badges';
-import { openReportModal } from './actions/report';
-import type { ReportDeps } from './actions/report';
 import { approveReviewObject } from './actions/review';
 import { openObjectTransitionModal, openTransitionModal, statusBadgeProcessor } from './actions/transition';
 import { applyTransition } from './actions/transition';
-import { openGoalAllocationModal, openGoalEditorModal } from './actions/goals';
-import type { SetGoalWeightsOperation, UpdateGoalOperation } from './actions/goals';
-import { openBlockTaskModal, openCompleteTaskModal, openDeferTaskModal, openEditTaskModal } from './actions/tasks';
-import type { TaskOperations } from './actions/tasks';
-import { vaultCreateOperation, vaultGoalWeightsOperation, vaultTaskOperations, vaultTransitionOperation, vaultUpdateGoalOperation, vaultUpdateProjectOperation } from './actions/vault-fallback';
-import { openProjectEditorModal } from './actions/projects';
-import type { UpdateProjectOperation } from './actions/projects';
+import { vaultCreateOperation, vaultTransitionOperation } from './actions/vault-fallback';
 import type { TransitionOperation } from './actions/transition';
-import { createKosAgentClient, isKosAgentSupported } from './bridge/kos-agent';
+import {
+  createKosAgentClient,
+  initializeAgentVaultId,
+  isKosAgentSupported,
+  prepareAgentSessionStorage,
+} from './bridge/kos-agent';
 import { runAgentValidation } from './bridge/agent-validation';
 import type { KosAgentClient } from './agent/client';
+import { buildDashboardAgentCommand, dashboardWorkflowSessionName } from './agent/workflows';
+import type { KosDailyRecommendation } from './agent/protocol';
 import { pendingReviewCount, projectProgress } from './core/metrics';
 import type { KosObject, ObjectDirs } from './core/model';
 import { buildSnapshot } from './core/snapshot';
@@ -34,10 +33,10 @@ import { TasksView, TASKS_VIEW_TYPE } from './views/tasks-view';
 import { AgentView, AGENT_VIEW_TYPE } from './views/agent-view';
 import { ReaderView, READER_VIEW_TYPE } from './views/reader-view';
 import { ensureReaderSource as ensureReaderSourceAssociation } from './views/reader/association';
-import { formatReaderAgentQuote } from './reader/model';
-import type { ReaderExcerpt } from './reader/model';
+import { formatReaderAgentQuote, formatReaderSummaryPrompt } from './reader/model';
+import type { ReaderAnnotation, ReaderAnnotationColor, ReaderContext, ReaderExcerpt } from './reader/model';
 import { KosView } from './views/view-context';
-import type { ViewContext } from './views/view-context';
+import type { DashboardDailyPlan, ViewContext } from './views/view-context';
 import type { DashboardModule } from './core/dashboard';
 
 /** 各视图的打开位置：工作台与 Reader 在中央 tab，工具视图在右侧栏。 */
@@ -52,6 +51,20 @@ const VIEW_LOCATIONS: Record<string, 'tab' | 'right'> = {
 
 /** 跨天检测间隔（02 文档第 4 节：本地日期变化时先落昨日终态再开新一天） */
 const DAY_TICK_MS = 60_000;
+
+function dailyRecommendations(value: unknown): KosDailyRecommendation[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is KosDailyRecommendation => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    const candidate = item as Partial<KosDailyRecommendation>;
+    return typeof candidate.id === 'string'
+      && typeof candidate.taskPath === 'string'
+      && typeof candidate.title === 'string'
+      && typeof candidate.status === 'string'
+      && typeof candidate.reason === 'string'
+      && typeof candidate.estimateMinutes === 'number';
+  });
+}
 
 export default class KosCompanionPlugin extends Plugin {
   settings: KosSettings = { ...DEFAULT_SETTINGS, objectDirs: { ...DEFAULT_SETTINGS.objectDirs } };
@@ -74,6 +87,15 @@ export default class KosCompanionPlugin extends Plugin {
     this.store = new KosDataStore(this);
     await this.store.load();
     this.settings = this.store.settings;
+    if (isKosAgentSupported(this.app)) {
+      if (initializeAgentVaultId(this.settings)) await this.store.save();
+      try {
+        prepareAgentSessionStorage(this.app, this.settings);
+      } catch (error) {
+        console.error('Failed to migrate kos-agent sessions outside the Vault', error);
+        new Notice('kos-agent Session 迁移失败；旧数据已保留，请在启动 Agent 前检查控制台。');
+      }
+    }
 
     // 索引：全量构建并开启增量监听（objectDirs getter 注入，设置变更即生效）
     this.index = new KosIndex(this.app, () => this.settings.objectDirs);
@@ -97,8 +119,11 @@ export default class KosCompanionPlugin extends Plugin {
         await this.store.save();
       },
       ensureSource: (documentPath) => this.ensureReaderSource(documentPath),
-      addToExtract: (excerpt) => this.addReaderExcerpt(excerpt),
+      listAnnotations: (sourcePath) => this.listReaderAnnotations(sourcePath),
+      addAnnotation: (excerpt, note, color) => this.addReaderAnnotation(excerpt, note, color),
+      deleteAnnotation: (annotation) => this.deleteReaderAnnotation(annotation),
       addToAgent: (excerpt) => this.addReaderExcerptToAgent(excerpt),
+      summarize: (excerpt, context, annotations, mode) => this.summarizeReader(excerpt, context, annotations, mode),
     }));
     this.registerExtensions(['epub'], READER_VIEW_TYPE);
     if (isKosAgentSupported(this.app)) {
@@ -114,7 +139,7 @@ export default class KosCompanionPlugin extends Plugin {
     // 阅读模式状态徽章（B4：类型 + 当前状态 + 下一状态按钮组）
     if (isKosAgentSupported(this.app)) {
       this.registerMarkdownPostProcessor(
-        statusBadgeProcessor(this.app, () => this.settings, this.agentTransitionOperation()!, (path) => void this.openAgentFrom(path)),
+        statusBadgeProcessor(this.app, () => this.settings, this.managedTransitionOperation(), (path) => void this.openAgentFrom(path)),
       );
     }
 
@@ -181,7 +206,7 @@ export default class KosCompanionPlugin extends Plugin {
       this.addCommand({
         id: 'transition-current-file',
         name: '流转当前文件状态',
-        callback: () => openTransitionModal(this.app, this.settings, this.agentTransitionOperation()!),
+        callback: () => this.manageCurrentFileStatus(),
       });
 
       // B5 创建向导
@@ -308,6 +333,11 @@ export default class KosCompanionPlugin extends Plugin {
   }
 
   private openCreate(kind: CreateKind): void {
+	if (kind === 'goal' || kind === 'project' || kind === 'task') {
+	  const intent = kind === 'goal' ? 'create-goal' : kind === 'project' ? 'create-project' : 'create-task';
+	  void this.runDashboardAgent('action', intent);
+	  return;
+	}
 	openCreateModal(this.app, kind, this.settings.objectDirs, this.agentCreateOperation());
   }
 
@@ -347,61 +377,20 @@ export default class KosCompanionPlugin extends Plugin {
     };
   }
 
-  private agentSetGoalWeightsOperation(): SetGoalWeightsOperation {
-	const fallback = vaultGoalWeightsOperation(this.app);
-	if (!isKosAgentSupported(this.app)) return fallback;
-    return async (input) => {
-	  let client: KosAgentClient;
-	  try { client = await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接更新目标占比'); return fallback(input); }
-      const result = await client.setGoalWeights(input);
-      new Notice(`已更新 ${result.period} 目标占比 · 合计 ${result.activeTotal}`);
-      return true;
-    };
-  }
-
-  private agentUpdateGoalOperation(): UpdateGoalOperation {
-	const fallback = vaultUpdateGoalOperation(this.app);
-	if (!isKosAgentSupported(this.app)) return fallback;
-    return async (input) => {
-	  let client: KosAgentClient;
-	  try { client = await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接更新目标'); return fallback(input); }
-      await client.updateGoal(input); new Notice('目标已更新'); return true;
-    };
-  }
-
-	private agentTaskOperations(): TaskOperations {
-	const fallback = vaultTaskOperations(this.app);
-	if (!isKosAgentSupported(this.app)) return fallback;
-	const client = async (): Promise<KosAgentClient | null> => {
-	  try { return await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接操作任务'); return null; }
-	};
-    return {
-	  update: async (input) => { const active = await client(); if (!active) return fallback.update(input); await active.updateTask(input); new Notice('任务已更新'); return true; },
-	  defer: async (path, deferUntil, reason) => { const active = await client(); if (!active) return fallback.defer(path, deferUntil, reason); await active.deferTask({ path, deferUntil, reason }); new Notice(`已推迟至 ${deferUntil}`); return true; },
-	  returnToPool: async (path, reason) => { const active = await client(); if (!active) return fallback.returnToPool(path, reason); await active.returnTaskToPool({ path, reason }); new Notice('已退回任务池'); return true; },
-	  complete: async (input) => {
-		const active = await client();
-		if (!active) { const completed = await fallback.complete(input); if (completed && input.contributions.length) new Notice('任务已完成，可在“待归档”中移入归档'); return completed; }
-		const result = await active.completeTask(input);
-		new Notice(result.archiveRecommended ? '任务已完成，可在“待归档”中移入归档' : '零散任务已完成');
-		return true;
-	  },
-	  archive: async (path) => { const active = await client(); if (!active) return fallback.archive(path); await active.archiveTask({ path }); new Notice('任务已移入归档'); return true; },
-	  block: async (path, reason, unblockCondition) => {
-		const active = await client(); if (!active) return fallback.block(path, reason, unblockCondition);
-		await active.transitionStatus({ path, target: 'blocked', reason, unblockCondition });
-        new Notice('已记录阻塞'); return true;
-      },
-    };
-  }
-
-  private agentUpdateProjectOperation(): UpdateProjectOperation {
-    const fallback = vaultUpdateProjectOperation(this.app);
-    if (!isKosAgentSupported(this.app)) return fallback;
-    return async (input) => {
-      let client: KosAgentClient;
-      try { client = await this.connectAgent(); } catch { new Notice('kos-agent 不可用，使用 Vault 直接更新项目'); return fallback(input); }
-      await client.updateProject(input); new Notice('项目已更新'); return true;
+  private managedTransitionOperation(): TransitionOperation {
+    const operation = this.agentTransitionOperation();
+    return async (path, target, humanConfirmed, reason, unblockCondition) => {
+      const object = this.index.getObject(path);
+      if (object && (object.type === 'goal' || object.type === 'project' || object.type === 'task')) {
+        await this.runDashboardAgent('action', `${object.type}-transition`, [object], path, {
+          target,
+          humanConfirmed: humanConfirmed === true,
+          reason: reason ?? '',
+          unblockCondition: unblockCondition ?? '',
+        });
+        return true;
+      }
+      return operation(path, target, humanConfirmed, reason, unblockCondition);
     };
   }
 
@@ -418,42 +407,35 @@ export default class KosCompanionPlugin extends Plugin {
       store: this.store,
       metricSettings: () => toMetricSettings(this.settings),
       openAgent: (path, prompt) => this.openAgentFrom(path, prompt),
-      runAgent: (module, intent, objects, path) => this.runDashboardAgent(module, intent, objects, path),
+      runAgent: (module, intent, objects, path, input) => this.runDashboardAgent(module, intent, objects, path, input),
       transition: (object, target) => this.transitionObject(object, target),
-      manageStatus: (object) => openObjectTransitionModal(this.app, object, this.settings, this.agentTransitionOperation()),
+      manageStatus: (object) => {
+        if (object.type === 'goal' || object.type === 'project' || object.type === 'task') {
+          void this.runDashboardAgent('action', `${object.type}-status`, [object], object.filePath);
+          return;
+        }
+        openObjectTransitionModal(this.app, object, this.settings, this.agentTransitionOperation());
+      },
       approve: (object) => this.approveObject(object),
       create: (kind) => this.openCreate(kind),
-      adjustGoalWeights: (period, goals) => {
-		openGoalAllocationModal(this.app, period, goals, this.agentSetGoalWeightsOperation());
-      },
-      editGoal: (goal) => openGoalEditorModal(this.app, goal, this.agentUpdateGoalOperation()),
-      editProject: (project) => openProjectEditorModal(this.app, project, this.agentUpdateProjectOperation()),
-	  editTask: (task) => {
-		openEditTaskModal(this.app, task, this.index.getAll().filter((object) => object.type === 'project'), this.agentTaskOperations());
-	  },
-	  scheduleTask: async (task) => this.agentTaskOperations()?.update({ path: task.filePath, scheduledFor: localToday(), deferUntil: '' }) ?? false,
-	  deferTask: (task) => {
-		openDeferTaskModal(this.app, task, this.agentTaskOperations());
-	  },
-	  returnTaskToPool: async (task) => this.agentTaskOperations()?.returnToPool(task.filePath) ?? false,
-	  blockTask: (task) => {
-		openBlockTaskModal(this.app, task, this.agentTaskOperations());
-	  },
-      completeTask: (task) => {
-		openCompleteTaskModal(this.app, task, this.agentTaskOperations());
-	  },
-	  archiveTask: async (task) => this.agentTaskOperations().archive(task.filePath),
-      startDay: (input) => this.connectAgent().then((client) => client.startDay({ ...input, date: localToday() })),
+      adjustGoalWeights: (period, goals) => void this.runDashboardAgent('action', 'adjust-goal-weights', goals, undefined, { period }),
+      editGoal: (goal) => void this.runDashboardAgent('action', 'update-goal', [goal], goal.filePath),
+      editProject: (project) => void this.runDashboardAgent('action', 'update-project', [project], project.filePath),
+		  editTask: (task) => void this.runDashboardAgent('action', 'update-task', [task], task.filePath),
+		  scheduleTask: async (task) => { await this.runDashboardAgent('action', 'schedule-task', [task], task.filePath, { scheduledFor: localToday() }); return true; },
+		  deferTask: (task) => void this.runDashboardAgent('action', 'defer-task', [task], task.filePath),
+		  returnTaskToPool: async (task) => { await this.runDashboardAgent('action', 'return-task-to-pool', [task], task.filePath); return true; },
+		  blockTask: (task) => void this.runDashboardAgent('action', 'block-task', [task], task.filePath),
+      completeTask: (task) => void this.runDashboardAgent('action', 'complete-task', [task], task.filePath),
+		  archiveTask: async (task) => { await this.runDashboardAgent('action', 'archive-task', [task], task.filePath); return true; },
+      startDay: (input) => this.runDashboardAgent('today', 'prioritize-today', [], undefined, { ...input, date: localToday() }),
+      loadDailyPlan: () => this.loadDailyPlan(localToday()),
       recommendationFeedback: async (input) => {
         await (await this.connectAgent()).recordRecommendationFeedback(input);
         new Notice(`建议已${input.action === 'accepted' ? '接受' : input.action === 'adjusted' ? '调整' : input.action === 'deferred' ? '推迟' : '拒绝'}`);
         return true;
       },
-      endDay: async () => {
-        const result = await (await this.connectAgent()).endDay(localToday());
-        new Notice(`日报已生成：${result.path}`);
-        await this.app.workspace.openLinkText(result.path, '', false);
-      },
+      endDay: () => this.runDashboardAgent('today', 'end-day', [], undefined, { date: localToday() }),
       capture: () => openCaptureModal(this.app, this.settings.objectDirs),
       openReader: (path) => this.openReader(path),
       report: (period) => void this.generateReview(period),
@@ -470,32 +452,25 @@ export default class KosCompanionPlugin extends Plugin {
   }
 
   private async runDashboardAgent(
-    module: DashboardModule,
+    _module: DashboardModule,
     intent: string,
     objects: KosObject[] = [],
-    path?: string,
+    _path?: string,
+    input?: Record<string, unknown>,
   ): Promise<void> {
     await this.activateView(AGENT_VIEW_TYPE);
     const view = this.app.workspace.getLeavesOfType(AGENT_VIEW_TYPE)[0]?.view;
     if (!(view instanceof AgentView)) throw new Error('kos Agent 视图不可用');
     const context = {
-      module,
-      view: module,
-      filters: {},
-      selectedObjects: objects.map((object) => ({ type: object.type, path: object.filePath, title: 'title' in object ? object.title ?? null : null })),
-      activeFile: path ? { path } : null,
+      selectedObjects: objects.map((object) => ({ path: object.filePath })),
       intent,
     };
-    const command = intent === 'prioritize-today'
-      ? `/kos-start-my-day\n\n看板上下文：${JSON.stringify(context, null, 2)}`
-      : intent === 'end-day'
-        ? `/kos-end-my-day\n\n看板上下文：${JSON.stringify(context, null, 2)}`
-        : `请执行看板意图 ${intent}。\n\n看板上下文：${JSON.stringify(context, null, 2)}`;
-    await view.runConversation(path, command);
+    const command = buildDashboardAgentCommand(context, input);
+    await view.runWorkflow(command, dashboardWorkflowSessionName(intent, input));
   }
 
   private async transitionObject(object: KosObject, target: string): Promise<boolean> {
-    const operation = this.agentTransitionOperation();
+    const operation = this.managedTransitionOperation();
     if (!operation) throw new Error('状态流转需要桌面端 kos-agent');
     return applyTransition(this.app, object, target, this.settings, operation);
   }
@@ -510,6 +485,33 @@ export default class KosCompanionPlugin extends Plugin {
     await this.activateView(AGENT_VIEW_TYPE);
     const view = this.app.workspace.getLeavesOfType(AGENT_VIEW_TYPE)[0]?.view;
     if (view instanceof AgentView) await view.beginConversation(path, prompt);
+  }
+
+  private async loadDailyPlan(date: string): Promise<DashboardDailyPlan | null> {
+    const file = this.app.vault.getAbstractFileByPath(`00_工作台/计划/${date}.md`);
+    if (!(file instanceof TFile)) return null;
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    if (!frontmatter || frontmatter.type !== 'daily_plan') return null;
+    const runId = typeof frontmatter.run_id === 'string' ? frontmatter.run_id : '';
+    const fingerprint = typeof frontmatter.context_fingerprint === 'string' ? frontmatter.context_fingerprint : '';
+    if (!runId || !fingerprint) return null;
+    return {
+      date: typeof frontmatter.date === 'string' ? frontmatter.date : date,
+      runId,
+      fingerprint,
+      status: typeof frontmatter.recommendation_status === 'string' ? frontmatter.recommendation_status : '',
+      recommendations: dailyRecommendations(frontmatter.recommendations),
+    };
+  }
+
+  private manageCurrentFileStatus(): void {
+    const file = this.app.workspace.getActiveFile();
+    const object = file ? this.index.getObject(file.path) : undefined;
+    if (object && (object.type === 'goal' || object.type === 'project' || object.type === 'task')) {
+      void this.runDashboardAgent('action', `${object.type}-status`, [object], object.filePath);
+      return;
+    }
+    openTransitionModal(this.app, this.settings, this.agentTransitionOperation());
   }
 
   private async activateDashboardModule(module: DashboardModule): Promise<void> {
@@ -554,19 +556,30 @@ export default class KosCompanionPlugin extends Plugin {
     return association.sourcePath;
   }
 
-  private async addReaderExcerpt(excerpt: ReaderExcerpt): Promise<void> {
-    if (!isKosAgentSupported(this.app)) {
-      new Notice('添加摘录需要 Obsidian 桌面端和 kos-agent');
-      return;
-    }
+  private async listReaderAnnotations(sourcePath: string): Promise<ReaderAnnotation[]> {
+    if (!isKosAgentSupported(this.app)) return [];
     try {
-      const result = await (await this.connectAgent()).appendReaderExtract({
+      return (await (await this.connectAgent()).listReaderAnnotations(sourcePath)).annotations as ReaderAnnotation[];
+    } catch (error) {
+      console.error(error);
+      return [];
+    }
+  }
+
+  private async addReaderAnnotation(excerpt: ReaderExcerpt, note: string, color: ReaderAnnotationColor): Promise<ReaderAnnotation> {
+    if (!isKosAgentSupported(this.app)) {
+      throw new Error('划线与批注需要 Obsidian 桌面端和 kos-agent');
+    }
+    const result = await (await this.connectAgent()).appendReaderExtract({
         sourcePath: excerpt.sourcePath,
         documentPath: excerpt.documentPath,
         kind: excerpt.kind,
         location: excerpt.selection.location,
         positionLabel: excerpt.selection.positionLabel,
         text: excerpt.selection.text,
+        note,
+        color,
+        anchor: excerpt.selection.anchor,
         directories: {
           project: this.settings.objectDirs.project,
           concept: this.settings.objectDirs.concept,
@@ -579,12 +592,17 @@ export default class KosCompanionPlugin extends Plugin {
           reflection: this.settings.objectDirs.reflection,
         },
       });
-      new Notice(result.duplicate
-        ? `该内容已在摘录中：${result.path}`
-        : result.created ? `已创建摘录：${result.path}` : `已添加到摘录：${result.path}`);
-    } catch (error) {
-      new Notice(error instanceof Error ? error.message : String(error));
-    }
+    new Notice(result.duplicate ? '该划线已经存在' : note ? '批注已保存' : '划线已保存');
+    return result.annotation as ReaderAnnotation;
+  }
+
+  private async deleteReaderAnnotation(annotation: ReaderAnnotation): Promise<void> {
+    await (await this.connectAgent()).deleteReaderAnnotation({ sourcePath: annotation.sourcePath, extractId: annotation.id });
+    new Notice('批注已删除');
+  }
+
+  private async summarizeReader(excerpt: Omit<ReaderExcerpt, 'selection'>, context: ReaderContext, annotations: ReaderAnnotation[], mode: 'section' | 'session'): Promise<void> {
+    await this.openAgentFrom(excerpt.sourcePath, formatReaderSummaryPrompt(excerpt, context, annotations, mode));
   }
 
   private async addReaderExcerptToAgent(excerpt: ReaderExcerpt): Promise<void> {
@@ -625,30 +643,12 @@ export default class KosCompanionPlugin extends Plugin {
   /** 报告命令注入上下文 */
   private async generateReview(period: 'week' | 'month'): Promise<void> {
     try {
-      const client = await this.connectAgent();
-      const result = period === 'week' ? await client.reviewWeek(localToday()) : await client.reviewMonth(localToday());
-      new Notice(`已生成：${result.path}`);
-      await this.app.workspace.openLinkText(result.path, '', false);
+      await this.runDashboardAgent('review', period === 'week' ? 'review-week' : 'review-month', [], undefined, {
+        date: localToday(),
+      });
     } catch (error) {
-      new Notice(`kos-agent 不可用，改用本地${period === 'week' ? '周报' : '月报'}汇总`);
-      openReportModal(this.app, this.reportDeps(), period);
-      if (error instanceof Error && !/不支持|不可用|退出|ENOENT|spawn/i.test(error.message)) console.error(error);
+      new Notice(error instanceof Error ? error.message : String(error));
     }
-  }
-
-  private reportDeps(): ReportDeps {
-    return {
-      index: this.index,
-      store: this.store,
-      metricSettings: () => toMetricSettings(this.settings),
-      ensureDiary: async (date: string) => {
-        const client = await this.connectAgent();
-        const result = await client.runDailyWorkflow('diary', date);
-        const file = this.app.vault.getAbstractFileByPath(result.path);
-        if (!(file instanceof TFile)) throw new Error(`kos-agent 未生成日记：${result.path}`);
-        return file;
-      },
-    };
   }
 
   /** B3 审核"通过"回调：按状态机走到下一个已确认态（actions/review.ts） */

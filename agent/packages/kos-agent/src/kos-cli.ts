@@ -11,7 +11,7 @@ import { archiveTask, completeTask, deferTask, listTaskPool, returnTaskToPool, u
 import { processSource } from "./kos/operations/process-source.ts";
 import { updateProject, type UpdateProjectInput } from "./kos/operations/update-project.ts";
 import { generateDailyBrief, generateDailyDashboard, generateDiary } from "./kos/operations/daily-workflows.ts";
-import { endDay, migrateTaskPool, recordRecommendationFeedback, reviewMonth, reviewWeek, startDay } from "./kos/operations/progress-workflows.ts";
+import { endDay, migrateTaskPool, recordRecommendationFeedback, reviewMonth, reviewWeek, saveDailyPlan, startDay } from "./kos/operations/progress-workflows.ts";
 import { migrateLayout } from "./kos/operations/layout-migration.ts";
 import { migrateProjectDirectories } from "./kos/operations/project-directories.ts";
 import type { CreateObjectInput } from "./kos/operations/types.ts";
@@ -75,6 +75,7 @@ Usage:
   kos-harness migrate-layout [--dry-run] [--root <vault>]
   kos-harness migrate-project-directories [--dry-run] [--root <vault>]
   kos-harness start-day [--input <json>] [--root <vault>]
+  kos-harness save-daily-plan --input <json> [--root <vault>]
   kos-harness recommendation-feedback --input <json> [--root <vault>]
   kos-harness end-day [--date YYYY-MM-DD] [--root <vault>]
   kos-harness review-week [--date YYYY-MM-DD] [--root <vault>]
@@ -223,7 +224,12 @@ async function main(argv: string[]): Promise<number> {
 	if (command === "start-day") {
 		const input = value(values, "input") ? parseJson(value(values, "input")!, "--input") as Parameters<typeof startDay>[1] : {};
 		const payload = startDay(root, input);
-		print(format, payload, `Started day: ${payload.context.date}\nRecommendations: ${payload.recommendations.length}\nPlan: ${payload.path}`);
+		print(format, payload, `Started day context: ${payload.context.date}\nDeterministic candidates: ${payload.recommendations.length}\nPlan: ${payload.path}`);
+		return 0;
+	}
+	if (command === "save-daily-plan") {
+		const payload = saveDailyPlan(root, parseJson(required(values, "input"), "--input") as Parameters<typeof saveDailyPlan>[1]);
+		print(format, payload, `Saved LLM daily plan: ${payload.path}`);
 		return 0;
 	}
 	if (command === "recommendation-feedback") {
@@ -325,6 +331,7 @@ export function allowedOptions(command: string): ReadonlySet<string> {
 		"migrate-layout": [...COMMON_OPTIONS, "dry-run"],
 		"migrate-project-directories": [...COMMON_OPTIONS, "dry-run"],
 		"start-day": [...COMMON_OPTIONS, "input"],
+		"save-daily-plan": [...COMMON_OPTIONS, "input"],
 		"recommendation-feedback": [...COMMON_OPTIONS, "input"],
 		"end-day": [...COMMON_OPTIONS, "date"],
 		"review-week": [...COMMON_OPTIONS, "date"],

@@ -16,6 +16,10 @@ import type { UpdateProjectInput } from "../../kos/operations/update-project.ts"
 import type {
 	AppendReaderExtractInput,
 	AppendReaderExtractResult,
+	DeleteReaderAnnotationInput,
+	DeleteReaderAnnotationResult,
+	ListReaderAnnotationsInput,
+	ListReaderAnnotationsResult,
 	CreateObjectInput,
 	OperationResult,
 	SetGoalWeightsInput,
@@ -280,6 +284,14 @@ export class RpcClient {
 	async appendReaderExtract(input: AppendReaderExtractInput): Promise<AppendReaderExtractResult> {
 		const response = await this.send({ type: "append_reader_extract", ...input });
 		return this.getData(response);
+	}
+
+	async listReaderAnnotations(input: ListReaderAnnotationsInput): Promise<ListReaderAnnotationsResult> {
+		return this.getData(await this.send({ type: "list_reader_annotations", ...input }));
+	}
+
+	async deleteReaderAnnotation(input: DeleteReaderAnnotationInput): Promise<DeleteReaderAnnotationResult> {
+		return this.getData(await this.send({ type: "delete_reader_annotation", ...input }));
 	}
 
 	async transitionStatus(input: TransitionStatusInput): Promise<TransitionStatusResult> {

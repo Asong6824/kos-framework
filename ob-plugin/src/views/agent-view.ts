@@ -3,6 +3,7 @@ import type { WorkspaceLeaf } from 'obsidian';
 import type { KosAgentClient } from '../agent/client';
 import { buildAgentPrompt, mentionedVaultPaths } from '../agent/context';
 import type { ObsidianPromptContext } from '../agent/context';
+import { runIsolatedAgentWorkflow } from '../agent/workflow-runner';
 import { messageText, messageThinking } from '../agent/protocol';
 import type {
   KosConfigureModelInput,
@@ -457,6 +458,25 @@ export class AgentView extends ItemView {
   async runConversation(path?: string, prompt?: string): Promise<void> {
     await this.beginConversation(path, prompt);
     await this.submit();
+  }
+
+  async runWorkflow(prompt: string, sessionName: string): Promise<void> {
+    if (!this.client?.isRunning) await this.connect();
+    if (!this.client) throw new Error('kos-agent 未连接');
+    const slash = /^\/([^\s]+)/.exec(prompt)?.[1];
+    try {
+      await runIsolatedAgentWorkflow(this.client, { message: prompt, sessionName }, async () => {
+        this.inputEl.value = '';
+        this.sendModeEl.value = 'auto';
+        this.clearContext();
+        await this.reloadSession('看板工作流');
+        if (slash) this.renderSkillActivation(slash);
+        this.setStreaming(true);
+      });
+    } catch (error) {
+      this.setStreaming(false);
+      throw error;
+    }
   }
 
   async beginInlineEdit(): Promise<void> {

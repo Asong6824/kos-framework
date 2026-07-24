@@ -34,6 +34,9 @@ const CHECKER_IDS = new Set([
 	"period_review_contract",
 	"capability_focus_contract",
 	"project_alignment_contract",
+	"task_management_contract",
+	"source_processing_contract",
+	"object_revision_contract",
 ]);
 const CHECK_TYPES = new Set([
 	"path_exists",

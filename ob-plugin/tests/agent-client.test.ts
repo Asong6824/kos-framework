@@ -182,6 +182,37 @@ describe('KosAgentClient', () => {
     });
     await expect(excerpt).resolves.toMatchObject({ created: true, duplicate: false });
 
+    const annotations = client.listReaderAnnotations('11_原材料/论文/Attention.md');
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({
+      type: 'list_reader_annotations',
+      sourcePath: '11_原材料/论文/Attention.md',
+    });
+    answer(process, 'list_reader_annotations', {
+      extractPath: '20_处理区/摘录/Attention_摘录.md',
+      annotations: [{ id: 'kos-reader-1234', text: 'selected passage' }],
+    });
+    await expect(annotations).resolves.toMatchObject({
+      extractPath: '20_处理区/摘录/Attention_摘录.md',
+      annotations: [{ id: 'kos-reader-1234' }],
+    });
+
+    const deleted = client.deleteReaderAnnotation({
+      sourcePath: '11_原材料/论文/Attention.md',
+      extractId: 'kos-reader-1234',
+    });
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({
+      type: 'delete_reader_annotation',
+      sourcePath: '11_原材料/论文/Attention.md',
+      extractId: 'kos-reader-1234',
+    });
+    answer(process, 'delete_reader_annotation', {
+      path: '20_处理区/摘录/Attention_摘录.md',
+      extractId: 'kos-reader-1234',
+      deleted: true,
+      validation: { validatedPaths: [], findings: [], errorCount: 0, warningCount: 0, passed: true },
+    });
+    await expect(deleted).resolves.toMatchObject({ deleted: true, extractId: 'kos-reader-1234' });
+
     const transitioned = client.transitionStatus({ path: '22_知识库/Agent Harness.md', target: 'verified' });
     expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1])).toMatchObject({
       type: 'transition_status',
@@ -346,5 +377,14 @@ describe('KosAgentClient', () => {
       if (event.type === 'extension_ui_request') afterAnswer.push(event.id);
     });
     expect(afterAnswer).not.toContain('question-2');
+
+    process.stdout.emit('data', `${JSON.stringify({
+      type: 'extension_ui_request', id: 'question-3', method: 'input', title: 'Old session question',
+    })}\n`);
+    expect(client.getPendingQuestions().map((question) => question.id)).toContain('question-3');
+    const fresh = client.newSession();
+    answer(process, 'new_session', { cancelled: false });
+    await expect(fresh).resolves.toEqual({ cancelled: false });
+    expect(client.getPendingQuestions()).toEqual([]);
   });
 });

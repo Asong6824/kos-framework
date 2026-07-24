@@ -30,7 +30,7 @@ import {
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { validateChangedFiles, validateVault } from "../../kos/validation/validate.ts";
 import { createObject } from "../../kos/operations/create-object.ts";
-import { appendReaderExtract } from "../../kos/operations/append-reader-extract.ts";
+import { appendReaderExtract, deleteReaderAnnotation, listReaderAnnotations } from "../../kos/operations/append-reader-extract.ts";
 import { transitionStatus } from "../../kos/operations/transition-status.ts";
 import { setGoalWeights } from "../../kos/operations/set-goal-weights.ts";
 import { reviewGoalHealth, updateGoal } from "../../kos/operations/goal-management.ts";
@@ -494,6 +494,12 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				const result = appendReaderExtract(session.sessionManager.getCwd(), command);
 				return success(id, "append_reader_extract", result);
 			}
+
+			case "list_reader_annotations":
+				return success(id, "list_reader_annotations", listReaderAnnotations(session.sessionManager.getCwd(), command));
+
+			case "delete_reader_annotation":
+				return success(id, "delete_reader_annotation", deleteReaderAnnotation(session.sessionManager.getCwd(), command));
 
 			case "transition_status": {
 				const result = transitionStatus(session.sessionManager.getCwd(), command);

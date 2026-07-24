@@ -4,6 +4,7 @@ import {
   currentActionTasks,
   expandedBentoRows,
   goalAllocationSummary,
+  goalProgress,
   paginate,
   projectRows,
   sortTasks,
@@ -86,6 +87,31 @@ describe('phase-two dashboard model', () => {
     ];
     expect(goalAllocationSummary(objects, TODAY)).toMatchObject({ period: '2026-H2', activeTotal: 100, valid: true });
     expect(goalAllocationSummary(objects, TODAY).goals.map((goal) => goal.title)).toEqual(['A', 'B']);
+  });
+
+  it('derives Goal progress from linked Project result metrics instead of allocation or Tasks', () => {
+    const goal = object('goal', { title: 'A', period: '2026-H2', status: 'active', allocation_weight: 60, health: 'on_track', result_evidence: [] });
+    const project = object('project', {
+      title: 'Project A', status: 'active', primary_goal: '[[goal/A]]', supporting_goals: [],
+      process_metrics: [{ id: 'activity', kind: 'process', name: '活动', unit: '次', baseline: 0, target: 10, current: 10, updated: TODAY, evidence: [] }],
+      result_metrics: [
+        { id: 'up', kind: 'result', name: '增长', unit: '人', baseline: 10, target: 30, current: 20, updated: TODAY, evidence: [] },
+        { id: 'down', kind: 'result', name: '降低', unit: '%', baseline: 100, target: 60, current: 70, updated: TODAY, evidence: [] },
+      ],
+    });
+    const task = object('task', { title: 'Done', status: 'done', projects: ['[[Project A]]'], completed: TODAY });
+    expect(goalProgress([goal, project, task], goal as Extract<KosObject, { type: 'goal' }>)).toEqual({
+      ratio: 0.625,
+      metricCount: 2,
+      projectCount: 1,
+    });
+  });
+
+  it('leaves Goal progress unknown without result metrics and treats achieved as complete', () => {
+    const active = object('goal', { title: 'Active', status: 'active', allocation_weight: 100 });
+    const achieved = object('goal', { title: 'Achieved', status: 'achieved', allocation_weight: 0 });
+    expect(goalProgress([active], active as Extract<KosObject, { type: 'goal' }>).ratio).toBeNull();
+    expect(goalProgress([achieved], achieved as Extract<KosObject, { type: 'goal' }>).ratio).toBe(1);
   });
 
   it('matches wikilink task refs to project progress and flags', () => {

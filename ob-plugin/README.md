@@ -2,11 +2,11 @@
 
 kos 的 Obsidian 插件项目（插件 id：`kos-companion`）。为 kos vault 提供实时、原生、可视化的交互层。
 
-二期中央工作台采用 Nothing-inspired 设计系统，把四张工具卡与“今日、行动、输入、知识、审阅与复盘、系统”六个业务区块放在同一个响应式 Bento 页面中，不需要切换模块。桌面使用 12 列整数格，进入“编辑布局”后十张卡均可自由拖动、整格缩放、碰撞避让、撤销、重做和恢复默认；布局写入插件私有数据，内容过多时仍自动整格撑开且不产生卡片内滚动。移动端保持单列连续页面。Agent 保持为右侧栏，Reader 保持为独立 Obsidian 视图。
+二期中央工作台采用 Nothing-inspired 设计系统，把五张工具卡与“今日、行动、输入、知识、审阅与复盘、系统”六个业务区块放在同一个响应式 Bento 页面中，不需要切换模块。桌面使用 12 列整数格，进入“编辑布局”后十一张卡均可自由拖动、整格缩放、碰撞避让、撤销、重做和恢复默认；布局写入插件私有数据，内容过多时仍自动整格撑开且不产生卡片内滚动。移动端保持单列连续页面。Agent 保持为右侧栏，Reader 保持为独立 Obsidian 视图。
 
 Agent 侧栏支持 Vault `@mention`、Skill/prompt 菜单、运行中 steering/follow-up、thinking/usage、`ask_question`，以及当前模型或 Brave/Exa 驱动的 Web 搜索。
 
-视图层采用渐进式 React 策略：看板由 React 18 管理统一 Bento 布局外壳、dnd-kit 拖动和 Framer Motion 避让动画，六个业务区块内部继续复用 Obsidian 原生 DOM 动作；点阵时钟、当日任务时刻、实时年度进度和 M5 热点图同样位于该网格，并可从四边或四角整格缩放。任务通过可选 `scheduled_times: ["HH:mm"]` 进入当日 48 点时间轴；热点图只使用真实 M5 数据。Reader 在独立 `ItemView` 内挂载 React UI，支持 Source Markdown、本地 PDF 和无 DRM EPUB、目录/翻页及阅读位置恢复。PDF 默认纵向连续滚动，并只为当前页附近渲染 Canvas/文字层；EPUB 默认跨章节连续滚动，也可从工具栏切换为分页阅读，切换时沿用当前 CFI。插件注册 `.epub` 扩展，因此 EPUB 会显示在 Obsidian 文件树并可直接点击；没有关联 Source 时按书籍模板自动创建。PDF 保留 Obsidian 原生默认视图，可通过文件右键菜单或“使用 kos Reader 打开当前文件”命令进入 Reader。用户选中文本后可以确定性写入关联 Extract，也可以把带 Source、原文件和位置的引用预填到 Agent 输入框；后者不会自动发送消息。PDF 使用 Obsidian 公开 `loadPdfJs()`，EPUB 固定使用 `epubjs@0.3.93`；Reader 进度和十张卡的统一布局只写插件私有 `data.json`，实时指标值不持久化。搜索、持久划线回显、批注和章节/阅读会话 Summary 尚未实现。
+视图层采用渐进式 React 策略：看板由 React 18 管理统一 Bento 布局外壳、dnd-kit 拖动和 Framer Motion 避让动画，六个业务区块内部继续复用 Obsidian 原生 DOM 动作；点阵时钟、当日任务时刻、半年目标概览、实时年度进度和 M5 热点图同样位于该网格，并可从四边或四角整格缩放。任务通过可选 `scheduled_times: ["HH:mm"]` 进入当日 48 点时间轴；目标概览读取当前半年 Goal 的投入占比、状态、健康度和结果证据，并用关联 Project 的结构化结果指标展示目标进度；热点图只使用真实 M5 数据。Reader 在独立 `ItemView` 内挂载 React UI，支持 Source Markdown、本地 PDF 和无 DRM EPUB、目录/翻页、文档搜索、阅读位置恢复、持久划线和彩色批注。PDF 默认纵向连续滚动，并只为当前页附近渲染 Canvas/文字层；EPUB 默认跨章节连续滚动，也可从工具栏切换为分页阅读，切换时沿用当前 CFI。插件注册 `.epub` 扩展，因此 EPUB 会显示在 Obsidian 文件树并可直接点击；没有关联 Source 时按书籍模板自动创建。PDF 保留 Obsidian 原生默认视图，可通过文件右键菜单或“使用 kos Reader 打开当前文件”命令进入 Reader。划线和批注由 kos-agent 原子写入关联 Extract，并可从面板跳回原文或按稳定 ID 删除；Reader 重新打开后从 Extract 重建回显。选区引用以及当前页/章节或本次阅读会话的 Summary 提示会预填到全局 Agent 输入框，不会自动发送。PDF 使用 Obsidian 公开 `loadPdfJs()`，EPUB 固定使用 `epubjs@0.3.93`；Reader `data.json` 只保存阅读进度，批注以 Extract 为真相源；十一张卡的统一布局也写入插件私有数据，实时指标值不持久化。
 
 EPUB 显示与默认打开由插件加载时的 `registerExtensions(['epub'], 'kos-reader')` 完成，不修改 Obsidian 应用文件。禁用或卸载插件后注册自动消失；若其他插件也注册 `.epub`，处理器选择可能受插件加载顺序影响。React、ReactDOM、dnd-kit、Framer Motion 和 epub.js 都打包进发布版 `main.js`，使用者无需执行 `npm install`。安装或覆盖发布目录后必须重新加载 kos Companion 或重启 Obsidian，正在运行的旧插件实例不会自动采用新的 bundle。
 

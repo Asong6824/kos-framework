@@ -45,7 +45,9 @@ kos-harness review-month --date YYYY-MM-DD
 
 ## Procedure
 
-先调用 Harness 生成 `41_认知记录/周期复盘/YYYY-Www.md` 或 `YYYY-MM.md`。解释目标 `allocation_weight` 与近 28 天估算投入的趋势差异，避免伪精确。核对 Project 的过程指标、结果指标、里程碑、阻塞、验证完成与预期成功是否分开记录。汇总 repeated deferred/rejected Task。对已确认继续的低支持度 Project，尊重选择并在此处提示及时修改 Goal、占比或组合。
+先调用 Harness 构造周期事实和报告骨架，再由 LLM 比较 Goal 投入、Project 指标与策略、Task 流动和关键证据。不得把模板汇总直接当成周期判断。解释目标 `allocation_weight` 与近 28 天估算投入的趋势差异，避免伪精确。核对 Project 的过程指标、结果指标、里程碑、阻塞、验证完成与预期成功是否分开记录。汇总 repeated deferred/rejected Task。对已确认继续的低支持度 Project，尊重选择并在此处提示及时修改 Goal、占比或组合。
+
+LLM 必须给出继续、调整、暂停、停止或补充证据的理由和取舍，并把建议写入报告的系统管理块；Goal、Project、权重和画像的实际修改仍等待用户确认后调用 Harness。
 
 Capability Focus 只分析本期真实实践证据；读取 `capability_focus.applies_to`，并保留 `max_daily_recommendations` 的每日最多一个显式强化约束。可提出 `suggest_profile_revision` 草稿，但不修改 active Profile。所有目标和画像建议明确标为“待用户确认”。
 

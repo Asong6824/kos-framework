@@ -5,6 +5,7 @@ import type {
   KosObjectType,
   GoalObject,
   Priority,
+  ProjectMetric,
   ProjectObject,
   SourceObject,
   TaskObject,
@@ -36,6 +37,12 @@ export interface GoalAllocationSummary {
   goals: GoalObject[];
   activeTotal: number;
   valid: boolean;
+}
+
+export interface GoalProgress {
+  ratio: number | null;
+  metricCount: number;
+  projectCount: number;
 }
 
 export interface KnowledgeRow {
@@ -77,6 +84,38 @@ export function goalAllocationSummary(objects: KosObject[], today: string): Goal
   const active = goals.filter((goal) => goal.status === 'active');
   const activeTotal = active.reduce((sum, goal) => sum + goal.allocation_weight, 0);
   return { period, goals, activeTotal, valid: active.length === 0 || activeTotal === 100 };
+}
+
+function metricProgress(metric: ProjectMetric): number | null {
+  const range = metric.target - metric.baseline;
+  if (![metric.baseline, metric.target, metric.current].every(Number.isFinite) || range === 0) return null;
+  return Math.min(1, Math.max(0, (metric.current - metric.baseline) / range));
+}
+
+function referenceMatchesGoal(reference: string | undefined, goal: GoalObject): boolean {
+  const normalized = normalizedProjectRef(reference);
+  if (!normalized) return false;
+  const path = goal.filePath.replace(/\.md$/, '');
+  const basename = path.slice(path.lastIndexOf('/') + 1);
+  return normalized === path || normalized === basename || normalized === objectName(goal);
+}
+
+/** Goal 进度只汇总关联 Project 的结构化结果指标，不用投入占比或 Task 完成数代替。 */
+export function goalProgress(objects: KosObject[], goal: GoalObject): GoalProgress {
+  const projects = objects.filter(
+    (object): object is ProjectObject =>
+      object.type === 'project' &&
+      (referenceMatchesGoal(object.primary_goal ?? object.goal, goal) || (object.supporting_goals ?? []).some((reference) => referenceMatchesGoal(reference, goal))),
+  );
+  const metrics = projects.flatMap((project) => project.result_metrics)
+    .filter((metric): metric is ProjectMetric => typeof metric !== 'string')
+    .map(metricProgress)
+    .filter((ratio): ratio is number => ratio !== null);
+  return {
+    ratio: goal.status === 'achieved' ? 1 : metrics.length ? metrics.reduce((sum, ratio) => sum + ratio, 0) / metrics.length : null,
+    metricCount: metrics.length,
+    projectCount: projects.length,
+  };
 }
 
 export function truncateLabel(text: string, maxCharacters: number): string {

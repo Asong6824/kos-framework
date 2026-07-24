@@ -10,7 +10,7 @@ import type { WorkspaceLeaf } from 'obsidian';
 import type { MetricSettings } from '../core/metrics';
 import type { GoalObject, KosObject, KosObjectType, ProjectObject, TaskObject } from '../core/model';
 import type { DashboardModule } from '../core/dashboard';
-import type { KosRecommendationFeedbackInput, KosRpcEvent, KosRpcState, KosSessionStats, KosStartDayInput, KosStartDayResult, KosValidationReport } from '../agent/protocol';
+import type { KosDailyRecommendation, KosRecommendationFeedbackInput, KosRpcEvent, KosRpcState, KosSessionStats, KosStartDayInput, KosValidationReport } from '../agent/protocol';
 import type { KosIndex } from '../data/index';
 import type { KosDataStore } from '../data/store';
 import { localToday } from '../data/store';
@@ -21,7 +21,7 @@ export interface ViewContext {
   store: KosDataStore;
   metricSettings(): MetricSettings;
   openAgent?(path?: string, prompt?: string): Promise<void>;
-  runAgent?(module: DashboardModule, intent: string, objects?: KosObject[], path?: string): Promise<void>;
+  runAgent?(module: DashboardModule, intent: string, objects?: KosObject[], path?: string, input?: Record<string, unknown>): Promise<void>;
   transition?(object: KosObject, target: string): Promise<boolean>;
   manageStatus?(object: KosObject): void;
   approve?(object: KosObject): Promise<boolean>;
@@ -36,7 +36,8 @@ export interface ViewContext {
   blockTask?(task: TaskObject): void;
   completeTask?(task: TaskObject): void;
   archiveTask?(task: TaskObject): Promise<boolean>;
-  startDay?(input: KosStartDayInput): Promise<KosStartDayResult>;
+  startDay?(input: KosStartDayInput): Promise<void>;
+  loadDailyPlan?(): Promise<DashboardDailyPlan | null>;
   recommendationFeedback?(input: KosRecommendationFeedbackInput): Promise<boolean>;
   endDay?(): Promise<void>;
   capture?(): void;
@@ -53,6 +54,14 @@ export interface DashboardAgentSnapshot {
   state: KosRpcState;
   stats: KosSessionStats;
   webSearch: { brave: boolean; exa: boolean };
+}
+
+export interface DashboardDailyPlan {
+  date: string;
+  runId: string;
+  fingerprint: string;
+  status: string;
+  recommendations: KosDailyRecommendation[];
 }
 
 /** 对象类型中文名（与 vault 文档术语对齐） */

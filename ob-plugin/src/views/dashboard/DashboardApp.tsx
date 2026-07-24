@@ -49,6 +49,7 @@ const MODULE_LABELS: Record<DashboardModule, string> = {
 const WIDGET_LABELS: Record<DashboardWidgetId, string> = {
   clock: '时钟',
   schedule: '任务时刻',
+  goals: '目标',
   progress: '年度进度',
   heatmap: '热点图',
 };
@@ -56,7 +57,7 @@ const WIDGET_LABELS: Record<DashboardWidgetId, string> = {
 const CARD_LABELS: Record<DashboardCardId, string> = { ...WIDGET_LABELS, ...MODULE_LABELS };
 
 function isDashboardWidgetId(id: DashboardCardId): id is DashboardWidgetId {
-  return id === 'clock' || id === 'schedule' || id === 'progress' || id === 'heatmap';
+  return id === 'clock' || id === 'schedule' || id === 'goals' || id === 'progress' || id === 'heatmap';
 }
 
 const DEFAULT_BANDS: DashboardModule[][] = [
@@ -359,6 +360,7 @@ interface DashboardAppProps {
   renderModule(module: DashboardModule, host: HTMLElement): void;
   mountClock(host: HTMLElement): void;
   mountSchedule(host: HTMLElement): void;
+  mountGoals(host: HTMLElement): void;
   mountProgress(host: HTMLElement): void;
   mountHeatmap(host: HTMLElement): void;
   persistDashboard(layout: BentoLayoutItem[]): Promise<void>;
@@ -370,6 +372,7 @@ export function DashboardApp({
   renderModule,
   mountClock,
   mountSchedule,
+  mountGoals,
   mountProgress,
   mountHeatmap,
   persistDashboard,
@@ -563,6 +566,7 @@ export function DashboardApp({
   const utilityMounts: Record<DashboardWidgetId, (host: HTMLElement) => void> = {
     clock: mountClock,
     schedule: mountSchedule,
+    goals: mountGoals,
     progress: mountProgress,
     heatmap: mountHeatmap,
   };

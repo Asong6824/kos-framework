@@ -58,32 +58,11 @@ export function renderDotClock(parent: HTMLElement, initialNow = new Date()): Do
   const display = root.createDiv({ cls: 'kos-dot-clock-display' });
   const time = display.createSpan({ cls: 'kos-dot-clock-time' });
   const seconds = display.createSpan({ cls: 'kos-dot-clock-seconds' });
-  const date = root.createDiv({ cls: 'kos-dot-clock-date' });
-
-  const footer = root.createDiv({ cls: 'kos-dot-clock-footer' });
-  const week = footer.createSpan({ cls: 'kos-dot-clock-stat' });
-  week.createSpan({ cls: 'kos-dot-clock-label', text: 'WEEK' });
-  const weekValue = week.createSpan({ cls: 'kos-dot-clock-value' });
-  footer.createSpan({ cls: 'kos-dot-clock-separator', text: '·' });
-  const yearDay = footer.createSpan({ cls: 'kos-dot-clock-stat' });
-  yearDay.createSpan({ cls: 'kos-dot-clock-label', text: 'DAY' });
-  const dayValue = yearDay.createSpan({ cls: 'kos-dot-clock-value' });
-  yearDay.createSpan({ cls: 'kos-dot-clock-divider', text: '/' });
-  const daysValue = yearDay.createSpan({ cls: 'kos-dot-clock-value' });
-  footer.createSpan({ cls: 'kos-dot-clock-separator', text: '·' });
-  const pulse = footer.createSpan({ cls: 'kos-dot-clock-pulse', attr: { 'aria-hidden': 'true' } });
-  footer.createSpan({ cls: 'kos-dot-clock-label', text: 'SEC' });
-
   const update = (now = new Date()): void => {
     const snapshot = clockSnapshot(now);
     time.textContent = `${snapshot.hours}:${snapshot.minutes}`;
     seconds.textContent = snapshot.seconds;
-    date.textContent = snapshot.dateLabel;
-    weekValue.textContent = String(snapshot.week);
-    dayValue.textContent = String(snapshot.dayOfYear);
-    daysValue.textContent = String(snapshot.daysInYear);
-    pulse.classList.toggle('is-tick', Number(snapshot.seconds) % 2 === 0);
-    root.setAttribute('aria-label', `${snapshot.dateLabel} ${snapshot.hours}:${snapshot.minutes}:${snapshot.seconds}`);
+    root.setAttribute('aria-label', `${snapshot.hours}:${snapshot.minutes}:${snapshot.seconds}`);
   };
 
   update(initialNow);

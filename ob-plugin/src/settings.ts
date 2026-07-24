@@ -23,6 +23,8 @@ export interface KosSettings {
   agentNodePath: string;
   /** 打开 Agent 视图时自动启动本地 host */
   agentAutoStart: boolean;
+  /** 本机外部 Session 目录使用的稳定 Vault ID；不展示给用户编辑 */
+  agentVaultId: string;
   /** 周起始日：0=周日 1=周一，默认 1 */
   weekStart: number;
   /** 目录映射（个性化布局）：各对象目录的 vault 相对路径，默认标准布局 */
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: KosSettings = {
   agentHostPath: '',
   agentNodePath: '',
   agentAutoStart: true,
+  agentVaultId: '',
   weekStart: 1,
   objectDirs: { ...DEFAULT_OBJECT_DIRS },
 };

@@ -9,11 +9,50 @@ export interface ReaderProgress {
 }
 
 export const MAX_READER_SELECTION_LENGTH = 20_000;
+export const MAX_READER_CONTEXT_LENGTH = 12_000;
+export const MAX_READER_SEARCH_RESULTS = 100;
 
 export interface ReaderSelection {
   text: string;
   location: string;
   positionLabel: string;
+  anchor?: ReaderAnchor;
+}
+
+export type ReaderAnnotationColor = 'yellow' | 'red' | 'blue' | 'green';
+export interface ReaderRect { x: number; y: number; width: number; height: number }
+export type ReaderAnchor =
+  | { format: 'pdf'; page: number; rects: ReaderRect[]; quote: string }
+  | { format: 'epub'; cfiRange: string; quote: string }
+  | { format: 'markdown'; quote: string; occurrence?: number };
+
+export interface ReaderAnnotation {
+  id: string;
+  sourcePath: string;
+  documentPath: string;
+  extractPath: string;
+  kind: ReaderDocumentKind;
+  location: string;
+  positionLabel: string;
+  text: string;
+  note: string;
+  color: ReaderAnnotationColor;
+  anchor: ReaderAnchor;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReaderSearchResult {
+  id: string;
+  location: string;
+  positionLabel: string;
+  excerpt: string;
+}
+
+export interface ReaderContext {
+  location: string;
+  positionLabel: string;
+  text: string;
 }
 
 export interface ReaderExcerpt {
@@ -22,6 +61,8 @@ export interface ReaderExcerpt {
   title: string;
   kind: ReaderDocumentKind;
   selection: ReaderSelection;
+  note?: string;
+  color?: ReaderAnnotationColor;
 }
 
 export interface ReaderSourceReference {
@@ -49,6 +90,9 @@ export interface ReaderAdapterHandle {
   previous(): Promise<void>;
   next(): Promise<void>;
   goTo(target: string): Promise<void>;
+  search(query: string): Promise<ReaderSearchResult[]>;
+  setAnnotations(annotations: ReaderAnnotation[]): Promise<void> | void;
+  getContext(): Promise<ReaderContext>;
   close(): Promise<void> | void;
 }
 
@@ -56,6 +100,7 @@ export interface ReaderAdapterMount {
   container: HTMLElement;
   initialLocation?: string;
   layoutMode?: ReaderLayoutMode;
+  annotations?: ReaderAnnotation[];
   onState(state: ReaderAdapterState): void;
   onSelection(selection: ReaderSelection | null): void;
 }
@@ -93,6 +138,44 @@ export function readerSelectionFromText(
   return { text: normalized, location, positionLabel };
 }
 
+export function readerSearchMatches(
+  text: string,
+  query: string,
+  location: string,
+  positionLabel: string,
+  idPrefix = location,
+  limit = MAX_READER_SEARCH_RESULTS,
+): ReaderSearchResult[] {
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) return [];
+  const source = text.replace(/\s+/g, ' ').trim();
+  const haystack = source.toLocaleLowerCase();
+  const needle = normalizedQuery.toLocaleLowerCase();
+  const results: ReaderSearchResult[] = [];
+  let from = 0;
+  while (results.length < limit) {
+    const index = haystack.indexOf(needle, from);
+    if (index < 0) break;
+    const start = Math.max(0, index - 48);
+    const end = Math.min(source.length, index + normalizedQuery.length + 72);
+    results.push({
+      id: `${idPrefix}:${index}`,
+      location,
+      positionLabel,
+      excerpt: `${start > 0 ? '...' : ''}${source.slice(start, end)}${end < source.length ? '...' : ''}`,
+    });
+    from = index + Math.max(needle.length, 1);
+  }
+  return results;
+}
+
+export function readerContextText(text: string): string {
+  const normalized = text.replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  return normalized.length <= MAX_READER_CONTEXT_LENGTH
+    ? normalized
+    : `${normalized.slice(0, MAX_READER_CONTEXT_LENGTH)}\n\n[内容已截断]`;
+}
+
 function wikiLink(path: string): string {
   return `[[${path.replace(/\.md$/i, '')}]]`;
 }
@@ -106,6 +189,26 @@ export function formatReaderAgentQuote(excerpt: ReaderExcerpt): string {
     '',
     `来源：${wikiLink(excerpt.sourcePath)}${document} · ${location}`,
   ].join('\n');
+}
+
+export function formatReaderSummaryPrompt(
+  excerpt: Omit<ReaderExcerpt, 'selection'>,
+  context: ReaderContext,
+  annotations: ReaderAnnotation[],
+  mode: 'section' | 'session',
+): string {
+  const evidence = mode === 'session'
+    ? annotations.map((item) => `- ${item.positionLabel || item.location}：${item.text}${item.note ? `（批注：${item.note}）` : ''}`).join('\n')
+    : '';
+  return [
+    '/kos-summarize',
+    '',
+    `请更新 Source [[${excerpt.sourcePath.replace(/\.md$/i, '')}]] 的 Summary。`,
+    `阅读范围：${mode === 'section' ? '当前页或章节' : '本次阅读会话'} · ${context.positionLabel || context.location}`,
+    '保持 Source -> Extract -> Summary 的证据边界；不要把推断写成原文事实。',
+    evidence ? `\n本次划线与批注：\n${evidence}` : '',
+    context.text ? `\n当前阅读上下文：\n${context.text}` : '',
+  ].filter(Boolean).join('\n');
 }
 
 export function unwrapReaderReference(value: string): string {

@@ -15,6 +15,7 @@ import type {
 	PlanningProject,
 	RecommendationFeedbackInput,
 	ReviewResult,
+	SaveDailyPlanInput,
 	StartDayInput,
 	StartDayResult,
 	TaskEnergy,
@@ -289,8 +290,10 @@ function recommend(context: PlanningContext): DailyRecommendation[] {
 	});
 }
 
-function planBody(context: PlanningContext, recommendations: DailyRecommendation[]): string {
-	const lines = recommendations.length ? recommendations.map((item) => `- [ ] \`${item.id}\` [[${item.taskPath.replace(/\.md$/, "")}]]：${item.reason}；预计 ${item.estimateMinutes} 分钟；取舍：${item.tradeoff}${item.capabilityFocusUsed ? `；能力练习：${context.capabilityFocus?.name}` : ""}`).join("\n") : "- 暂无建议";
+function planBody(context: PlanningContext, recommendations: DailyRecommendation[], generating = false): string {
+	const lines = generating
+		? "- Agent 正在结合目标、项目、任务、约束和个人画像生成建议"
+		: recommendations.length ? recommendations.map((item) => `- [ ] \`${item.id}\` [[${item.taskPath.replace(/\.md$/, "")}]]：${item.reason}；预计 ${item.estimateMinutes} 分钟；取舍：${item.tradeoff}${item.capabilityFocusUsed ? `；能力练习：${context.capabilityFocus?.name}` : ""}`).join("\n") : "- 暂无建议";
 	return `# ${context.date} 每日计划\n\n## 确定性事实\n\n- 进行中：${context.taskPool.doing.length}\n- 今日已选：${context.taskPool.scheduled.length}\n- 阻塞：${context.taskPool.blocked.length}\n- 尚未到推迟日期：${context.taskPool.deferred.length}\n- Validator 异常：${context.validatorFindings.length}\n\n## Agent 建议\n\n${MANAGED_START}\n${lines}\n${MANAGED_END}\n\n## 用户已确认计划\n\n${MANAGED_START}\n- 尚未确认\n${MANAGED_END}\n\n## 用户补充\n\n<!-- 人手动添加 -->\n\n- \n\n<!-- /人手动添加 -->`;
 }
 
@@ -300,9 +303,69 @@ export function startDay(root: string, input: StartDayInput = {}): StartDayResul
 	const runId = `${context.date}-${context.fingerprint}-${randomUUID().slice(0, 8)}`;
 	const result = writeMarkdown(root, `00_工作台/计划/${context.date}.md`, {
 		type: "daily_plan", date: context.date, period: context.period, run_id: runId, context_fingerprint: context.fingerprint,
-		generated_at: new Date().toISOString(), recommendation_status: "pending", recommendations,
-	}, planBody(context, recommendations));
+		generated_at: new Date().toISOString(), recommendation_status: "generating", recommendations: [],
+	}, planBody(context, [], true));
 	return { ...result, runId, context, recommendations };
+}
+
+function validateDailyRecommendations(root: string, recommendations: DailyRecommendation[]): void {
+	if (!Array.isArray(recommendations) || recommendations.length > 3) throw new Error("Daily plan accepts at most three recommendations");
+	const ids = new Set<string>();
+	const taskPaths = new Set<string>();
+	for (const item of recommendations) {
+		if (!item || typeof item !== "object") throw new Error("Each daily recommendation must be an object");
+		if (!item.id?.trim() || ids.has(item.id)) throw new Error(`Daily recommendation has a missing or duplicate id: ${item.id ?? ""}`);
+		ids.add(item.id);
+		if (!item.taskPath?.trim() || taskPaths.has(item.taskPath)) throw new Error(`Daily recommendation has a missing or duplicate taskPath: ${item.taskPath ?? ""}`);
+		taskPaths.add(item.taskPath);
+		const task = resolveInsideRoot(root, item.taskPath);
+		if (!existsSync(task.absolute)) throw new Error(`Recommended Task does not exist: ${task.relative}`);
+		const taskFrontmatter = parseFrontmatterFile(task.absolute).frontmatter;
+		if (taskFrontmatter?.type !== "task") throw new Error(`Recommended path is not a Task: ${task.relative}`);
+		if (item.status !== "recommended") throw new Error(`New daily recommendation must use recommended status: ${item.id}`);
+		if (!item.title?.trim() || !item.reason?.trim() || !item.tradeoff?.trim()) throw new Error(`Daily recommendation is missing title, reason, or tradeoff: ${item.id}`);
+		if (!Number.isFinite(item.estimateMinutes) || item.estimateMinutes <= 0) throw new Error(`Daily recommendation has invalid estimateMinutes: ${item.id}`);
+		if (!Array.isArray(item.goals) || !Array.isArray(item.projects) || typeof item.capabilityFocusUsed !== "boolean") {
+			throw new Error(`Daily recommendation has invalid structured fields: ${item.id}`);
+		}
+	}
+}
+
+export function saveDailyPlan(root: string, input: SaveDailyPlanInput) {
+	parseDate(input.date);
+	const target = resolveInsideRoot(root, `00_工作台/计划/${input.date}.md`);
+	if (!existsSync(target.absolute)) throw new Error(`Daily plan does not exist: ${target.relative}`);
+	validateDailyRecommendations(root, input.recommendations);
+
+	const original = readFileSync(target.absolute, "utf8");
+	const match = FRONTMATTER.exec(original);
+	if (!match) throw new Error("Daily plan has no frontmatter");
+	const document = parseDocument(match[1]);
+	if (document.errors.length || document.get("type") !== "daily_plan") throw new Error("Daily plan frontmatter is invalid");
+	if (document.get("run_id") !== input.runId || document.get("context_fingerprint") !== input.contextFingerprint) {
+		throw new Error("Daily plan context is stale; run start-day again");
+	}
+
+	const body = original.slice(match[0].length);
+	const heading = /^## Agent 建议\s*$/m.exec(body);
+	if (!heading) throw new Error("Daily plan is missing the Agent recommendation section");
+	const managedStart = body.indexOf(MANAGED_START, heading.index + heading[0].length);
+	const managedEnd = body.indexOf(MANAGED_END, managedStart + MANAGED_START.length);
+	if (managedStart < 0 || managedEnd < 0) throw new Error("Daily plan is missing the managed Agent recommendation block");
+	const lines = input.recommendations.length
+		? input.recommendations.map((item) => `- [ ] \`${item.id}\` [[${item.taskPath.replace(/\.md$/, "")}]]：${item.reason}；预计 ${item.estimateMinutes} 分钟；取舍：${item.tradeoff}${item.capabilityFocusUsed ? "；包含本期能力练习" : ""}`).join("\n")
+		: "- 暂无建议";
+	const nextBody = `${body.slice(0, managedStart + MANAGED_START.length)}\n${lines}\n${body.slice(managedEnd)}`;
+	document.set("recommendations", input.recommendations);
+	document.set("generated_at", new Date().toISOString());
+	document.set("recommendation_status", input.recommendations.length ? "pending" : "resolved");
+	atomicWrite(target.absolute, `---\n${document.toString().trim()}\n---\n${nextBody}`);
+	const validation = validateChangedFiles(root, [target.absolute]);
+	if (!validation.passed) {
+		atomicWrite(target.absolute, original);
+		throw new Error(`Daily plan write failed validation: ${JSON.stringify(validation.findings)}`);
+	}
+	return { path: target.relative, validation };
 }
 
 export function recordRecommendationFeedback(root: string, input: RecommendationFeedbackInput) {

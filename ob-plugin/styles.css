@@ -78,6 +78,8 @@
 }
 
 .kos-reader-header {
+  width: 100%;
+  min-width: 0;
   min-height: 48px;
   display: flex;
   align-items: center;
@@ -164,6 +166,20 @@
   background-color: var(--kos-nd-danger);
   transition: width 180ms ease;
 }
+.kos-reader-action-error {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 2px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--kos-nd-danger) 38%, var(--kos-nd-line));
+  background: color-mix(in srgb, var(--kos-nd-danger) 8%, var(--kos-nd-surface));
+  color: var(--kos-nd-danger);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.kos-reader-action-error > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.kos-reader-action-error .kos-reader-icon-button { color: currentColor; }
 
 .kos-reader-workspace {
   position: relative;
@@ -172,14 +188,27 @@
   display: flex;
   overflow: hidden;
 }
-.kos-reader-toc {
+.kos-reader-panel {
   width: min(300px, 34vw);
   flex: 0 0 min(300px, 34vw);
-  padding: 14px 8px;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
   overflow: auto;
   border-right: 1px solid var(--kos-nd-line);
   background-color: var(--kos-nd-surface);
 }
+.kos-reader-panel-head {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px 7px 14px;
+  border-bottom: 1px solid var(--kos-nd-line);
+}
+.kos-reader-panel-head strong { min-width: 0; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.kos-reader-toc { width: 100%; padding: 8px; overflow: auto; }
 .kos-reader-toc button {
   width: 100%;
   min-height: 34px;
@@ -199,6 +228,44 @@
   cursor: pointer;
 }
 .kos-reader-toc button:hover { background-color: var(--kos-nd-soft); color: var(--kos-nd-ink); }
+.kos-reader-search { padding: 10px; }
+.kos-reader-search form { display: grid; grid-template-columns: minmax(0, 1fr) 34px; gap: 6px; }
+.kos-reader-search input,
+.kos-reader-annotation-composer input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--kos-nd-line);
+  border-radius: 3px;
+  background: var(--kos-nd-bg);
+  box-shadow: none;
+  color: var(--kos-nd-ink);
+  font-size: 12px;
+}
+.kos-reader-search form > button {
+  width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 3px;
+  background: var(--kos-nd-ink); color: var(--kos-nd-surface); box-shadow: none;
+}
+.kos-reader-result-count { padding: 10px 2px 6px; color: var(--kos-nd-muted); font-family: "Space Mono", monospace; font-size: 9px; text-transform: uppercase; }
+.kos-reader-search-result { width: 100%; padding: 10px 2px; border: 0; border-top: 1px solid var(--kos-nd-line); border-radius: 0; background: transparent; box-shadow: none; color: var(--kos-nd-ink); text-align: start; }
+.kos-reader-search-result > span { color: var(--kos-nd-danger); font-family: "Space Mono", monospace; font-size: 9px; }
+.kos-reader-search-result p { margin: 5px 0 0; color: var(--kos-nd-muted); font-size: 11px; line-height: 1.45; }
+.kos-reader-panel-empty { margin: 0; padding: 18px 14px; color: var(--kos-nd-muted); font-size: 11px; line-height: 1.5; }
+.kos-reader-annotations { overflow: auto; }
+.kos-reader-annotation { position: relative; display: flex; align-items: flex-start; border-bottom: 1px solid var(--kos-nd-line); }
+.kos-reader-annotation::before { width: 3px; align-self: stretch; flex: none; content: ""; background: #e4bd29; }
+.kos-reader-annotation.is-red::before { background: #d71920; }
+.kos-reader-annotation.is-blue::before { background: #3884ff; }
+.kos-reader-annotation.is-green::before { background: #2aa665; }
+.kos-reader-annotation-main { min-width: 0; flex: 1; padding: 10px 8px 11px 10px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--kos-nd-ink); text-align: start; }
+.kos-reader-annotation-main > span { color: var(--kos-nd-muted); font-family: "Space Mono", monospace; font-size: 9px; }
+.kos-reader-annotation-main blockquote { display: -webkit-box; margin: 5px 0 0; overflow: hidden; color: var(--kos-nd-ink); font-size: 11px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.kos-reader-annotation-main p { margin: 7px 0 0; color: var(--kos-nd-danger); font-size: 11px; line-height: 1.4; }
+.kos-reader-summary-actions { display: grid; gap: 1px; background: var(--kos-nd-line); }
+.kos-reader-summary-actions > button { min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 0; border-radius: 0; background: var(--kos-nd-surface); box-shadow: none; color: var(--kos-nd-ink); font-size: 12px; text-align: start; }
+.kos-reader-summary-actions > button:hover { background: var(--kos-nd-soft); }
+.kos-reader-summary-actions svg { width: 17px; height: 17px; }
 
 .kos-reader-document { position: relative; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
 .kos-reader-adapter-host { width: 100%; height: 100%; overflow: auto; }
@@ -303,10 +370,12 @@
 .kos-reader-pdf-canvas { position: absolute; inset: 0; display: block; }
 .kos-reader-pdf-text-layer {
   position: absolute;
+  z-index: 1;
   inset: 0;
   overflow: hidden;
   line-height: 1;
   opacity: 1;
+  user-select: text;
   text-size-adjust: none;
   forced-color-adjust: none;
   transform-origin: 0 0;
@@ -319,9 +388,19 @@
   color: transparent;
   white-space: pre;
   cursor: text;
+  user-select: text;
   transform-origin: 0 0;
 }
 .kos-reader-pdf-text-layer ::selection { background: color-mix(in srgb, var(--kos-nd-danger) 28%, transparent); }
+.kos-reader-pdf-annotation-layer { position: absolute; z-index: 2; inset: 0; pointer-events: none; }
+.kos-reader-pdf-highlight { position: absolute; padding: 0; border: 0; border-radius: 1px; background: rgba(255, 220, 80, .42); box-shadow: none; opacity: 1; pointer-events: none; mix-blend-mode: multiply; }
+.kos-reader-pdf-highlight.is-red { background: rgba(215, 25, 32, .30); }
+.kos-reader-pdf-highlight.is-blue { background: rgba(56, 132, 255, .30); }
+.kos-reader-pdf-highlight.is-green { background: rgba(42, 166, 101, .30); }
+.kos-reader-mark { padding: 0; border-radius: 1px; background: rgba(255, 220, 80, .42); color: inherit; }
+.kos-reader-mark.is-red { background: rgba(215, 25, 32, .26); }
+.kos-reader-mark.is-blue { background: rgba(56, 132, 255, .26); }
+.kos-reader-mark.is-green { background: rgba(42, 166, 101, .26); }
 
 .kos-reader-adapter-host .epub-container {
   width: 100% !important;
@@ -343,7 +422,7 @@
   .kos-reader-toolbar { min-width: 0; gap: 2px; }
   .kos-reader-position { width: 52px; }
   .kos-reader-toolbar-divider { margin-inline: 1px; }
-  .kos-reader-toc { position: absolute; z-index: 4; inset: 0 auto 0 0; width: min(82vw, 320px); box-shadow: 8px 0 24px rgba(0, 0, 0, .16); }
+  .kos-reader-panel { position: absolute; z-index: 4; inset: 0 auto 0 0; width: min(82vw, 320px); min-width: 0; box-shadow: 8px 0 24px rgba(0, 0, 0, .16); }
   .kos-reader-pdf-stage { padding: 16px 10px 48px; }
   .kos-reader-selection-bar {
     right: 10px;
@@ -363,6 +442,21 @@
   .kos-reader-selection-action { min-width: 0; flex: 1; }
 }
 
+.kos-reader-annotation-composer { width: min(560px, calc(100vw - 48px)); display: grid; grid-template-columns: minmax(120px, 1fr) auto auto auto; align-items: center; gap: 8px; }
+.kos-reader-color-swatches { display: flex; gap: 4px; }
+.kos-reader-color-swatches button { width: 22px; height: 22px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: #e4bd29; box-shadow: none; }
+.kos-reader-color-swatches button.is-red { background: #d71920; }
+.kos-reader-color-swatches button.is-blue { background: #3884ff; }
+.kos-reader-color-swatches button.is-green { background: #2aa665; }
+.kos-reader-color-swatches button.is-selected { border-color: var(--kos-nd-ink); }
+.kos-reader-annotation-save { height: 32px; padding: 0 12px; border: 0; border-radius: 3px; background: var(--kos-nd-ink); box-shadow: none; color: var(--kos-nd-surface); font-size: 11px; }
+
+@media (max-width: 700px) {
+  .kos-reader-annotation-composer { width: 100%; grid-template-columns: minmax(0, 1fr) auto; }
+  .kos-reader-color-swatches { grid-row: 2; }
+  .kos-reader-annotation-save { grid-row: 2; }
+}
+
 @media (max-width: 560px) {
   .kos-reader-identity { display: none; }
   .kos-reader-header-primary { flex: 0 0 auto; }
@@ -376,11 +470,12 @@
   .kos-reader-identity { display: none; }
   .kos-reader-toolbar { min-width: 0; gap: 2px; }
   .kos-reader-toolbar-divider { margin-inline: 1px; }
+  .kos-reader-panel { position: absolute; z-index: 4; inset: 0 auto 0 0; width: min(82cqw, 320px); min-width: 0; box-shadow: 8px 0 24px rgba(0, 0, 0, .16); }
 }
 
 @container (max-width: 420px) {
-  .kos-reader-icon-button { width: 30px; height: 30px; flex-basis: 30px; }
-  .kos-reader-position { width: 48px; font-size: 9px; }
+  .kos-reader-icon-button { width: 28px; height: 28px; flex-basis: 28px; }
+  .kos-reader-position { width: 42px; font-size: 9px; }
 }
 
 /* ---------- Phase 2 single-page Bento board ---------- */
@@ -452,6 +547,7 @@
 
 .kos-board-clock-host,
 .kos-board-schedule-host,
+.kos-board-goals-host,
 .kos-board-progress-host,
 .kos-board-heatmap-host {
   width: 100%;
@@ -461,6 +557,7 @@
 
 .kos-board-utility-card .kos-dot-clock,
 .kos-board-utility-card .kos-day-schedule,
+.kos-board-utility-card .kos-goal-overview,
 .kos-board-utility-card .kos-year-progress,
 .kos-board-utility-card .kos-activity-heatmap {
   width: 100%;
@@ -471,6 +568,7 @@
 
 .kos-board-utility-card.is-layout-editing .kos-dot-clock,
 .kos-board-utility-card.is-layout-editing .kos-day-schedule,
+.kos-board-utility-card.is-layout-editing .kos-goal-overview,
 .kos-board-utility-card.is-layout-editing .kos-year-progress,
 .kos-board-utility-card.is-layout-editing .kos-activity-heatmap {
   border-color: color-mix(in srgb, var(--kos-board-ink) 62%, var(--kos-board-line));
@@ -481,10 +579,12 @@
 
 .kos-board-utility-card.is-layout-resizing .kos-dot-clock,
 .kos-board-utility-card.is-layout-resizing .kos-day-schedule,
+.kos-board-utility-card.is-layout-resizing .kos-goal-overview,
 .kos-board-utility-card.is-layout-resizing .kos-year-progress,
 .kos-board-utility-card.is-layout-resizing .kos-activity-heatmap,
 .kos-board-utility-card.is-layout-editing:has(.kos-bento-resize-zone:hover) .kos-dot-clock,
 .kos-board-utility-card.is-layout-editing:has(.kos-bento-resize-zone:hover) .kos-day-schedule,
+.kos-board-utility-card.is-layout-editing:has(.kos-bento-resize-zone:hover) .kos-goal-overview,
 .kos-board-utility-card.is-layout-editing:has(.kos-bento-resize-zone:hover) .kos-year-progress,
 .kos-board-utility-card.is-layout-editing:has(.kos-bento-resize-zone:hover) .kos-activity-heatmap {
   border-color: var(--kos-bento-resize-blue);
@@ -589,8 +689,7 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='1.55' fill='%23343632' fill-opacity='.82'/%3E%3C/svg%3E");
 }
 
-.kos-dot-clock-eyebrow,
-.kos-dot-clock-footer {
+.kos-dot-clock-eyebrow {
   display: flex;
   align-items: center;
   color: var(--kos-board-muted);
@@ -606,7 +705,7 @@
   display: flex;
   align-items: flex-end;
   gap: 28px;
-  margin-top: 68px;
+  margin-top: 56px;
   white-space: nowrap;
 }
 
@@ -621,40 +720,11 @@
 .kos-dot-clock-time { color: var(--kos-board-ink); font-size: 144px; }
 .kos-dot-clock-seconds { margin-bottom: 2px; color: var(--kos-board-muted); font-size: 53px; }
 
-.kos-dot-clock-date {
-  margin-top: 35px;
-  color: var(--kos-board-ink);
-  font-size: 31px;
-  font-weight: 400;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.kos-dot-clock-footer {
-  gap: 22px;
-  margin-top: 50px;
-  font-size: 20px;
-}
-
-.kos-dot-clock-stat { display: inline-flex; align-items: center; gap: 20px; }
-.kos-dot-clock-label { color: var(--kos-board-muted); }
-.kos-dot-clock-value { color: var(--kos-board-ink); font-weight: 700; }
-.kos-dot-clock-divider { margin: 0 2px; color: var(--kos-board-muted); }
 .kos-dot-clock-separator { color: var(--kos-board-dot); }
-.kos-dot-clock-pulse {
-  width: 12px;
-  height: 12px;
-  flex: 0 0 12px;
-  border-radius: 50%;
-  background: #d71921;
-  opacity: .62;
-}
-.kos-dot-clock-pulse.is-tick { opacity: 1; }
-.kos-dot-clock-pulse + .kos-dot-clock-label { margin-left: -10px; }
 
 .kos-day-schedule {
   width: 812px;
-  height: 540px;
+  height: 680px;
   max-width: 100%;
   position: relative;
   padding: 36px 36px 30px;
@@ -680,7 +750,7 @@
   align-items: center;
 }
 
-.kos-day-schedule-head { gap: 15px; }
+.kos-day-schedule-head { min-width: 0; gap: 15px; }
 .kos-day-schedule-title {
   gap: 15px;
   color: var(--kos-board-muted);
@@ -702,33 +772,44 @@
 .kos-day-schedule-hero {
   min-width: 0;
   align-items: flex-end;
-  gap: 24px;
-  margin-top: 42px;
+  gap: 28px;
+  height: 114px;
+  margin-top: 58px;
 }
-.kos-day-schedule-time {
+.kos-day-schedule-time,
+.kos-day-schedule-seconds {
   flex: 0 0 auto;
-  color: var(--kos-board-ink);
   font-family: "Doto", monospace;
-  font-size: 86px;
   font-weight: 700;
   font-synthesis: none;
   line-height: .78;
   white-space: nowrap;
 }
+.kos-day-schedule-time { color: var(--kos-board-ink); font-size: 144px; }
+.kos-day-schedule-seconds { margin-bottom: 2px; color: var(--kos-board-muted); font-size: 53px; }
 .kos-day-schedule-next {
   min-width: 0;
-  margin-bottom: 3px;
+  margin-left: auto;
   overflow: hidden;
   color: var(--kos-board-muted);
   font-family: "Space Mono", "Noto Sans Mono", monospace;
   font-size: 16px;
   line-height: 1.2;
+  text-align: right;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kos-day-schedule-date {
+  margin-top: 42px;
+  color: var(--kos-board-ink);
+  font-size: 31px;
+  font-weight: 400;
+  line-height: 1;
   white-space: nowrap;
 }
 .kos-day-schedule-scale {
   justify-content: space-between;
-  margin-top: 38px;
+  margin-top: 50px;
   color: var(--kos-board-muted);
   font-family: "Space Mono", monospace;
   font-size: 14px;
@@ -749,7 +830,7 @@
 .kos-day-schedule-rail span.is-past { background: color-mix(in srgb, var(--kos-board-ink) 34%, var(--kos-board-paper-solid)); }
 .kos-day-schedule-rail span.is-scheduled { background: var(--kos-board-ink); }
 .kos-day-schedule-rail span.is-current { background: var(--kos-board-red); }
-.kos-day-schedule-list { margin-top: 24px; }
+.kos-day-schedule-list { margin-top: 28px; }
 .kos-day-schedule-row {
   min-width: 0;
   justify-content: space-between;
@@ -787,6 +868,156 @@
   color: var(--kos-board-faint);
   font-family: "Space Mono", monospace;
   font-size: 12px;
+}
+
+.kos-goal-overview {
+  width: 1182px;
+  height: 448px;
+  max-width: 100%;
+  position: relative;
+  padding: 36px 40px 30px;
+  overflow: hidden;
+  border: 1px solid var(--kos-board-line);
+  border-radius: 30px;
+  background-color: var(--kos-board-paper);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='1.55' fill='%23d8d9d6' fill-opacity='.72'/%3E%3C/svg%3E");
+  color: var(--kos-board-ink);
+}
+
+.theme-dark .kos-goal-overview {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='1.55' fill='%23343632' fill-opacity='.82'/%3E%3C/svg%3E");
+}
+
+.kos-goal-overview-head,
+.kos-goal-overview-title,
+.kos-goal-overview-hero,
+.kos-goal-overview-row-head,
+.kos-goal-overview-footer {
+  display: flex;
+  align-items: center;
+}
+.kos-goal-overview-head { justify-content: space-between; gap: 20px; }
+.kos-goal-overview-title {
+  gap: 15px;
+  color: var(--kos-board-muted);
+  font-family: "Space Mono", "Noto Sans Mono", monospace;
+  font-size: 18px;
+  line-height: 1;
+}
+.kos-goal-overview-separator { color: var(--kos-board-faint); }
+.kos-goal-overview-period {
+  padding: 7px 12px;
+  border: 1px solid var(--kos-board-line);
+  border-radius: 999px;
+  color: var(--kos-board-muted);
+  font-family: "Space Mono", monospace;
+  font-size: 12px;
+  line-height: 1;
+}
+.kos-goal-overview-hero {
+  align-items: flex-end;
+  gap: 18px;
+  height: 68px;
+  margin-top: 28px;
+}
+.kos-goal-overview-total {
+  color: var(--kos-board-ink);
+  font-family: "Doto", monospace;
+  font-size: 78px;
+  font-weight: 700;
+  font-synthesis: none;
+  line-height: .78;
+}
+.kos-goal-overview-total.is-invalid { color: var(--kos-board-red); }
+.kos-goal-overview-hero-meta {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 2px;
+  color: var(--kos-board-muted);
+  font-family: "Space Mono", monospace;
+  font-size: 12px;
+  line-height: 1;
+}
+.kos-goal-overview-list { margin-top: 27px; }
+.kos-goal-overview-row {
+  position: relative;
+  min-height: 66px;
+  padding: 10px 0 8px;
+  border-top: 1px solid var(--kos-board-line);
+}
+.kos-goal-overview-row-head { min-width: 0; gap: 14px; }
+.kos-goal-overview button.kos-goal-overview-name {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  appearance: none;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--kos-board-ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.2;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.kos-goal-overview button.kos-goal-overview-name:hover { color: var(--text-accent); }
+.kos-goal-overview button.kos-goal-overview-name:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 3px;
+}
+.kos-goal-overview-state,
+.kos-goal-overview-progress,
+.kos-goal-overview-meta {
+  flex: 0 0 auto;
+  color: var(--kos-board-muted);
+  font-family: "Space Mono", monospace;
+  font-size: 11px;
+}
+.kos-goal-overview-state.is-danger { color: var(--kos-board-red); }
+.kos-goal-overview-state.is-warning { color: var(--kos-board-amber); }
+.kos-goal-overview-state.is-success { color: var(--kos-board-green); }
+.kos-goal-overview-progress { width: 42px; color: var(--kos-board-ink); font-weight: 700; text-align: right; }
+.kos-goal-overview-rail {
+  display: grid;
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+  gap: 3px;
+  height: 6px;
+  margin-top: 8px;
+}
+.kos-goal-overview-rail span { background: color-mix(in srgb, var(--kos-board-ink) 13%, var(--kos-board-paper-solid)); }
+.kos-goal-overview-rail span.is-filled { background: var(--kos-board-ink); }
+.kos-goal-overview-meta { margin-top: 6px; font-size: 9px; }
+.kos-goal-overview-empty {
+  min-height: 134px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-block: 1px solid var(--kos-board-line);
+  color: var(--kos-board-muted);
+  font-family: "Space Mono", monospace;
+  font-size: 13px;
+}
+.kos-goal-overview-footer {
+  position: absolute;
+  right: 40px;
+  bottom: 24px;
+  left: 40px;
+  justify-content: space-between;
+  color: var(--kos-board-faint);
+  font-family: "Space Mono", monospace;
+  font-size: 10px;
 }
 
 .kos-year-progress {
@@ -1014,28 +1245,34 @@
 
 @container kos-utility-card (max-width: 720px) {
   .kos-dot-clock { padding: 30px 24px 26px; }
-  .kos-dot-clock-eyebrow,
-  .kos-dot-clock-footer { font-size: 14px; }
+  .kos-dot-clock-eyebrow { font-size: 14px; }
   .kos-dot-clock-display { height: 78px; gap: 14px; margin-top: 38px; }
   .kos-dot-clock-time { font-size: 82px; }
   .kos-dot-clock-seconds { font-size: 34px; }
-  .kos-dot-clock-date { margin-top: 28px; font-size: 21px; }
-  .kos-dot-clock-footer { gap: 9px; margin-top: 36px; }
-  .kos-dot-clock-stat { gap: 7px; }
-  .kos-dot-clock-pulse { width: 9px; height: 9px; flex-basis: 9px; }
-  .kos-dot-clock-pulse + .kos-dot-clock-label { margin-left: -3px; }
   .kos-day-schedule { padding: 28px 24px 24px; }
   .kos-day-schedule-title { gap: 10px; font-size: 14px; }
   .kos-day-schedule-badge { padding: 6px 9px; font-size: 10px; }
-  .kos-day-schedule-hero { gap: 14px; margin-top: 34px; }
-  .kos-day-schedule-time { font-size: 62px; }
-  .kos-day-schedule-next { font-size: 13px; }
-  .kos-day-schedule-scale { margin-top: 30px; font-size: 11px; }
+  .kos-day-schedule-hero { height: 78px; gap: 14px; margin-top: 46px; }
+  .kos-day-schedule-time { font-size: 82px; }
+  .kos-day-schedule-seconds { font-size: 34px; }
+  .kos-day-schedule-next { font-size: 11px; }
+  .kos-day-schedule-date { margin-top: 34px; font-size: 21px; }
+  .kos-day-schedule-scale { margin-top: 38px; font-size: 11px; }
   .kos-day-schedule-rail { gap: 2px; margin-top: 9px; }
-  .kos-day-schedule-list { margin-top: 20px; }
+  .kos-day-schedule-list { margin-top: 24px; }
   .kos-day-schedule-row { min-height: 31px; font-size: 15px; }
   .kos-day-schedule-task-times { font-size: 12px; }
   .kos-day-schedule-footer { right: 24px; bottom: 22px; left: 24px; font-size: 10px; }
+  .kos-goal-overview { padding: 28px 24px 24px; }
+  .kos-goal-overview-title { gap: 10px; font-size: 14px; }
+  .kos-goal-overview-period { padding: 6px 9px; font-size: 10px; }
+  .kos-goal-overview-hero { height: 58px; margin-top: 24px; }
+  .kos-goal-overview-total { font-size: 66px; }
+  .kos-goal-overview-list { margin-top: 22px; }
+  .kos-goal-overview-row { min-height: 61px; }
+  .kos-goal-overview-name { font-size: 14px; }
+  .kos-goal-overview-state { display: none; }
+  .kos-goal-overview-footer { right: 24px; bottom: 20px; left: 24px; font-size: 9px; }
   .kos-year-progress { padding: 30px 24px 26px; }
   .kos-year-progress-head { font-size: 14px; }
   .kos-year-progress-hero { height: 66px; gap: 15px; margin-top: 40px; }
@@ -1090,16 +1327,14 @@
 
 @container kos-utility-card (max-height: 390px) {
   .kos-dot-clock { padding: 30px 24px 26px; }
-  .kos-dot-clock-eyebrow,
-  .kos-dot-clock-footer { font-size: 14px; }
-  .kos-dot-clock-display { height: 78px; gap: 14px; margin-top: 38px; }
+  .kos-dot-clock-eyebrow { font-size: 14px; }
+  .kos-dot-clock-display { height: 78px; gap: 14px; margin-top: 74px; }
   .kos-dot-clock-time { font-size: 82px; }
   .kos-dot-clock-seconds { font-size: 34px; }
-  .kos-dot-clock-date { margin-top: 28px; font-size: 21px; }
-  .kos-dot-clock-footer { gap: 9px; margin-top: 36px; }
-  .kos-dot-clock-stat { gap: 7px; }
-  .kos-dot-clock-pulse { width: 9px; height: 9px; flex-basis: 9px; }
-  .kos-dot-clock-pulse + .kos-dot-clock-label { margin-left: -3px; }
+}
+
+@container kos-utility-card (max-width: 420px) {
+  .kos-day-schedule-date { font-size: 16px; }
 }
 
 @container kos-utility-card (max-height: 470px) {
@@ -1110,6 +1345,15 @@
   .kos-day-schedule-list { margin-top: 17px; }
   .kos-day-schedule-row { min-height: 29px; font-size: 15px; }
   .kos-day-schedule-footer { bottom: 20px; }
+}
+
+@container kos-utility-card (max-height: 410px) {
+  .kos-goal-overview { padding-block: 26px 22px; }
+  .kos-goal-overview-hero { height: 54px; margin-top: 22px; }
+  .kos-goal-overview-total { font-size: 62px; }
+  .kos-goal-overview-list { margin-top: 18px; }
+  .kos-goal-overview-row { min-height: 57px; padding-block: 8px 6px; }
+  .kos-goal-overview-footer { bottom: 17px; }
 }
 
 @container kos-utility-card (max-height: 620px) {

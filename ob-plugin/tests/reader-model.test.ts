@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   clampReaderProgress,
   formatReaderAgentQuote,
+  formatReaderSummaryPrompt,
   normalizeReaderSelectionText,
+  readerContextText,
   readerDocumentKind,
   readerPathCandidates,
   readerSelectionFromText,
+  readerSearchMatches,
   readerSourceReference,
   unwrapReaderReference,
 } from '../src/reader/model';
@@ -34,6 +37,33 @@ describe('Reader selection', () => {
       '',
       '来源：[[11_原材料/论文/Attention]] · [[附件/attention.pdf]] · 第 3 页',
     ].join('\n'));
+  });
+});
+
+describe('Reader search and summary context', () => {
+  it('returns bounded case-insensitive search excerpts', () => {
+    const results = readerSearchMatches('Alpha beta alpha gamma', 'ALPHA', 'page:1', '第 1 页');
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({ location: 'page:1', positionLabel: '第 1 页' });
+    expect(readerSearchMatches('text', ' ', 'page:1', '第 1 页')).toEqual([]);
+  });
+
+  it('bounds model context and keeps annotation evidence in session summaries', () => {
+    expect(readerContextText('x'.repeat(13_000))).toMatch(/\[内容已截断\]$/);
+    const prompt = formatReaderSummaryPrompt({
+      sourcePath: '11_原材料/书籍/系统思考.md',
+      documentPath: '附件/系统思考.epub',
+      title: '系统思考',
+      kind: 'epub',
+    }, { location: 'epubcfi(/6/2)', positionLabel: '第 1 章', text: '当前章节正文' }, [{
+      id: 'kos-reader-1', sourcePath: '11_原材料/书籍/系统思考.md', documentPath: '附件/系统思考.epub',
+      extractPath: '20_处理区/摘录/系统思考_摘录.md', kind: 'epub', location: 'epubcfi(/6/2)', positionLabel: '第 1 章',
+      text: '系统塑造行为', note: '联系产品设计', color: 'yellow', anchor: { format: 'epub', cfiRange: 'epubcfi(/6/2)', quote: '系统塑造行为' },
+      createdAt: '2026-07-23T00:00:00.000Z', updatedAt: '2026-07-23T00:00:00.000Z',
+    }], 'session');
+    expect(prompt).toContain('/kos-summarize');
+    expect(prompt).toContain('系统塑造行为（批注：联系产品设计）');
+    expect(prompt).toContain('Source -> Extract -> Summary');
   });
 });
 

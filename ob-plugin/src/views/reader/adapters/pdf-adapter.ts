@@ -4,8 +4,10 @@ import type {
   ReaderAdapter,
   ReaderAdapterHandle,
   ReaderAdapterMount,
+  ReaderSearchResult,
   ReaderTocItem,
 } from '../../../reader/model';
+import { readerContextText, readerSearchMatches } from '../../../reader/model';
 import { selectionWithin } from './selection';
 
 interface PdfRenderTask {
@@ -51,12 +53,15 @@ interface PdfPageView {
   shell: HTMLDivElement;
   canvas: HTMLCanvasElement;
   textLayer: HTMLDivElement;
+  annotationLayer: HTMLDivElement;
   aspectRatio: number;
   renderTask: PdfRenderTask | null;
   renderPromise: Promise<void> | null;
   renderVersion: number;
   rendered: boolean;
 }
+
+interface PdfTextContent { items?: Array<{ str?: string }> }
 
 const RENDER_BEHIND = 2;
 const RENDER_AHEAD = 3;
@@ -99,13 +104,15 @@ export class PdfReaderAdapter implements ReaderAdapter {
       const canvas = element('canvas', 'kos-reader-pdf-canvas');
       canvas.hidden = true;
       const textLayer = element('div', 'kos-reader-pdf-text-layer');
-      shell.append(canvas, textLayer);
+      const annotationLayer = element('div', 'kos-reader-pdf-annotation-layer');
+      shell.append(canvas, textLayer, annotationLayer);
       stage.append(shell);
       pageViews.push({
         pageNumber,
         shell,
         canvas,
         textLayer,
+        annotationLayer,
         aspectRatio: defaultAspectRatio,
         renderTask: null,
         renderPromise: null,
@@ -121,6 +128,8 @@ export class PdfReaderAdapter implements ReaderAdapter {
     let observedWidth = 0;
     let scrollFrame: number | null = null;
     let resizeFrame: number | null = null;
+    let annotations = input.annotations ?? [];
+    const pageText = new Map<number, string>();
 
     const availableWidth = () => Math.max(120, input.container.clientWidth - 40);
     const viewportFor = (page: PdfPage) => {
@@ -147,9 +156,37 @@ export class PdfReaderAdapter implements ReaderAdapter {
       toc,
     });
 
+    const renderAnnotations = (view: PdfPageView) => {
+      view.annotationLayer.empty();
+      for (const annotation of annotations) {
+        if (annotation.anchor.format !== 'pdf' || annotation.anchor.page !== view.pageNumber) continue;
+        for (const rect of annotation.anchor.rects) {
+          const highlight = element('button', `kos-reader-pdf-highlight is-${annotation.color}`);
+          highlight.type = 'button';
+          highlight.dataset.annotationId = annotation.id;
+          highlight.title = annotation.note || annotation.text;
+          highlight.style.left = `${rect.x * 100}%`;
+          highlight.style.top = `${rect.y * 100}%`;
+          highlight.style.width = `${rect.width * 100}%`;
+          highlight.style.height = `${rect.height * 100}%`;
+          view.annotationLayer.append(highlight);
+        }
+      }
+    };
+
+    const textForPage = async (pageToRead: number, page?: PdfPage): Promise<string> => {
+      const cached = pageText.get(pageToRead);
+      if (cached !== undefined) return cached;
+      const content = await (page ?? await pdf.getPage(pageToRead)).getTextContent() as PdfTextContent;
+      const text = (content.items ?? []).map((item) => item.str ?? '').join(' ').replace(/\s+/g, ' ').trim();
+      pageText.set(pageToRead, text);
+      return text;
+    };
+
     const renderText = async (view: PdfPageView, page: PdfPage, viewport: PdfViewport) => {
       view.textLayer.empty();
-      const textContent = await page.getTextContent();
+      const textContent = await page.getTextContent() as PdfTextContent;
+      pageText.set(view.pageNumber, (textContent.items ?? []).map((item) => item.str ?? '').join(' ').replace(/\s+/g, ' ').trim());
       if (pdfjs.TextLayer) {
         const layer = new pdfjs.TextLayer({ textContentSource: textContent, container: view.textLayer, viewport });
         await layer.render();
@@ -173,6 +210,7 @@ export class PdfReaderAdapter implements ReaderAdapter {
       view.canvas.style.width = '';
       view.canvas.style.height = '';
       view.textLayer.empty();
+      view.annotationLayer.empty();
     };
 
     const renderView = (view: PdfPageView): Promise<void> => {
@@ -203,7 +241,10 @@ export class PdfReaderAdapter implements ReaderAdapter {
         });
         view.renderTask = renderTask;
         await Promise.all([renderTask.promise, renderText(view, page, viewport)]);
-        if (!closed && version === view.renderVersion) view.rendered = true;
+        if (!closed && version === view.renderVersion) {
+          view.rendered = true;
+          renderAnnotations(view);
+        }
       })().catch((error: unknown) => {
         if (!closed && version === view.renderVersion && !cancellationError(error)) throw error;
       }).finally(() => {
@@ -275,9 +316,25 @@ export class PdfReaderAdapter implements ReaderAdapter {
       const pageShell = origin?.closest<HTMLElement>('.kos-reader-pdf-page');
       const selectedPage = Number.parseInt(pageShell?.dataset.page ?? '', 10);
       const view = Number.isFinite(selectedPage) ? pageViews[selectedPage - 1] : undefined;
-      input.onSelection(view
-        ? selectionWithin(view.textLayer, `page:${selectedPage}`, `第 ${selectedPage} 页`)
-        : null);
+      if (!view) {
+        input.onSelection(null);
+        return;
+      }
+      const value = selectionWithin(view.textLayer, `page:${selectedPage}`, `第 ${selectedPage} 页`);
+      if (!value) {
+        input.onSelection(null);
+        return;
+      }
+      const shellRect = view.shell.getBoundingClientRect();
+      const rects = [...selection.getRangeAt(0).getClientRects()]
+        .filter((rect) => rect.width > 0 && rect.height > 0)
+        .map((rect) => ({
+          x: Math.max(0, (rect.left - shellRect.left) / shellRect.width),
+          y: Math.max(0, (rect.top - shellRect.top) / shellRect.height),
+          width: Math.min(1, rect.width / shellRect.width),
+          height: Math.min(1, rect.height / shellRect.height),
+        }));
+      input.onSelection({ ...value, anchor: { format: 'pdf', page: selectedPage, rects, quote: value.text } });
     };
     input.container.ownerDocument.addEventListener('selectionchange', onSelectionChange);
 
@@ -343,7 +400,31 @@ export class PdfReaderAdapter implements ReaderAdapter {
     return {
       previous: () => scrollToPage(pageNumber - 1),
       next: () => scrollToPage(pageNumber + 1),
-      goTo: (target) => scrollToPage(Number.parseInt(target, 10) || pageNumber),
+      goTo: (target) => {
+        const annotation = target.startsWith('annotation:') ? annotations.find((item) => item.id === target.slice(11)) : undefined;
+        const value = annotation?.anchor.format === 'pdf'
+          ? annotation.anchor.page
+          : Number.parseInt(target.replace(/^page:/, ''), 10);
+        return scrollToPage(value || pageNumber);
+      },
+      search: async (query) => {
+        const results: ReaderSearchResult[] = [];
+        for (let current = 1; current <= pdf.numPages && results.length < 100; current += 1) {
+          results.push(...readerSearchMatches(
+            await textForPage(current), query, `page:${current}`, `第 ${current} 页`, `pdf:${current}`, 100 - results.length,
+          ));
+        }
+        return results;
+      },
+      setAnnotations: (next) => {
+        annotations = next;
+        for (const view of pageViews) if (view.rendered) renderAnnotations(view);
+      },
+      getContext: async () => ({
+        location: `page:${pageNumber}`,
+        positionLabel: `第 ${pageNumber} 页`,
+        text: readerContextText(await textForPage(pageNumber)),
+      }),
       close: async () => {
         closed = true;
         resizeObserver.disconnect();

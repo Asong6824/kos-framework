@@ -1,11 +1,13 @@
 import { objectName } from '../../core/dashboard';
 import type { TodayScheduleEntry } from '../../core/dashboard';
+import { clockSnapshot } from './dot-clock';
 
 const SLOT_COUNT = 48;
 const VISIBLE_TASKS = 4;
 
 export interface DayScheduleSnapshot {
   time: string;
+  dateLabel: string;
   currentSlot: number;
   scheduledSlots: Set<number>;
   next: { title: string; time: string } | null;
@@ -25,6 +27,7 @@ export function timeToMinutes(value: string): number {
 }
 
 export function dayScheduleSnapshot(entries: TodayScheduleEntry[], now: Date): DayScheduleSnapshot {
+  const calendar = clockSnapshot(now);
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const occurrences = entries
     .flatMap((entry) => entry.times.map((time) => ({ title: objectName(entry.task), time, minutes: timeToMinutes(time) })))
@@ -32,6 +35,7 @@ export function dayScheduleSnapshot(entries: TodayScheduleEntry[], now: Date): D
   const next = occurrences.find((occurrence) => occurrence.minutes >= currentMinutes) ?? null;
   return {
     time: `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
+    dateLabel: calendar.dateLabel,
     currentSlot: Math.min(SLOT_COUNT - 1, Math.floor(currentMinutes / 30)),
     scheduledSlots: new Set(occurrences.map((occurrence) => Math.min(SLOT_COUNT - 1, Math.round(occurrence.minutes / 30)))),
     next: next ? { title: next.title, time: next.time } : null,
@@ -54,10 +58,13 @@ export function renderDaySchedule(
   title.createSpan({ cls: 'kos-day-schedule-separator', text: '·' });
   title.createSpan({ text: '任务时刻' });
   head.createSpan({ cls: 'kos-day-schedule-badge', text: 'LIVE' });
+  const next = head.createSpan({ cls: 'kos-day-schedule-next' });
 
   const hero = root.createDiv({ cls: 'kos-day-schedule-hero' });
   const time = hero.createSpan({ cls: 'kos-day-schedule-time' });
-  const next = hero.createSpan({ cls: 'kos-day-schedule-next' });
+  const seconds = hero.createSpan({ cls: 'kos-day-schedule-seconds' });
+
+  const date = root.createDiv({ cls: 'kos-day-schedule-date' });
 
   const scale = root.createDiv({ cls: 'kos-day-schedule-scale', attr: { 'aria-hidden': 'true' } });
   scale.createSpan({ text: '00:00' });
@@ -84,7 +91,9 @@ export function renderDaySchedule(
 
   const update = (now = new Date()): void => {
     const snapshot = dayScheduleSnapshot(entries, now);
-    time.textContent = snapshot.time;
+    time.textContent = snapshot.time.slice(0, 5);
+    seconds.textContent = snapshot.time.slice(-2);
+    date.textContent = snapshot.dateLabel;
     next.textContent = snapshot.next ? `UNTIL · ${snapshot.next.title} · ${snapshot.next.time}` : 'UNTIL · DAY COMPLETE';
     slots.forEach((slot, index) => {
       slot.classList.toggle('is-past', index < snapshot.currentSlot);
@@ -92,7 +101,7 @@ export function renderDaySchedule(
       slot.classList.toggle('is-scheduled', snapshot.scheduledSlots.has(index));
     });
     root.dataset.updatedAt = String(now.getTime());
-    root.setAttribute('aria-label', `${snapshot.time}，${snapshot.next ? `下一任务 ${snapshot.next.title} ${snapshot.next.time}` : '今日已无后续定时任务'}`);
+    root.setAttribute('aria-label', `${snapshot.dateLabel} ${snapshot.time}，${snapshot.next ? `下一任务 ${snapshot.next.title} ${snapshot.next.time}` : '今日已无后续定时任务'}`);
   };
 
   update(initialNow);

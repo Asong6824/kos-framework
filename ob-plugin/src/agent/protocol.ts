@@ -9,6 +9,8 @@ export type KosRpcCommand =
   | { type: 'validate'; paths?: string[] }
   | ({ type: 'create_object' } & KosCreateObjectInput)
   | ({ type: 'append_reader_extract' } & KosAppendReaderExtractInput)
+  | ({ type: 'list_reader_annotations' } & KosListReaderAnnotationsInput)
+  | ({ type: 'delete_reader_annotation' } & KosDeleteReaderAnnotationInput)
   | ({ type: 'transition_status' } & KosTransitionStatusInput)
   | ({ type: 'set_goal_weights' } & KosSetGoalWeightsInput)
   | ({ type: 'update_goal' } & KosUpdateGoalInput)
@@ -100,6 +102,9 @@ export interface KosAppendReaderExtractInput {
   location: string;
   positionLabel: string;
   text: string;
+  note?: string;
+  color?: KosReaderAnnotationColor;
+  anchor?: KosReaderAnchor;
   directories: KosObjectDirectories;
 }
 
@@ -107,7 +112,34 @@ export interface KosAppendReaderExtractResult extends KosOperationResult {
   extractId: string;
   created: boolean;
   duplicate: boolean;
+  annotation: KosReaderAnnotation;
 }
+
+export type KosReaderAnnotationColor = 'yellow' | 'red' | 'blue' | 'green';
+export interface KosReaderRect { x: number; y: number; width: number; height: number }
+export type KosReaderAnchor =
+  | { format: 'pdf'; page: number; rects: KosReaderRect[]; quote: string }
+  | { format: 'epub'; cfiRange: string; quote: string }
+  | { format: 'markdown'; quote: string; occurrence?: number };
+export interface KosReaderAnnotation {
+  id: string;
+  sourcePath: string;
+  documentPath: string;
+  extractPath: string;
+  kind: 'markdown' | 'pdf' | 'epub';
+  location: string;
+  positionLabel: string;
+  text: string;
+  note: string;
+  color: KosReaderAnnotationColor;
+  anchor: KosReaderAnchor;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface KosListReaderAnnotationsInput { sourcePath: string }
+export interface KosListReaderAnnotationsResult { extractPath: string | null; annotations: KosReaderAnnotation[] }
+export interface KosDeleteReaderAnnotationInput { sourcePath: string; extractId: string }
+export interface KosDeleteReaderAnnotationResult extends KosOperationResult { extractId: string; deleted: true }
 
 export interface KosTransitionStatusInput {
   path: string;

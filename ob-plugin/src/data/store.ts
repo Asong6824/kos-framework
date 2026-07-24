@@ -1,7 +1,7 @@
 /**
  * store.ts — 插件私有 data.json 的读写与迁移
  *
- * schema v7 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
+ * schema v9 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
  * 不触碰 vault 内任何文件（写入边界见 3.4 节）。
  */
 
@@ -13,15 +13,15 @@ import { addDays, buildSnapshot, missingDates } from '../core/snapshot';
 import type { DailySnapshot } from '../core/snapshot';
 import { DEFAULT_SETTINGS } from '../settings';
 import type { KosSettings } from '../settings';
-import { cloneBentoLayout, DEFAULT_BENTO_LAYOUT, migrateLegacyDashboardLayout, normalizeBentoLayout } from '../core/bento-layout';
+import { cloneBentoLayout, DEFAULT_BENTO_LAYOUT, migrateClockScheduleLayout, migrateGoalCardLayout, migrateLegacyDashboardLayout, normalizeBentoLayout } from '../core/bento-layout';
 import type { BentoLayoutItem } from '../core/bento-layout';
 import { DEFAULT_OBJECT_DIRS, migrateLegacyObjectDirs, normalizeObjectDirs } from '../core/model';
 import type { ReaderProgress } from '../reader/model';
 import { normalizeReaderProgressRecord } from '../reader/model';
 
-export const DATA_VERSION = 7;
+export const DATA_VERSION = 9;
 
-/** data.json schema v7（02 文档 3.2 节） */
+/** data.json schema v9（02 文档 3.2 节） */
 export interface PluginData {
   version: number;
   /** 安装日期 YYYY-MM-DD */
@@ -111,6 +111,11 @@ export class KosDataStore {
     }
     const rawVersion = typeof raw.version === 'number' ? raw.version : 0;
     const today = localToday();
+    let dashboardLayout: BentoLayoutItem[];
+    if (rawVersion >= 9) dashboardLayout = normalizeBentoLayout(raw.dashboardLayout);
+    else if (rawVersion >= 8) dashboardLayout = migrateGoalCardLayout(raw.dashboardLayout);
+    else if (rawVersion >= 6) dashboardLayout = migrateGoalCardLayout(migrateClockScheduleLayout(raw.dashboardLayout));
+    else dashboardLayout = migrateLegacyDashboardLayout(raw.dashboardLayout, raw.dashboardWidgets);
     this.data = {
       version: DATA_VERSION,
       installDate: typeof raw.installDate === 'string' ? raw.installDate : today,
@@ -120,13 +125,11 @@ export class KosDataStore {
       inboxZeroCount: asNonNegInt(raw.inboxZeroCount),
       reviewClearCount: asNonNegInt(raw.reviewClearCount),
       readerProgress: normalizeReaderProgressRecord(raw.readerProgress),
-      dashboardLayout: rawVersion >= 6
-        ? normalizeBentoLayout(raw.dashboardLayout)
-        : migrateLegacyDashboardLayout(raw.dashboardLayout, raw.dashboardWidgets),
+      dashboardLayout,
     };
     const s = isRecord(raw.settings) ? raw.settings : {};
     // objectDirs 逐键归一：旧 data.json 没有该字段或个别键缺失/非法时回落标准默认
-    const objectDirs = rawVersion < DATA_VERSION ? migrateLegacyObjectDirs(s.objectDirs) : s.objectDirs;
+    const objectDirs = rawVersion < 7 ? migrateLegacyObjectDirs(s.objectDirs) : s.objectDirs;
     this.settings = { ...DEFAULT_SETTINGS, ...s, objectDirs: normalizeObjectDirs(objectDirs) } as KosSettings;
   }
 

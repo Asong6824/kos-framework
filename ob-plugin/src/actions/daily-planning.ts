@@ -1,13 +1,13 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
-import type { KosRecommendationFeedbackInput, KosStartDayInput, KosStartDayResult } from '../agent/protocol';
+import type { KosRecommendationFeedbackInput, KosStartDayInput } from '../agent/protocol';
 
-export type StartDayOperation = (input: KosStartDayInput) => Promise<KosStartDayResult>;
+export type StartDayOperation = (input: KosStartDayInput) => Promise<void>;
 
 class StartDayModal extends Modal {
   private availableMinutes = 120;
   private energy: NonNullable<KosStartDayInput['energy']> = 'medium';
   private hardConstraints = '';
-  constructor(app: App, private readonly operation: StartDayOperation, private readonly done: (result: KosStartDayResult) => void) { super(app); }
+  constructor(app: App, private readonly operation: StartDayOperation) { super(app); }
   onOpen(): void {
     this.contentEl.addClass('kos-modal');
     this.contentEl.createEl('h3', { text: '开始一天' });
@@ -20,9 +20,14 @@ class StartDayModal extends Modal {
     const submit = buttons.createEl('button', { cls: 'mod-cta', text: '生成建议' });
     submit.addEventListener('click', () => {
       submit.disabled = true;
+      submit.setText('生成中…');
       void this.operation({ availableMinutes: this.availableMinutes, energy: this.energy, hardConstraints: this.hardConstraints.split('\n').map((item) => item.trim()).filter(Boolean) })
-        .then((result) => { this.done(result); this.close(); })
-        .catch((error) => { submit.disabled = false; new Notice(error instanceof Error ? error.message : String(error)); });
+        .then(() => this.close())
+        .catch((error) => {
+          submit.disabled = false;
+          submit.setText('生成建议');
+          new Notice(error instanceof Error ? error.message : String(error));
+        });
     });
     buttons.createEl('button', { text: '取消' }).addEventListener('click', () => this.close());
   }
@@ -48,8 +53,8 @@ class FeedbackModal extends Modal {
   }
 }
 
-export function openStartDayModal(app: App, operation: StartDayOperation, done: (result: KosStartDayResult) => void): void {
-  new StartDayModal(app, operation, done).open();
+export function openStartDayModal(app: App, operation: StartDayOperation): void {
+  new StartDayModal(app, operation).open();
 }
 
 export function openRecommendationFeedbackModal(app: App, input: Omit<KosRecommendationFeedbackInput, 'reason' | 'deferUntil' | 'estimateMinutes'>, estimate: number, operation: (input: KosRecommendationFeedbackInput) => Promise<boolean>): void {

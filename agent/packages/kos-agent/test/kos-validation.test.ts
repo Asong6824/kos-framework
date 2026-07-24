@@ -185,7 +185,7 @@ tags: [goal]`);
 		const skills = validateSkills(root);
 		const evals = validateSkillEvals(root);
 		expect(skills).toMatchObject({ passed: true, errorCount: 0, warningCount: 0 });
-		expect(skills.validatedPaths).toHaveLength(21);
+		expect(skills.validatedPaths).toHaveLength(24);
 		expect(evals).toMatchObject({ passed: true, errorCount: 0, warningCount: 0 });
 	});
 

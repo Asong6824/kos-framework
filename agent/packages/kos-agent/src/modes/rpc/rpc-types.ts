@@ -18,6 +18,10 @@ import type { UpdateProjectInput } from "../../kos/operations/update-project.ts"
 import type {
 	AppendReaderExtractInput,
 	AppendReaderExtractResult,
+	DeleteReaderAnnotationInput,
+	DeleteReaderAnnotationResult,
+	ListReaderAnnotationsInput,
+	ListReaderAnnotationsResult,
 	CreateObjectInput,
 	OperationResult,
 	SetGoalWeightsInput,
@@ -60,6 +64,8 @@ export type RpcCommand =
 	| { id?: string; type: "validate"; paths?: string[] }
 	| ({ id?: string; type: "create_object" } & CreateObjectInput)
 	| ({ id?: string; type: "append_reader_extract" } & AppendReaderExtractInput)
+	| ({ id?: string; type: "list_reader_annotations" } & ListReaderAnnotationsInput)
+	| ({ id?: string; type: "delete_reader_annotation" } & DeleteReaderAnnotationInput)
 	| ({ id?: string; type: "transition_status" } & TransitionStatusInput)
 	| ({ id?: string; type: "set_goal_weights" } & SetGoalWeightsInput)
 	| ({ id?: string; type: "update_goal" } & UpdateGoalInput)
@@ -182,6 +188,8 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "validate"; success: true; data: ValidationReport }
 	| { id?: string; type: "response"; command: "create_object"; success: true; data: OperationResult }
 	| { id?: string; type: "response"; command: "append_reader_extract"; success: true; data: AppendReaderExtractResult }
+	| { id?: string; type: "response"; command: "list_reader_annotations"; success: true; data: ListReaderAnnotationsResult }
+	| { id?: string; type: "response"; command: "delete_reader_annotation"; success: true; data: DeleteReaderAnnotationResult }
 	| { id?: string; type: "response"; command: "transition_status"; success: true; data: TransitionStatusResult }
 	| { id?: string; type: "response"; command: "set_goal_weights"; success: true; data: SetGoalWeightsResult }
 	| { id?: string; type: "response"; command: "update_goal"; success: true; data: OperationResult }

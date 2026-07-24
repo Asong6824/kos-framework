@@ -3,12 +3,12 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { createObject } from "../src/kos/operations/create-object.ts";
-import { appendReaderExtract } from "../src/kos/operations/append-reader-extract.ts";
+import { appendReaderExtract, deleteReaderAnnotation, listReaderAnnotations } from "../src/kos/operations/append-reader-extract.ts";
 import { transitionStatus } from "../src/kos/operations/transition-status.ts";
 import { setGoalWeights } from "../src/kos/operations/set-goal-weights.ts";
 import { reviewGoalHealth, updateGoal } from "../src/kos/operations/goal-management.ts";
 import { archiveTask, completeTask, deferTask, listTaskPool, returnTaskToPool, updateTask } from "../src/kos/operations/task-pool.ts";
-import { buildPlanningContext, endDay, migrateTaskPool, recordRecommendationFeedback, reviewMonth, reviewWeek, startDay } from "../src/kos/operations/progress-workflows.ts";
+import { buildPlanningContext, endDay, migrateTaskPool, recordRecommendationFeedback, reviewMonth, reviewWeek, saveDailyPlan, startDay } from "../src/kos/operations/progress-workflows.ts";
 import { processSource } from "../src/kos/operations/process-source.ts";
 import { updateProject } from "../src/kos/operations/update-project.ts";
 import { generateDailyBrief, generateDailyDashboard, generateDiary } from "../src/kos/operations/daily-workflows.ts";
@@ -297,9 +297,32 @@ describe("kos deterministic operations", () => {
 		expect(context.fingerprint).toHaveLength(24);
 		expect(context.taskPool.deferred.map((item) => item.path)).toContain(deferred.path);
 		const plan = startDay(root, { date: "2027-01-05", availableMinutes: 120, energy: "high" });
+		const generatingPlan = readFileSync(resolve(root, plan.path), "utf8");
+		expect(generatingPlan).toContain("recommendation_status: generating");
+		expect(generatingPlan).toContain("Agent 正在结合目标、项目、任务、约束和个人画像生成建议");
 		expect(plan.recommendations.map((item) => item.taskPath)).toContain(task.path);
 		expect(plan.recommendations.map((item) => item.taskPath)).not.toContain(deferred.path);
 		const recommendation = plan.recommendations.find((item) => item.taskPath === task.path)!;
+		const llmRecommendation = {
+			...recommendation,
+			reason: "LLM 比较目标缺口、截止时间和今日精力后选择",
+			tradeoff: "先放弃低支持度的维护事项",
+		};
+		saveDailyPlan(root, {
+			date: "2027-01-05",
+			runId: plan.runId,
+			contextFingerprint: plan.context.fingerprint,
+			recommendations: [llmRecommendation],
+		});
+		const savedPlan = readFileSync(resolve(root, plan.path), "utf8");
+		expect(savedPlan).toContain("LLM 比较目标缺口、截止时间和今日精力后选择");
+		expect(savedPlan).toContain("先放弃低支持度的维护事项");
+		expect(() => saveDailyPlan(root, {
+			date: "2027-01-05",
+			runId: "stale-run",
+			contextFingerprint: plan.context.fingerprint,
+			recommendations: [llmRecommendation],
+		})).toThrow(/stale/);
 		recordRecommendationFeedback(root, { date: "2027-01-05", runId: plan.runId, recommendationId: recommendation.id, action: "accepted" });
 		expect(listTaskPool(root, "2027-01-05").scheduled.map((item) => item.path)).toContain(task.path);
 		expect(readFileSync(join(root, plan.path), "utf8")).toContain("status: accepted");
@@ -462,6 +485,9 @@ describe("kos deterministic operations", () => {
 			location: "page:3",
 			positionLabel: "第 3 页",
 			text: "First selected passage",
+			note: "Connect this claim to the project decision.",
+			color: "blue" as const,
+			anchor: { format: "pdf" as const, page: 3, rects: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.04 }], quote: "First selected passage" },
 			directories,
 		};
 		const first = appendReaderExtract(root, firstInput);
@@ -471,6 +497,8 @@ describe("kos deterministic operations", () => {
 		expect(firstContent).toContain("> First selected passage");
 		expect(firstContent).toContain("- 位置：第 3 页");
 		expect(firstContent).toContain("- 原文件：[[附件/paper.pdf]]");
+		expect(firstContent).toContain("- 批注：Connect this claim to the project decision.");
+		expect(firstContent).toContain("<!-- kos-reader:");
 		expect(firstContent).toContain(`^${first.extractId}`);
 		const updatedSource = readFileSync(join(root, source.path), "utf8");
 		expect(updatedSource).toContain("status: extracted");
@@ -478,18 +506,32 @@ describe("kos deterministic operations", () => {
 
 		const duplicate = appendReaderExtract(root, firstInput);
 		expect(duplicate).toMatchObject({ created: false, duplicate: true, extractId: first.extractId });
-		expect(readFileSync(join(root, first.path), "utf8").match(/First selected passage/g)).toHaveLength(1);
+		expect(readFileSync(join(root, first.path), "utf8").match(new RegExp(`kos-reader-extract:start ${first.extractId}`, "g"))).toHaveLength(1);
 
 		const second = appendReaderExtract(root, {
 			...firstInput,
 			location: "page:4",
 			positionLabel: "第 4 页",
 			text: "Second selected passage",
+			note: "",
+			anchor: { format: "pdf", page: 4, rects: [], quote: "Second selected passage" },
 		});
 		expect(second).toMatchObject({ created: false, duplicate: false });
 		const finalContent = readFileSync(join(root, first.path), "utf8");
 		expect(finalContent).toContain("> First selected passage");
 		expect(finalContent).toContain("> Second selected passage");
+
+		const listed = listReaderAnnotations(root, { sourcePath: source.path });
+		expect(listed.extractPath).toBe(first.path);
+		expect(listed.annotations).toHaveLength(2);
+		expect(listed.annotations[0]).toMatchObject({ id: first.extractId, color: "blue", note: "Connect this claim to the project decision.", anchor: { format: "pdf", page: 3 } });
+
+		const deleted = deleteReaderAnnotation(root, { sourcePath: source.path, extractId: first.extractId });
+		expect(deleted).toMatchObject({ deleted: true, extractId: first.extractId, validation: { passed: true } });
+		const afterDelete = readFileSync(join(root, first.path), "utf8");
+		expect(afterDelete).not.toContain("First selected passage");
+		expect(afterDelete).toContain("Second selected passage");
+		expect(() => deleteReaderAnnotation(root, { sourcePath: source.path, extractId: first.extractId })).toThrow(/Unknown/);
 	});
 
 	it("marks AI extracts as mixed and rejects invalid Reader selections", () => {

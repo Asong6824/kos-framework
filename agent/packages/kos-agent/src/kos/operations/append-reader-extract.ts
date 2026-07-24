@@ -5,10 +5,22 @@ import { parseFrontmatterFile } from "../validation/frontmatter.ts";
 import { validateChangedFiles } from "../validation/validate.ts";
 import { createObject, sanitizeFileName } from "./create-object.ts";
 import { atomicWrite, resolveInsideRoot } from "./files.ts";
-import type { AppendReaderExtractInput, AppendReaderExtractResult } from "./types.ts";
+import type {
+	AppendReaderExtractInput,
+	AppendReaderExtractResult,
+	DeleteReaderAnnotationInput,
+	DeleteReaderAnnotationResult,
+	ListReaderAnnotationsInput,
+	ListReaderAnnotationsResult,
+	ReaderAnchor,
+	ReaderAnnotation,
+	ReaderAnnotationColor,
+} from "./types.ts";
 
 const FRONTMATTER_RE = /^---\s*\n([\s\S]*?)\n---\s*(?:\n|$)/;
 const MAX_SELECTION_LENGTH = 20_000;
+const MAX_NOTE_LENGTH = 2_000;
+const ANNOTATION_COLORS = new Set<ReaderAnnotationColor>(["yellow", "red", "blue", "green"]);
 
 function normalizeSelection(text: string): string {
 	return text
@@ -50,17 +62,89 @@ function quote(text: string): string {
 	return text.split("\n").map((line) => `> ${line}`).join("\n");
 }
 
-function extractBlock(input: AppendReaderExtractInput, id: string, text: string): string {
-	const position = input.positionLabel.trim() || input.location.trim();
+function normalizeNote(note: string | undefined): string {
+	return String(note ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_NOTE_LENGTH);
+}
+
+function annotationColor(color: unknown): ReaderAnnotationColor {
+	return ANNOTATION_COLORS.has(color as ReaderAnnotationColor) ? color as ReaderAnnotationColor : "yellow";
+}
+
+function defaultAnchor(input: AppendReaderExtractInput, text: string): ReaderAnchor {
+	if (input.kind === "pdf") {
+		return { format: "pdf", page: Number.parseInt(input.location.replace(/^page:/, ""), 10) || 1, rects: [], quote: text };
+	}
+	if (input.kind === "epub") return { format: "epub", cfiRange: input.location, quote: text };
+	return { format: "markdown", quote: text };
+}
+
+function normalizeAnchor(input: AppendReaderExtractInput, text: string): ReaderAnchor {
+	if (input.kind === "pdf" && input.anchor?.format === "pdf") {
+		const page = Number.parseInt(input.location.replace(/^page:/, ""), 10) || input.anchor.page || 1;
+		const rects = input.anchor.rects.filter((rect) => [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)).map((rect) => ({
+			x: Math.max(0, Math.min(1, rect.x)),
+			y: Math.max(0, Math.min(1, rect.y)),
+			width: Math.max(0, Math.min(1, rect.width)),
+			height: Math.max(0, Math.min(1, rect.height)),
+		}));
+		return { format: "pdf", page, rects, quote: text };
+	}
+	if (input.kind === "epub" && input.anchor?.format === "epub") return { format: "epub", cfiRange: input.location, quote: text };
+	if (input.kind === "markdown" && input.anchor?.format === "markdown") return { ...input.anchor, quote: text };
+	return defaultAnchor(input, text);
+}
+
+function commentJson(value: unknown): string {
+	return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/--/g, "\\u002d\\u002d");
+}
+
+function extractBlock(annotation: ReaderAnnotation): string {
+	const note = annotation.note ? [`- 批注：${annotation.note}`] : [];
 	return [
-		`<!-- kos-reader-extract:start ${id} -->`,
-		quote(text),
+		`<!-- kos-reader-extract:start ${annotation.id} -->`,
+		quote(annotation.text),
 		"",
-		`- 位置：${position}`,
-		`- 原文件：${documentLink(input.documentPath)}`,
-		`^${id}`,
-		`<!-- kos-reader-extract:end ${id} -->`,
+		`- 位置：${annotation.positionLabel || annotation.location}`,
+		`- 原文件：${documentLink(annotation.documentPath)}`,
+		...note,
+		`^${annotation.id}`,
+		`<!-- kos-reader: ${commentJson({ version: 1, ...annotation })} -->`,
+		`<!-- kos-reader-extract:end ${annotation.id} -->`,
 	].join("\n");
+}
+
+function parseAnnotations(content: string, extractPath: string): ReaderAnnotation[] {
+	const annotations: ReaderAnnotation[] = [];
+	const pattern = /<!-- kos-reader-extract:start ([a-zA-Z0-9_-]+) -->[\s\S]*?<!-- kos-reader:\s*(\{[^\n]*\})\s*-->[\s\S]*?<!-- kos-reader-extract:end \1 -->/g;
+	for (const match of content.matchAll(pattern)) {
+		try {
+			const value = JSON.parse(match[2]) as Partial<ReaderAnnotation> & { version?: number };
+			if (value.version !== 1 || value.id !== match[1] || !value.anchor || !value.text) continue;
+			annotations.push({
+				id: value.id,
+				sourcePath: String(value.sourcePath ?? ""),
+				documentPath: String(value.documentPath ?? ""),
+				extractPath,
+				kind: value.kind === "pdf" || value.kind === "epub" ? value.kind : "markdown",
+				location: String(value.location ?? ""),
+				positionLabel: String(value.positionLabel ?? ""),
+				text: String(value.text),
+				note: String(value.note ?? ""),
+				color: annotationColor(value.color),
+				anchor: value.anchor,
+				createdAt: String(value.createdAt ?? ""),
+				updatedAt: String(value.updatedAt ?? value.createdAt ?? ""),
+			});
+		} catch {
+			// A damaged metadata comment is ignored; the human-readable quote remains intact.
+		}
+	}
+	return annotations;
+}
+
+function exactBlockPattern(id: string): RegExp {
+	const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return new RegExp(`(?:\\n{0,2})<!-- kos-reader-extract:start ${escaped} -->[\\s\\S]*?<!-- kos-reader-extract:end ${escaped} -->(?:\\n{0,2})`);
 }
 
 function appendToExtract(content: string, block: string): string {
@@ -145,17 +229,36 @@ export function appendReaderExtract(root: string, input: AppendReaderExtractInpu
 	const extractOriginal = readFileSync(extract.absolute, "utf8");
 	const marker = `<!-- kos-reader-extract:start ${id} -->`;
 	if (extractOriginal.includes(marker)) {
+		const annotation = parseAnnotations(extractOriginal, extract.relative).find((item) => item.id === id);
+		if (!annotation) throw new Error(`Reader annotation metadata is missing or damaged: ${id}`);
 		return {
 			path: extract.relative,
 			extractId: id,
 			created: false,
 			duplicate: true,
+			annotation,
 			validation: validateChangedFiles(root, [source.absolute, extract.absolute]),
 		};
 	}
+	const now = new Date().toISOString();
+	const annotation: ReaderAnnotation = {
+		id,
+		sourcePath: source.relative,
+		documentPath: document.relative,
+		extractPath: extract.relative,
+		kind: input.kind,
+		location: input.location.trim(),
+		positionLabel: input.positionLabel.trim(),
+		text,
+		note: normalizeNote(input.note),
+		color: annotationColor(input.color),
+		anchor: normalizeAnchor(input, text),
+		createdAt: now,
+		updatedAt: now,
+	};
 
 	try {
-		let extractContent = appendToExtract(extractOriginal, extractBlock(input, id, text));
+		let extractContent = appendToExtract(extractOriginal, extractBlock(annotation));
 		extractContent = updateFrontmatter(extractContent, (frontmatter) => {
 			const extractedBy = String(frontmatter.get("extracted_by") ?? "human");
 			frontmatter.set("extracted_by", extractedBy === "human" ? "human" : "mixed");
@@ -170,11 +273,41 @@ export function appendReaderExtract(root: string, input: AppendReaderExtractInpu
 		atomicWrite(source.absolute, sourceContent);
 		const validation = validateChangedFiles(root, [source.absolute, extract.absolute]);
 		if (!validation.passed) throw new Error(`Reader Extract validation failed: ${JSON.stringify(validation.findings)}`);
-		return { path: extract.relative, extractId: id, created, duplicate: false, validation };
+		return { path: extract.relative, extractId: id, created, duplicate: false, annotation, validation };
 	} catch (error) {
 		atomicWrite(source.absolute, sourceOriginal);
 		if (created) unlinkSync(extract.absolute);
 		else atomicWrite(extract.absolute, extractOriginal);
+		throw error;
+	}
+}
+
+export function listReaderAnnotations(root: string, input: ListReaderAnnotationsInput): ListReaderAnnotationsResult {
+	const source = resolveInsideRoot(root, input.sourcePath);
+	if (!existsSync(source.absolute)) throw new Error(`Source does not exist: ${source.relative}`);
+	const parsed = parseFrontmatterFile(source.absolute);
+	if (parsed.frontmatter?.type !== "source") throw new Error(`Target is not a Source: ${source.relative}`);
+	const extractPath = associatedExtract(root, source.relative, parsed.frontmatter.extract_file);
+	if (!extractPath) return { extractPath: null, annotations: [] };
+	const extract = resolveInsideRoot(root, extractPath);
+	return { extractPath: extract.relative, annotations: parseAnnotations(readFileSync(extract.absolute, "utf8"), extract.relative) };
+}
+
+export function deleteReaderAnnotation(root: string, input: DeleteReaderAnnotationInput): DeleteReaderAnnotationResult {
+	const listed = listReaderAnnotations(root, { sourcePath: input.sourcePath });
+	if (!listed.extractPath) throw new Error(`Source has no Reader Extract: ${input.sourcePath}`);
+	if (!listed.annotations.some((item) => item.id === input.extractId)) throw new Error(`Unknown Reader annotation: ${input.extractId}`);
+	const extract = resolveInsideRoot(root, listed.extractPath);
+	const original = readFileSync(extract.absolute, "utf8");
+	const updated = original.replace(exactBlockPattern(input.extractId), "\n\n");
+	if (updated === original) throw new Error(`Reader annotation block is missing: ${input.extractId}`);
+	try {
+		atomicWrite(extract.absolute, updated.replace(/\n{4,}/g, "\n\n\n"));
+		const validation = validateChangedFiles(root, [extract.absolute]);
+		if (!validation.passed) throw new Error(`Reader annotation deletion failed validation: ${JSON.stringify(validation.findings)}`);
+		return { path: extract.relative, extractId: input.extractId, deleted: true, validation };
+	} catch (error) {
+		atomicWrite(extract.absolute, original);
 		throw error;
 	}
 }

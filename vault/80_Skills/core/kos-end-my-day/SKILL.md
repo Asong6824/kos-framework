@@ -45,7 +45,9 @@ kos-harness end-day --date YYYY-MM-DD
 
 ## Procedure
 
-先确认所有声称完成的 Task 已写入非空 `result`；关联多个 Project 时逐个判断 strong/supporting/incidental。随后调用 `end-day`，把结构化事实写入 `40_日记/YYYY/MM/YYYY-MM-DD.md`。对未完成原因、主观感受和明日意图，保留 `<!-- 人手动添加 -->` 区块，不替用户编写成既成事实。
+先由 LLM 阅读当天计划、Task 结果、推荐反馈、Project 变化和最近日记，区分事实、推断和需要用户补充的内容。确认所有声称完成的 Task 已写入非空 `result`；关联多个 Project 时逐个判断 strong/supporting/incidental。信息不足时使用 `ask_question`，不要只运行模板生成。
+
+随后调用 `end-day`，把结构化事实写入 `40_日记/YYYY/MM/YYYY-MM-DD.md`。LLM 对未完成原因、判断变化、Reflection 候选和明日继续提出有证据的建议，但主观感受和用户结论必须等待确认，并保留 `<!-- 人手动添加 -->` 区块，不替用户编写成既成事实。
 
 日报完成后读取 `list-task-pool` 的 `archiveCandidates`。只有用户确认时才调用 `archive-task`，归档到 `32_任务/归档/<完成年份>/`；不能因为 Task 已完成就自动移动。
 

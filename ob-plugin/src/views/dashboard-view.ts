@@ -7,6 +7,7 @@ import {
   attentionSummary,
   currentActionTasks,
   goalAllocationSummary,
+  goalProgress,
   inputProgress,
   knowledgeRows,
   objectName,
@@ -26,12 +27,12 @@ import {
 } from '../core/dashboard';
 import type { DashboardModule, PageSlice, ProjectRow } from '../core/dashboard';
 import { activityHeatmap, knowledgeAssetTotal, maturityScore, pipelineFunnel } from '../core/metrics';
-import type { GoalObject, KosObject, SourceObject, TaskObject } from '../core/model';
+import type { KosObject, SourceObject, TaskObject } from '../core/model';
 import { legalTransitions } from '../core/transitions';
-import type { KosDailyRecommendation, KosRecommendationFeedbackInput, KosStartDayResult, KosValidationReport } from '../agent/protocol';
+import type { KosDailyRecommendation, KosRecommendationFeedbackInput, KosValidationReport } from '../agent/protocol';
 import { openRecommendationFeedbackModal, openStartDayModal } from '../actions/daily-planning';
 import { KosView, TYPE_LABELS, objectTitle } from './view-context';
-import type { DashboardAgentSnapshot, ViewContext } from './view-context';
+import type { DashboardAgentSnapshot, DashboardDailyPlan, ViewContext } from './view-context';
 import { renderDotClock } from './components/dot-clock';
 import type { DotClockHandle } from './components/dot-clock';
 import { renderYearProgress } from './components/year-progress';
@@ -39,6 +40,7 @@ import type { YearProgressHandle } from './components/year-progress';
 import { renderDaySchedule } from './components/day-schedule';
 import type { DayScheduleHandle } from './components/day-schedule';
 import { renderActivityHeatmap } from './components/activity-heatmap';
+import { renderGoalOverview } from './components/goal-overview';
 import { DashboardApp } from './dashboard/DashboardApp';
 import type { BentoLayoutItem } from '../core/bento-layout';
 
@@ -84,7 +86,9 @@ export class DashboardView extends KosView {
   private validation: KosValidationReport | null = null;
   private systemLoading = false;
   private agentRunning = false;
-  private dailyPlan: KosStartDayResult | null = null;
+  private dailyPlan: DashboardDailyPlan | null = null;
+  private dailyPlanLoading = false;
+  private dailyPlanSignature = '';
   private pages: Record<PaginationKey, number> = {
     todayTasks: 1,
     actionProjects: 1,
@@ -141,6 +145,7 @@ export class DashboardView extends KosView {
       renderModule: this.renderModule,
       mountClock: this.mountClock,
       mountSchedule: this.mountSchedule,
+      mountGoals: this.mountGoals,
       mountProgress: this.mountProgress,
       mountHeatmap: this.mountHeatmap,
       persistDashboard: this.persistDashboard,
@@ -174,6 +179,12 @@ export class DashboardView extends KosView {
     this.schedule = renderDaySchedule(host, entries);
   };
 
+  private mountGoals = (host: HTMLElement): void => {
+    const objects = this.ctx.index.getAll();
+    const summary = goalAllocationSummary(objects, this.today());
+    renderGoalOverview(host, summary, (goal) => goalProgress(objects, goal), (goal) => void this.openFile(goal.filePath));
+  };
+
   private mountProgress = (host: HTMLElement): void => {
     this.progress = renderYearProgress(host);
   };
@@ -194,6 +205,7 @@ export class DashboardView extends KosView {
   };
 
   private renderToday(section: HTMLElement): void {
+    this.loadDailyPlan();
     const objects = this.ctx.index.getAll();
     const today = this.today();
     const tasks = currentActionTasks(objects, today);
@@ -220,9 +232,16 @@ export class DashboardView extends KosView {
     this.attention(attentionRow, this.validation?.errorCount ?? 0, '系统错误', 'muted');
 
     const recommendationHead = this.subhead(section, 'Agent 建议');
-    recommendationHead.createSpan({ cls: 'kos-board-dashed-label', text: this.dailyPlan ? `${this.dailyPlan.context.date} · ${this.dailyPlan.context.fingerprint}` : '尚未生成' });
-    if (!this.dailyPlan?.recommendations.length) section.createDiv({ cls: 'kos-board-empty', text: '点击“开始一天”后显示结构化建议。' });
-    else for (const recommendation of this.dailyPlan.recommendations) this.renderRecommendation(section, recommendation);
+    recommendationHead.createSpan({ cls: 'kos-board-dashed-label', text: this.dailyPlan?.status === 'generating' ? '生成中' : this.dailyPlan ? `${this.dailyPlan.date} · ${this.dailyPlan.fingerprint}` : '尚未生成' });
+    if (!this.dailyPlan) {
+      section.createDiv({ cls: 'kos-board-empty', text: '点击“开始一天”后显示结构化建议。' });
+    } else if (this.dailyPlan.status === 'generating') {
+      section.createDiv({ cls: 'kos-board-empty', text: this.agentRunning ? 'Agent 正在结合目标、项目、任务、约束和个人画像生成建议。' : 'Agent 尚未完成今日规划，请在 Agent 对话中查看进度或错误。' });
+    } else if (!this.dailyPlan.recommendations.length) {
+      section.createDiv({ cls: 'kos-board-empty', text: '今日规划已完成，但没有符合当前时间、精力和约束的待选任务。' });
+    } else {
+      for (const recommendation of this.dailyPlan.recommendations) this.renderRecommendation(section, recommendation);
+    }
 
     this.subhead(section, '用户已确认计划', 'kos-today-actions');
     const confirmed = objects.filter((object): object is TaskObject => object.type === 'task' && object.scheduled_for === today && !['done', 'cancelled'].includes(object.status));
@@ -235,10 +254,7 @@ export class DashboardView extends KosView {
     const commands = foot.createDiv({ cls: 'kos-board-actions' });
     this.button(commands, '开始一天', false, () => {
       if (!this.ctx.startDay) return;
-      openStartDayModal(this.app, this.ctx.startDay, (result) => {
-        this.dailyPlan = result;
-        this.render();
-      });
+      openStartDayModal(this.app, this.ctx.startDay);
     });
     this.button(commands, '结束一天', false, () => void this.ctx.endDay?.().catch((error) => new Notice(error instanceof Error ? error.message : String(error))));
   }
@@ -259,7 +275,21 @@ export class DashboardView extends KosView {
   }
 
   private feedbackInput(recommendation: KosDailyRecommendation, action: KosRecommendationFeedbackInput['action']): Omit<KosRecommendationFeedbackInput, 'reason' | 'deferUntil' | 'estimateMinutes'> {
-    return { date: this.dailyPlan!.context.date, runId: this.dailyPlan!.runId, recommendationId: recommendation.id, action };
+    return { date: this.dailyPlan!.date, runId: this.dailyPlan!.runId, recommendationId: recommendation.id, action };
+  }
+
+  private loadDailyPlan(): void {
+    if (!this.ctx.loadDailyPlan || this.dailyPlanLoading) return;
+    this.dailyPlanLoading = true;
+    void this.ctx.loadDailyPlan().then((plan) => {
+      const signature = JSON.stringify(plan);
+      if (signature === this.dailyPlanSignature) return;
+      this.dailyPlanSignature = signature;
+      this.dailyPlan = plan;
+      this.render();
+    }).catch((error) => console.error('Failed to load daily plan', error)).finally(() => {
+      this.dailyPlanLoading = false;
+    });
   }
 
   private openFeedback(recommendation: KosDailyRecommendation, action: 'adjusted' | 'deferred' | 'rejected'): void {
@@ -301,18 +331,8 @@ export class DashboardView extends KosView {
     const objects = this.ctx.index.getAll();
     const head = this.sectionHeader(section, '行动', 'ACTION');
     const tabs = head.createDiv({ cls: 'kos-board-switch' });
-    this.anchorButton(tabs, '目标', true, 'kos-action-goals');
-    this.anchorButton(tabs, '项目', false, 'kos-action-projects');
+    this.anchorButton(tabs, '项目', true, 'kos-action-projects');
     this.anchorButton(tabs, '任务', false, 'kos-action-tasks');
-    const goalSummary = goalAllocationSummary(objects, this.today());
-    const goalHead = this.subhead(section, `${goalSummary.period || '当前周期'} 目标`, 'kos-action-goals');
-    goalHead.createSpan({
-      cls: goalSummary.valid ? 'kos-board-mono' : 'kos-board-mono is-danger',
-      text: `ACTIVE 占比 ${goalSummary.activeTotal} / 100`,
-    });
-    if (goalSummary.goals.length) this.button(goalHead, '调整占比', false, () => this.ctx.adjustGoalWeights?.(goalSummary.period, goalSummary.goals));
-    if (!goalSummary.goals.length) this.empty(section, '当前半年还没有目标', '新建半年目标', () => this.ctx.create?.('goal'));
-    else for (const goal of goalSummary.goals) this.renderGoalCard(section, goal);
     const projectHead = this.subhead(section, '项目', 'kos-action-projects');
     projectHead.createSpan({ text: '按优先级排序' });
     const projects = projectRows(objects, this.today(), this.ctx.metricSettings());
@@ -375,27 +395,6 @@ export class DashboardView extends KosView {
     this.button(actions, '状态', false, () => this.ctx.manageStatus?.(row.object));
     this.button(actions, 'Agent 分析', false, () => this.runAgent('action', 'update-project', [row.object], row.object.filePath));
     this.button(actions, '打开', false, () => void this.openFile(row.object.filePath));
-  }
-
-  private renderGoalCard(parent: HTMLElement, goal: GoalObject): void {
-    const card = parent.createDiv({ cls: 'kos-board-project-card kos-board-goal-card' });
-    const top = card.createDiv({ cls: 'kos-board-card-top' });
-    const title = top.createDiv({ cls: 'kos-board-card-title' });
-    this.pill(title, goal.period, 'outline');
-    this.link(title, objectName(goal), () => void this.openFile(goal.filePath));
-    top.createSpan({ cls: `kos-board-state is-${tone(goal.status)}`, text: `● ${labelState(goal.status)}` });
-    const health = goal.health === 'on_track' ? '正常' : goal.health === 'at_risk' ? '有风险' : goal.health === 'off_track' ? '已偏离' : '未判断';
-    card.createDiv({ cls: 'kos-board-project-meta', text: `投入占比 ${goal.allocation_weight}%　健康度 ${health}　周期 ${goal.period_start ?? '—'} 至 ${goal.period_end ?? '—'}` });
-    const progress = card.createDiv({ cls: 'kos-board-project-progress' });
-    progress.createSpan({ cls: 'kos-board-mono', text: `${goal.allocation_weight} / 100` });
-    this.segmentRail(progress, goal.allocation_weight / 100, 28);
-    const bottom = card.createDiv({ cls: 'kos-board-card-bottom' });
-    bottom.createSpan({ cls: 'kos-board-muted', text: `结果证据 ${goal.result_evidence.length} 条` });
-    const actions = bottom.createDiv({ cls: 'kos-board-actions' });
-    this.button(actions, '编辑', false, () => this.ctx.editGoal?.(goal));
-    this.button(actions, '状态', false, () => this.ctx.manageStatus?.(goal));
-    this.button(actions, '打开目标', false, () => void this.openFile(goal.filePath));
-    this.button(actions, '与 AGENT 讨论', false, () => this.runAgent('action', 'review-goal', [goal], goal.filePath));
   }
 
   private renderInput(section: HTMLElement): void {

@@ -5,10 +5,18 @@ import type {
   ReaderAdapter,
   ReaderAdapterHandle,
   ReaderAdapterMount,
+  ReaderSearchResult,
   ReaderTocItem,
 } from '../../../reader/model';
 import { clampReaderProgress } from '../../../reader/model';
-import { readerSelectionFromText } from '../../../reader/model';
+import { readerContextText, readerSelectionFromText } from '../../../reader/model';
+
+const EPUB_HIGHLIGHT_COLORS = {
+  yellow: 'rgba(255, 220, 80, .42)',
+  red: 'rgba(215, 25, 32, .30)',
+  blue: 'rgba(56, 132, 255, .30)',
+  green: 'rgba(42, 166, 101, .30)',
+} as const;
 
 function flattenToc(items: NavItem[], depth = 0, result: ReaderTocItem[] = []): ReaderTocItem[] {
   for (const item of items) {
@@ -48,6 +56,22 @@ export class EpubReaderAdapter implements ReaderAdapter {
 
     let closed = false;
     let lastLocation: Location | null = null;
+    let annotations = input.annotations ?? [];
+    let renderedAnnotationCfis: string[] = [];
+    const renderAnnotations = () => {
+      for (const cfi of renderedAnnotationCfis) rendition.annotations.remove(cfi, 'highlight');
+      renderedAnnotationCfis = [];
+      for (const annotation of annotations) {
+        if (annotation.anchor.format !== 'epub') continue;
+        const cfi = annotation.anchor.cfiRange;
+        rendition.annotations.highlight(cfi, { annotationId: annotation.id }, undefined, 'kos-reader-epub-highlight', {
+          fill: EPUB_HIGHLIGHT_COLORS[annotation.color],
+          'fill-opacity': '1',
+          'mix-blend-mode': 'multiply',
+        });
+        renderedAnnotationCfis.push(cfi);
+      }
+    };
     const emit = (location: Location) => {
       lastLocation = location;
       const percentage = clampReaderProgress(location.start.percentage);
@@ -65,7 +89,8 @@ export class EpubReaderAdapter implements ReaderAdapter {
       const label = lastLocation?.start.percentage == null
         ? 'EPUB 选区'
         : `${Math.round(lastLocation.start.percentage * 100)}%`;
-      input.onSelection(readerSelectionFromText(contents.window.getSelection()?.toString() ?? '', cfiRange, label));
+      const value = readerSelectionFromText(contents.window.getSelection()?.toString() ?? '', cfiRange, label);
+      input.onSelection(value ? { ...value, anchor: { format: 'epub', cfiRange, quote: value.text } } : null);
     };
     rendition.on('relocated', onRelocated);
     rendition.on('selected', onSelected);
@@ -77,6 +102,7 @@ export class EpubReaderAdapter implements ReaderAdapter {
     });
     resizeObserver.observe(input.container);
     await rendition.display(input.initialLocation || undefined);
+    renderAnnotations();
 
     void book.locations.generate(1400).then(() => {
       if (!closed && lastLocation) emit(lastLocation);
@@ -91,9 +117,51 @@ export class EpubReaderAdapter implements ReaderAdapter {
         input.onSelection(null);
         return rendition.next();
       },
-      goTo: (target) => {
+      goTo: async (target) => {
         input.onSelection(null);
-        return rendition.display(target);
+        const annotation = target.startsWith('annotation:') ? annotations.find((item) => item.id === target.slice(11)) : undefined;
+        const destination = annotation?.anchor.format === 'epub' ? annotation.anchor.cfiRange : target;
+        if (destination.startsWith('epubcfi(')) {
+          const section = (book.spine as unknown as { get(value: string): { href?: string } | undefined }).get(destination);
+          if (section?.href) await rendition.display(section.href);
+        }
+        await rendition.display(destination);
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        renderAnnotations();
+      },
+      search: async (query) => {
+        const results: ReaderSearchResult[] = [];
+        const spine = await book.loaded.spine;
+        for (let index = 0; index < spine.length && results.length < 100; index += 1) {
+          const section = book.section(index);
+          try {
+            await section.load(book.load.bind(book));
+            const matches = section.find(query) as unknown as Array<{ cfi?: string; excerpt?: string }>;
+            for (let matchIndex = 0; matchIndex < matches.length && results.length < 100; matchIndex += 1) {
+              const match = matches[matchIndex];
+              if (!match.cfi) continue;
+              results.push({
+                id: `epub:${index}:${matchIndex}`,
+                location: match.cfi,
+                positionLabel: navigation.get(section.href)?.label?.trim() || `章节 ${index + 1}`,
+                excerpt: match.excerpt?.replace(/\s+/g, ' ').trim() || query,
+              });
+            }
+          } finally {
+            section.unload();
+          }
+        }
+        return results;
+      },
+      setAnnotations: (next) => { annotations = next; renderAnnotations(); },
+      getContext: async () => {
+        const contents = rendition.getContents() as unknown as Contents | Contents[];
+        const current = Array.isArray(contents) ? contents[0] : contents;
+        return {
+          location: lastLocation?.start.cfi ?? '',
+          positionLabel: lastLocation?.start.percentage == null ? '当前章节' : `${Math.round(lastLocation.start.percentage * 100)}%`,
+          text: readerContextText(current?.document.body?.innerText ?? ''),
+        };
       },
       close: () => {
         closed = true;

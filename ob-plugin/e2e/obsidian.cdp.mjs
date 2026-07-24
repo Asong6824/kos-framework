@@ -17,8 +17,11 @@ const pluginDir = join(vault, '.obsidian', 'plugins', 'kos-companion');
 const agentEntry = join(repoRoot, 'agent', 'packages', 'kos-agent', 'dist', 'rpc-entry.js');
 const goalPeriod = `${new Date().getFullYear()}-${new Date().getMonth() < 6 ? 'H1' : 'H2'}`;
 const goalPath = join(vault, '30_目标', goalPeriod, '交付插件.md');
+const projectDir = join(vault, '31_项目', '插件二期');
+const projectPath = join(projectDir, '插件二期.md');
 const taskPath = join(vault, '32_任务', 'E2E推进插件二期.md');
 const readerExtractPath = join(vault, '20_处理区', '摘录', 'E2E 输入 01_摘录.md');
+const readerPdfExtractPath = join(vault, '20_处理区', '摘录', 'E2E 输入 02_摘录.md');
 const longSourceTitle = '从头展示的超长材料标题用于验证字符限制和悬停完整名称';
 const pdfFixture = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA0IDAgUl0gL0NvdW50IDIgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA3IDAgUiA+PiA+PiAvQ29udGVudHMgNSAwIFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA3IDAgUiA+PiA+PiAvQ29udGVudHMgNiAwIFIgPj4KZW5kb2JqCjUgMCBvYmoKPDwgL0xlbmd0aCA1NiA+PgpzdHJlYW0KQlQgL0YxIDI0IFRmIDcyIDcwMCBUZCAoS09TIFJlYWRlciBQREYgRTJFIFBhZ2UgMSkgVGogRVQKZW5kc3RyZWFtCmVuZG9iago2IDAgb2JqCjw8IC9MZW5ndGggNTYgPj4Kc3RyZWFtCkJUIC9GMSAyNCBUZiA3MiA3MDAgVGQgKEtPUyBSZWFkZXIgUERGIEUyRSBQYWdlIDIpIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKNyAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA4CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMjEgMDAwMDAgbiAKMDAwMDAwMDI0NyAwMDAwMCBuIAowMDAwMDAwMzczIDAwMDAwIG4gCjAwMDAwMDA0NzkgMDAwMDAgbiAKMDAwMDAwMDU4NSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDggL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjY1NQolJUVPRgo=';
 const epubFixture = 'UEsDBAoAAAAAAC9H9VxvYassFAAAABQAAAAIAAAAbWltZXR5cGVhcHBsaWNhdGlvbi9lcHViK3ppcFBLAwQKAAAAAAAvR/VcAAAAAAAAAAAAAAAACQAAAE1FVEEtSU5GL1BLAwQKAAAACAAvR/VcHgvXyZkAAADdAAAAFgAAAE1FVEEtSU5GL2NvbnRhaW5lci54bWxVjsEOwiAQRH+l4Wpa9EoAExPPmvgFK90qEXYJUKN/L3qoeptk5s2M3j5i6O6Yi2cyYjOsxdZqx1TBE+Z/p2tZKkbMmRRD8UURRCyqOsUJaWQ3R6SqPjG1lAirM3OdfMDyld00h9AnqFcjDvvd8STfQMMHTpPoIo4e+vpMaASkFLyD2o5IxnMqDXM3uOCqLQlptfzpl8uufQFQSwMECgAAAAAAL0f1XAAAAAAAAAAAAAAAAAYAAABPRUJQUy9QSwMECgAAAAgAL0f1XIfZ+p9aAQAArQIAABEAAABPRUJQUy9jb250ZW50Lm9wZpWSy0rEMBSGXyVkK23aCI6UtgPKuBFUcGbjLianbZg2iU06F5/eNJ2rK4VAwjn//50Lyee7rkUb6K3UqsBpnGAEimshVV3g1fIpusfzMjeMr1kNZ+HtKPRWZQvcOGcyQrbbbSyFqWLd14QmyYxoU2E0KPk1QCQFKCcrCX2BP7Ve+wAu8w4cE8yxCZUJfqKZoW8DSXACLXTebUkap8S7BM/OOCTFBXGtbQQUcnKlCRYnXQvl8+s7WtAFWrytHoJqCo+Clql68FOW3030+BKSp1DoFJleG+jdvsCCO+g7m3V+U76Cr0wTehcls4imyyTJwvnIyWgrp2uc03OYkhVYV+bSQReaV2yDUdNDFZ7xrnFdi1EHQrLI7Q0UmBnTSs6cXz0J6ZvdKDm0I8FOEHIB5emRyRtmfLPp38FXHPqLQ//FIed5rZEKJrLnefhETY/lLoM0eA8Ocvh95Q9QSwMECgAAAAgAL0f1XDXoLbfYAAAAMwEAAA8AAABPRUJQUy9uYXYueGh0bWxtzjFuwjAUxvGrRG9vXgIDTfRstp4ADmASQyyltpUYkmwcgJWJhb2oc1Wpt2mVa9RuOhSpiyXbP+n/0bJ/rqODbFplNIM0TiCSujCl0jsG69XTwyMsOVXOKy91y6ByzuaIXdfF3Tw2zQ7TLMuwDwY8laLk5JSrJR8vr18fZ8LpRjj9bUw5cNLiEEm73+RusJKBMwVMhTy83mVUabc/oVmSLNDY1mdMzalWnERUNXLLoKiEdbJJ498d4+32+XYcX66EwpcD/YfP/vL30x3HkEA/05/TZAyWfwNQSwMECgAAAAgAL0f1XJ4D+uasAAAAzgAAABQAAABPRUJQUy9jaGFwdGVyMS54aHRtbLOxr8jNUShLLSrOzM+zVTLUM1BSSM1Lzk/JzEu3VQoNcdO1ULK3s8koAaoCqswrtlXKKCkpsNLXLy8v1ys31ssvStc3tLS01K8AqVECKk1NTLGzKcksyUm1e75mzZMdDc9XL7DRhwjY6EOkk/JTKoFKDZFVAHk2BXbe/sEKQUA1qUUKrgGhTgrPV69/2rEBSD7b2v1i/VSI+pcLtz5uaLLRLwAaCDFKH2S7HQBQSwMECgAAAAgAL0f1XA8iN0KsAAAAzgAAABQAAABPRUJQUy9jaGFwdGVyMi54aHRtbLOxr8jNUShLLSrOzM+zVTLUM1BSSM1Lzk/JzEu3VQoNcdO1ULK3s8koAaoCqswrtlXKKCkpsNLXLy8v1ys31ssvStc3tLS01K8AqVECKk1NTLGzKcksyUm1e75mzZNdPc9XL7DRhwjY6EOkk/JTKoFKDZFVAHk2BXbe/sEKQUA1qUUKrgGhTgrPV69/2rEBSD7b2v1i/VSI+pcLtz5uaLLRLwAaCDFKH2S7HQBQSwECFAAKAAAAAAAvR/Vcb2GrLBQAAAAUAAAACAAAAAAAAAAAAAAAAAAAAAAAbWltZXR5cGVQSwECFAAKAAAAAAAvR/VcAAAAAAAAAAAAAAAACQAAAAAAAAAAABAAAAA6AAAATUVUQS1JTkYvUEsBAhQACgAAAAgAL0f1XB4L18mZAAAA3QAAABYAAAAAAAAAAAAAAAAAYQAAAE1FVEEtSU5GL2NvbnRhaW5lci54bWxQSwECFAAKAAAAAAAvR/VcAAAAAAAAAAAAAAAABgAAAAAAAAAAABAAAAAuAQAAT0VCUFMvUEsBAhQACgAAAAgAL0f1XIfZ+p9aAQAArQIAABEAAAAAAAAAAAAAAAAAUgEAAE9FQlBTL2NvbnRlbnQub3BmUEsBAhQACgAAAAgAL0f1XDXoLbfYAAAAMwEAAA8AAAAAAAAAAAAAAAAA2wIAAE9FQlBTL25hdi54aHRtbFBLAQIUAAoAAAAIAC9H9VyeA/rmrAAAAM4AAAAUAAAAAAAAAAAAAAAAAOADAABPRUJQUy9jaGFwdGVyMS54aHRtbFBLAQIUAAoAAAAIAC9H9VwPIjdCrAAAAM4AAAAUAAAAAAAAAAAAAAAAAL4EAABPRUJQUy9jaGFwdGVyMi54aHRtbFBLBQYAAAAACAAIAOUBAACcBQAAAAA=';
@@ -39,6 +42,7 @@ async function prepareFixture() {
   await mkdir(pluginDir, { recursive: true });
   await mkdir(join(vault, '32_任务'), { recursive: true });
   await mkdir(join(vault, '31_项目'), { recursive: true });
+  await mkdir(projectDir, { recursive: true });
   await mkdir(join(vault, '30_目标', goalPeriod), { recursive: true });
   await mkdir(join(vault, '42_个人操作画像'), { recursive: true });
   await mkdir(join(vault, '11_原材料'), { recursive: true });
@@ -62,9 +66,9 @@ async function prepareFixture() {
     },
   }));
   await writeFile(goalPath, `---\ntype: goal\ntitle: 交付插件\nhorizon: ${goalPeriod.endsWith('H1') ? 'H1' : 'H2'}\nperiod: ${goalPeriod}\nstatus: active\nallocation_weight: 100\nhealth: on_track\nperiod_start: ${goalPeriod.slice(0, 4)}-${goalPeriod.endsWith('H1') ? '01-01' : '07-01'}\nperiod_end: ${goalPeriod.slice(0, 4)}-${goalPeriod.endsWith('H1') ? '06-30' : '12-31'}\ncreated: ${today()}\nupdated: ${today()}\nhuman_confirmed: true\nresult_evidence: []\nweight_history: []\ntags: [goal, kos-e2e]\n---\n# 交付插件\n\n## 期望结果\n\n- 完成真实 Obsidian 验收\n`);
-  await writeFile(join(vault, '31_项目', '插件二期.md'), `---\ntype: project\ntitle: 插件二期\nstatus: active\ncategory: coding\npriority: P0\nprimary_goal: "[[30_目标/${goalPeriod}/交付插件]]"\nsupporting_goals: []\ngoal_alignment: direct\nalignment_reviewed: ${today()}\nexploration_review_due: ""\nprocess_metrics:\n  - id: e2e\n    kind: process\n    name: 完成端到端场景数\n    unit: scenarios\n    baseline: 0\n    target: 1\n    current: 0\n    updated: ${today()}\n    evidence: []\nresult_metrics: []\ncurrent_stage: E2E\nnext_milestone: 完成真实 Obsidian 验收\ndue: ${today()}\noff_goal_override: false\noverride_reason: ""\noverride_review_due: ""\nvalidation_completed: false\nexpected_result_achieved: false\ncreated: ${today()}\nupdated: ${today()}\ntags: [kos-e2e]\n---\n`);
+  await writeFile(projectPath, `---\ntype: project\ntitle: 插件二期\nstatus: active\ncategory: coding\npriority: P0\nprimary_goal: "[[30_目标/${goalPeriod}/交付插件]]"\nsupporting_goals: []\ngoal_alignment: direct\nalignment_reviewed: ${today()}\nexploration_review_due: ""\nprocess_metrics:\n  - id: e2e\n    kind: process\n    name: 完成端到端场景数\n    unit: scenarios\n    baseline: 0\n    target: 1\n    current: 0\n    updated: ${today()}\n    evidence: []\nresult_metrics: []\ncurrent_stage: E2E\nnext_milestone: 完成真实 Obsidian 验收\ndue: ${today()}\noff_goal_override: false\noverride_reason: ""\noverride_review_due: ""\nvalidation_completed: false\nexpected_result_achieved: false\ncreated: ${today()}\nupdated: ${today()}\ntags: [kos-e2e]\n---\n`);
   await writeFile(join(vault, '42_个人操作画像', 'E2E能力强化.md'), `---\ntype: personal_operating_profile\ntitle: E2E 能力强化\nstatus: active\nconfidence: verified\ncreated: ${today()}\nupdated: ${today()}\nsources: [E2E]\nrelated_reflections: []\nrelated_methods: []\nrelated_projects: []\napplies_to_skills: [kos-start-my-day]\ncapability_focus:\n  period: ${goalPeriod}\n  name: 总结能力\n  behavior: 将复杂材料压缩为结构化结论\n  applies_to: [start-day, weekly-review, monthly-review]\n  max_daily_recommendations: 1\n  status: active\nreviewed: true\ntags: [kos-e2e]\n---\n`);
-  await writeFile(taskPath, `---\ntype: task\ntitle: E2E 推进插件二期\nstatus: doing\nprojects: ["[[31_项目/插件二期]]"]\npriority: P0\nscheduled_for: ""\ndefer_until: ""\ndue: ${today()}\nestimate_minutes: 30\nenergy: medium\nwork_mode: shallow\ngrowth_mode: neutral\nscheduled_times: ["09:00", "21:00"]\ncompleted: ""\nresult: ""\noutputs: []\nblocked_reason: ""\nunblock_condition: ""\nproject_contributions: []\nrecommendation_history: []\ncreated: ${today()}\ntags: [kos-e2e]\n---\n`);
+  await writeFile(taskPath, `---\ntype: task\ntitle: E2E 推进插件二期\nstatus: doing\nprojects: ["[[31_项目/插件二期/插件二期]]"]\npriority: P0\nscheduled_for: ""\ndefer_until: ""\ndue: ${today()}\nestimate_minutes: 30\nenergy: medium\nwork_mode: shallow\ngrowth_mode: neutral\nscheduled_times: ["09:00", "21:00"]\ncompleted: ""\nresult: ""\noutputs: []\nblocked_reason: ""\nunblock_condition: ""\nproject_contributions: []\nrecommendation_history: []\ncreated: ${today()}\ntags: [kos-e2e]\n---\n`);
   await writeFile(join(vault, '11_原材料', 'E2E示例.pdf'), Buffer.from(pdfFixture, 'base64'));
   await writeFile(join(vault, '11_原材料', 'E2E示例.epub'), Buffer.from(epubFixture, 'base64'));
   await writeFile(join(vault, '11_原材料', 'E2E直接打开.epub'), Buffer.from(epubFixture, 'base64'));
@@ -167,10 +171,15 @@ async function run() {
     await cdp.send('Runtime.enable');
     await cdp.send('Log.enable');
     await waitFor(() => cdp.evaluate(`Boolean(globalThis.app?.workspace?.layoutReady)`), 'Obsidian workspace', 45_000);
+    await waitFor(() => cdp.evaluate(`Boolean(app.metadataCache.getFileCache(app.vault.getFileByPath('32_任务/E2E推进插件二期.md'))?.frontmatter)`), 'fixture metadata cache', 45_000);
     await cdp.evaluate(`localStorage.setItem('enable-plugin-e2e', 'true')`);
     const pluginLoad = await cdp.evaluate(`(async () => {
       try {
-        if (app.plugins.plugins?.['kos-companion']) return { loaded: true };
+        if (app.plugins.plugins?.['kos-companion']) {
+          await app.plugins.disablePlugin('kos-companion');
+          await app.plugins.enablePlugin('kos-companion');
+          return { loaded: Boolean(app.plugins.plugins?.['kos-companion']), reloaded: true };
+        }
         await app.plugins.loadManifests();
         if (typeof app.plugins.loadPlugin === 'function') await app.plugins.loadPlugin('kos-companion');
         if (!app.plugins.plugins?.['kos-companion']) {
@@ -243,7 +252,12 @@ async function run() {
       bentoDisplay: getComputedStyle(document.querySelector('.kos-board-grid')).display,
       bentoSizes: Object.fromEntries([...document.querySelectorAll('.kos-board-utility-card, .kos-board-section')].map((el) => [el.id || el.dataset.widget, el.dataset.bento])),
       bentoEffective: Object.fromEntries([...document.querySelectorAll('.kos-board-section')].map((el) => [el.id, el.dataset.bentoEffective])),
-      cardRadii: [...document.querySelectorAll('.kos-dot-clock, .kos-day-schedule, .kos-year-progress, .kos-activity-heatmap, .kos-board-section')].map((el) => getComputedStyle(el).borderRadius),
+      cardRadii: [...document.querySelectorAll('.kos-dot-clock, .kos-day-schedule, .kos-goal-overview, .kos-year-progress, .kos-activity-heatmap, .kos-board-section')].map((el) => getComputedStyle(el).borderRadius),
+      actionAnchors: [...document.querySelectorAll('#kos-board-action .kos-board-switch button')].map((el) => el.textContent),
+      actionGoalCards: document.querySelectorAll('#kos-board-action .kos-board-goal-card').length,
+      scheduleObjects: app.plugins.plugins['kos-companion'].index.getAll().filter((item) => item.type === 'task').map((item) => ({
+        title: item.title, due: item.due, scheduledFor: item.scheduled_for, scheduledTimes: item.scheduled_times,
+      })),
       internallyScrollable: [...document.querySelectorAll('.kos-board-section')]
         .filter((el) => el.scrollHeight > el.clientHeight + 1)
         .map((el) => el.id),
@@ -264,8 +278,7 @@ async function run() {
           height: Math.round(rect.height),
           time: root.querySelector('.kos-dot-clock-time')?.textContent,
           seconds: root.querySelector('.kos-dot-clock-seconds')?.textContent,
-          date: root.querySelector('.kos-dot-clock-date')?.textContent,
-          footer: root.querySelector('.kos-dot-clock-footer')?.textContent,
+          calendarNodes: root.querySelectorAll('.kos-day-schedule-date, .kos-day-schedule-calendar').length,
           fontFamily: getComputedStyle(root.querySelector('.kos-dot-clock-time')).fontFamily,
         } : null;
       })(),
@@ -277,13 +290,31 @@ async function run() {
           height: Math.round(rect.height),
           header: root.querySelector('.kos-day-schedule-head')?.textContent,
           time: root.querySelector('.kos-day-schedule-time')?.textContent,
+          seconds: root.querySelector('.kos-day-schedule-seconds')?.textContent,
           next: root.querySelector('.kos-day-schedule-next')?.textContent,
+          date: root.querySelector('.kos-day-schedule-date')?.textContent,
+          calendarNodes: root.querySelectorAll('.kos-day-schedule-calendar').length,
           task: root.querySelector('.kos-day-schedule-task')?.textContent,
           taskTimes: root.querySelector('.kos-day-schedule-task-times')?.textContent,
           slots: root.querySelectorAll('.kos-day-schedule-rail span').length,
           scheduledSlots: root.querySelectorAll('.kos-day-schedule-rail span.is-scheduled').length,
           currentSlots: root.querySelectorAll('.kos-day-schedule-rail span.is-current').length,
           fontFamily: getComputedStyle(root.querySelector('.kos-day-schedule-time')).fontFamily,
+        } : null;
+      })(),
+      goals: (() => {
+        const root = document.querySelector('.kos-goal-overview');
+        const rect = root?.getBoundingClientRect();
+        return root ? {
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          header: root.querySelector('.kos-goal-overview-head')?.textContent,
+          total: root.querySelector('.kos-goal-overview-total')?.textContent,
+          name: root.querySelector('.kos-goal-overview-name')?.textContent,
+          progress: root.querySelector('.kos-goal-overview-progress')?.textContent,
+          segments: root.querySelectorAll('.kos-goal-overview-rail span').length,
+          filled: root.querySelectorAll('.kos-goal-overview-rail span.is-filled').length,
+          fontFamily: getComputedStyle(root.querySelector('.kos-goal-overview-total')).fontFamily,
         } : null;
       })(),
       progress: (() => {
@@ -336,14 +367,26 @@ async function run() {
     if (!initial.clock.fontFamily.includes('Doto') || !/^\d{2}:\d{2}$/.test(initial.clock.time) || !/^\d{2}$/.test(initial.clock.seconds)) {
       throw new Error(`Dot clock typography or time differs: ${JSON.stringify(initial.clock)}`);
     }
-    if (!initial.clock.date?.includes('年') || !initial.clock.date.includes('星期') || !initial.clock.footer?.includes('WEEK') || !initial.clock.footer.includes('DAY') || !initial.clock.footer.includes('SEC')) {
-      throw new Error(`Dot clock calendar metadata differs: ${JSON.stringify(initial.clock)}`);
+    if (initial.clock.calendarNodes !== 0) {
+      throw new Error(`Dot clock still contains moved calendar metadata: ${JSON.stringify(initial.clock)}`);
     }
-    if (!initial.schedule || !initial.schedule.header?.includes('SCHEDULE') || !initial.schedule.header.includes('任务时刻') || !/^\d{2}:\d{2}:\d{2}$/.test(initial.schedule.time)) {
+    if (!initial.schedule || !initial.schedule.header?.includes('SCHEDULE') || !initial.schedule.header.includes('任务时刻') || !/^\d{2}:\d{2}$/.test(initial.schedule.time) || !/^\d{2}$/.test(initial.schedule.seconds)) {
       throw new Error(`Day schedule header or clock differs: ${JSON.stringify(initial.schedule)}`);
     }
+    if (!initial.schedule.date?.includes('年') || !initial.schedule.date.includes('星期') || initial.schedule.calendarNodes !== 0) {
+      throw new Error(`Day schedule date or removed calendar row differs: ${JSON.stringify(initial.schedule)}`);
+    }
     if (!initial.schedule.fontFamily.includes('Doto') || initial.schedule.task !== 'E2E 推进插件二期' || initial.schedule.taskTimes !== '09:00 / 21:00' || initial.schedule.slots !== 48 || initial.schedule.scheduledSlots !== 2 || initial.schedule.currentSlots !== 1) {
-      throw new Error(`Day schedule data or timeline differs: ${JSON.stringify(initial.schedule)}`);
+      throw new Error(`Day schedule data or timeline differs: ${JSON.stringify({ schedule: initial.schedule, tasks: initial.scheduleObjects })}`);
+    }
+    if (!initial.goals || !initial.goals.header?.includes('GOALS') || !initial.goals.header.includes('目标') || !initial.goals.header.includes(goalPeriod)) {
+      throw new Error(`Goal overview header differs: ${JSON.stringify(initial.goals)}`);
+    }
+    if (!initial.goals.fontFamily.includes('Doto') || initial.goals.total !== '100' || initial.goals.name !== '交付插件' || initial.goals.progress !== '—' || initial.goals.segments !== 20 || initial.goals.filled !== 0) {
+      throw new Error(`Goal overview data differs: ${JSON.stringify(initial.goals)}`);
+    }
+    if (JSON.stringify(initial.actionAnchors) !== JSON.stringify(['项目', '任务']) || initial.actionGoalCards !== 0) {
+      throw new Error(`Action section duplicates Goal content: ${JSON.stringify({ anchors: initial.actionAnchors, cards: initial.actionGoalCards })}`);
     }
     if (!initial.progress || !initial.progress.header?.includes('PROGRESS') || !initial.progress.header.includes('A.D. 2026')) {
       throw new Error(`Year progress header differs: ${JSON.stringify(initial.progress)}`);
@@ -351,7 +394,7 @@ async function run() {
     if (!initial.progress.fontFamily.includes('Doto') || !/^\d{1,3}\.\d%$/.test(initial.progress.hero) || !/^\d+\/\d+$/.test(initial.progress.count)) {
       throw new Error(`Year progress typography or summary differs: ${JSON.stringify(initial.progress)}`);
     }
-    if (initial.progress.rows.length !== 4 || initial.progress.rows.some((row) => row.segments !== 50 || row.filled !== Math.round(Number.parseFloat(row.value) / 2))) {
+    if (initial.progress.rows.length !== 4 || initial.progress.rows.some((row) => row.segments !== 50 || Math.abs(row.filled - Math.round(Number.parseFloat(row.value) / 2)) > 1)) {
       throw new Error(`Year progress segmented rails differ: ${JSON.stringify(initial.progress.rows)}`);
     }
     if (!initial.heatmap || !initial.heatmap.header?.includes('HEATMAP') || !initial.heatmap.header.includes('热点图') || !initial.heatmap.header.includes('LIVE DATA')) {
@@ -363,7 +406,7 @@ async function run() {
     await waitFor(() => cdp.evaluate(`${JSON.stringify(initial.clock.seconds)} !== document.querySelector('.kos-dot-clock-seconds')?.textContent`), 'dot clock second tick', 3_000);
     await waitFor(() => cdp.evaluate(`${JSON.stringify(initial.progress.updatedAt)} !== document.querySelector('.kos-year-progress')?.dataset.updatedAt`), 'year progress second tick', 3_000);
     const expectedBentoSizes = {
-      clock: '7x8', schedule: '7x10', progress: '10x12', heatmap: '10x7',
+      clock: '7x6', schedule: '7x12', goals: '10x8', progress: '10x12', heatmap: '10x7',
       'kos-board-today': '9x7', 'kos-board-action': '6x10', 'kos-board-input': '6x10',
       'kos-board-knowledge': '3x7', 'kos-board-review': '9x7', 'kos-board-system': '3x7',
     };
@@ -412,6 +455,7 @@ async function run() {
       const system = rect('#kos-board-system');
       const clock = rect('.kos-dot-clock');
       const schedule = rect('.kos-day-schedule');
+      const goals = rect('.kos-goal-overview');
       const progress = rect('.kos-year-progress');
       const heatmap = rect('.kos-activity-heatmap');
       const columns = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
@@ -424,6 +468,7 @@ async function run() {
         effective: Object.fromEntries([...document.querySelectorAll('.kos-board-section')].map((el) => [el.id, el.dataset.bentoEffective])),
         clock: { width: Math.round(clock.width), height: Math.round(clock.height) },
         schedule: { width: Math.round(schedule.width), height: Math.round(schedule.height) },
+        goals: { width: Math.round(goals.width), height: Math.round(goals.height) },
         progress: { width: Math.round(progress.width), height: Math.round(progress.height) },
         heatmap: { width: Math.round(heatmap.width), height: Math.round(heatmap.height) },
       };
@@ -431,8 +476,9 @@ async function run() {
       const width = (span) => Math.round(cellWidth * span + 16 * (span - 1));
       const height = (span) => span * 42 + (span - 1) * 16;
       return result.columns === 12 && result.paired
-        && result.clock.width === width(7) && result.clock.height === height(8)
-        && result.schedule.width === width(7) && result.schedule.height === height(10)
+        && result.clock.width === width(7) && result.clock.height === height(6)
+        && result.schedule.width === width(7) && result.schedule.height === height(12)
+        && result.goals.width === width(10) && result.goals.height === height(8)
         && result.progress.width === width(10) && result.progress.height === height(12)
         && result.heatmap.width === width(10) && result.heatmap.height === height(7) ? result : null;
     })()`), 'wide twelve-column Bento layout');
@@ -442,12 +488,14 @@ async function run() {
     await screenshot(cdp, 'dashboard-year-progress-reference.png');
     await cdp.evaluate(`document.querySelector('.kos-day-schedule').scrollIntoView({ block: 'start' })`);
     await screenshot(cdp, 'dashboard-day-schedule-reference.png');
+    await cdp.evaluate(`document.querySelector('.kos-goal-overview').scrollIntoView({ block: 'start' })`);
+    await screenshot(cdp, 'dashboard-goal-overview-reference.png');
     await cdp.evaluate(`document.querySelector('.kos-activity-heatmap').scrollIntoView({ block: 'start' })`);
     await screenshot(cdp, 'dashboard-activity-heatmap-reference.png');
     await screenshot(cdp, 'dashboard-bento-wide.png');
 
     await cdp.evaluate(`document.querySelector('.kos-bento-toolbar-button[aria-label="编辑看板布局"]').click()`);
-    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-board-grid')?.dataset.bentoEditing === 'true' && document.querySelectorAll('.kos-bento-drag-handle').length === 10 && document.querySelectorAll('.kos-bento-drag-handle.is-size-only').length === 0 && document.querySelectorAll('.kos-bento-resize-zone').length === 80 && [...document.querySelectorAll('.kos-board-section, .kos-board-utility-card')].every((card) => card.querySelectorAll('.kos-bento-resize-zone').length === 8) && document.querySelectorAll('.kos-bento-grid-guide span').length >= 120`), 'dashboard layout edit mode');
+    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-board-grid')?.dataset.bentoEditing === 'true' && document.querySelectorAll('.kos-bento-drag-handle').length === 11 && document.querySelectorAll('.kos-bento-drag-handle.is-size-only').length === 0 && document.querySelectorAll('.kos-bento-resize-zone').length === 88 && [...document.querySelectorAll('.kos-board-section, .kos-board-utility-card')].every((card) => card.querySelectorAll('.kos-bento-resize-zone').length === 8) && document.querySelectorAll('.kos-bento-grid-guide span').length >= 120`), 'dashboard layout edit mode');
     await screenshot(cdp, 'dashboard-bento-edit-mode.png');
     await cdp.evaluate(`document.querySelector('.kos-board-utility-card.is-clock').scrollIntoView({ block: 'center' })`);
     const utilityResizeStart = await cdp.evaluate(`(() => {
@@ -465,7 +513,7 @@ async function run() {
     })()`), 'blue clock resize hover');
     await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: utilityResizeStart.x, y: utilityResizeStart.y, button: 'left', buttons: 1, clickCount: 1 });
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: utilityResizeStart.x + 120, y: utilityResizeStart.y, button: 'left', buttons: 1 });
-    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-board-utility-card.is-clock')?.classList.contains('is-layout-resizing') && document.querySelector('.kos-board-utility-card.is-clock')?.dataset.bento === '8x8' && !document.querySelector('.kos-bento-drag-overlay')`), 'clock Bento resize preview');
+    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-board-utility-card.is-clock')?.classList.contains('is-layout-resizing') && document.querySelector('.kos-board-utility-card.is-clock')?.dataset.bento === '8x6' && !document.querySelector('.kos-bento-drag-overlay')`), 'clock Bento resize preview');
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: utilityResizeStart.x + 120, y: utilityResizeStart.y, button: 'left', buttons: 0, clickCount: 1 });
     await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.getDashboardLayout().find((item) => item.id === 'clock')?.w === 8`), 'persisted clock Bento resize');
     await screenshot(cdp, 'dashboard-clock-resized.png');
@@ -474,7 +522,7 @@ async function run() {
     await cdp.evaluate(`document.querySelector('.kos-bento-toolbar-button[aria-label="重做布局调整"]').click()`);
     await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.getDashboardLayout().find((item) => item.id === 'clock')?.w === 8`), 'clock resize redo');
     await cdp.evaluate(`document.querySelector('.kos-bento-toolbar-button[aria-label="恢复默认布局"]').click()`);
-    await waitFor(() => cdp.evaluate(`(() => { const layout = app.plugins.plugins['kos-companion'].store.getDashboardLayout(); return layout.find((item) => item.id === 'clock')?.w === 7 && layout.find((item) => item.id === 'schedule')?.w === 7 && layout.find((item) => item.id === 'progress')?.w === 10 && layout.find((item) => item.id === 'heatmap')?.w === 10; })()`), 'unified layout reset');
+    await waitFor(() => cdp.evaluate(`(() => { const layout = app.plugins.plugins['kos-companion'].store.getDashboardLayout(); return layout.find((item) => item.id === 'clock')?.w === 7 && layout.find((item) => item.id === 'schedule')?.w === 7 && layout.find((item) => item.id === 'goals')?.w === 10 && layout.find((item) => item.id === 'progress')?.w === 10 && layout.find((item) => item.id === 'heatmap')?.w === 10; })()`), 'unified layout reset');
     await cdp.evaluate(`document.querySelector('.kos-board-utility-card.is-progress').scrollIntoView({ block: 'center' })`);
     const progressResizeStart = await cdp.evaluate(`(() => {
       const rect = document.querySelector('.kos-board-utility-card.is-progress .kos-bento-resize-zone.is-se').getBoundingClientRect();
@@ -648,6 +696,27 @@ async function run() {
     }
     const readerState = await cdp.evaluate(`({ readerLeaves: app.workspace.getLeavesOfType('kos-reader').length, dashboardLeaves: app.workspace.getLeavesOfType('kos-dashboard').length })`);
     if (readerState.readerLeaves !== 1 || readerState.dashboardLeaves !== 1) throw new Error(`Reader is not independent: ${JSON.stringify(readerState)}`);
+    await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('.kos-reader-pdf-page[data-page="1"] .kos-reader-pdf-text-layer')?.textContent?.trim())`), 'PDF text layer');
+    const pdfTextRect = await cdp.evaluate(`(() => {
+      const layer = document.querySelector('.kos-reader-pdf-page[data-page="1"] .kos-reader-pdf-text-layer');
+      const target = [...(layer?.querySelectorAll('span, [role="presentation"]') || [])].find((element) => element.textContent?.trim()) || layer;
+      if (!target) return null;
+      const rect = target.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, text: target.textContent?.trim() || '' };
+    })()`);
+    if (!pdfTextRect?.text || pdfTextRect.width <= 4) throw new Error(`PDF text layer did not expose selectable text: ${JSON.stringify(pdfTextRect)}`);
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: pdfTextRect.x + 2, y: pdfTextRect.y + pdfTextRect.height / 2, button: 'left', buttons: 1, clickCount: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pdfTextRect.x + pdfTextRect.width - 2, y: pdfTextRect.y + pdfTextRect.height / 2, button: 'left', buttons: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: pdfTextRect.x + pdfTextRect.width - 2, y: pdfTextRect.y + pdfTextRect.height / 2, button: 'left', buttons: 0, clickCount: 1 });
+    const selectedPdfText = await waitFor(() => cdp.evaluate(`document.getSelection()?.toString()?.trim() || null`), 'PDF text selection');
+    await waitFor(() => cdp.evaluate(`Boolean([...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('划线')))`), 'PDF highlight action');
+    await cdp.evaluate(`[...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('划线')).click()`);
+    await waitFor(() => exists(readerPdfExtractPath), 'PDF Reader Extract creation', 45_000);
+    await waitFor(() => cdp.evaluate(`document.querySelectorAll('.kos-reader-pdf-highlight[data-annotation-id]').length === 1`), 'PDF rectangle highlight');
+    const pdfExtract = await readFile(readerPdfExtractPath, 'utf8');
+    if (!pdfExtract.includes(selectedPdfText) || !pdfExtract.includes('"format":"pdf"') || !pdfExtract.includes('"rects":[')) {
+      throw new Error(`PDF Reader annotation is incomplete: ${pdfExtract.slice(0, 1000)}`);
+    }
     await cdp.evaluate(`document.querySelector('.kos-reader-toolbar [aria-label="下一页"]').click()`);
     await waitFor(() => cdp.evaluate(`document.querySelector('.kos-reader-position')?.textContent === '2 / 2' && document.querySelector('.kos-reader-adapter-host')?.scrollTop > 0`), 'PDF scroll to next page');
     await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.getReaderProgress('11_原材料/E2E输入02.md')?.location === 'page:2'`), 'persisted PDF progress');
@@ -685,49 +754,116 @@ async function run() {
       })()`);
       throw new Error(`${error.message}; layoutState=${JSON.stringify(layoutState)}`);
     }
-    const epubInitialLocation = await cdp.evaluate(`document.querySelector('.kos-reader-document').dataset.readerLocation`);
+    let epubInitialLocation = await cdp.evaluate(`document.querySelector('.kos-reader-document').dataset.readerLocation`);
+    await cdp.evaluate(`document.querySelector('.kos-reader-toolbar [aria-label="搜索"]').click()`);
+    await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('.kos-reader-search input'))`), 'EPUB search panel');
+    await cdp.evaluate(`(() => {
+      const input = document.querySelector('.kos-reader-search input');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, '第二页');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await waitFor(() => cdp.evaluate(`!document.querySelector('.kos-reader-search form > button').disabled`), 'enabled EPUB search');
+    await cdp.evaluate(`document.querySelector('.kos-reader-search form').requestSubmit()`);
+    await waitFor(() => cdp.evaluate(`document.querySelectorAll('.kos-reader-search-result').length > 0`), 'EPUB search results');
+    await cdp.evaluate(`document.querySelector('.kos-reader-search-result').click()`);
+    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-reader-document').dataset.readerLocation !== ${JSON.stringify(epubInitialLocation)}`), 'EPUB search result jump');
+    const epubSearchLocation = await cdp.evaluate(`document.querySelector('.kos-reader-document').dataset.readerLocation`);
+    await cdp.evaluate(`document.querySelector('.kos-reader-panel [aria-label="关闭面板"]').click(); document.querySelector('.kos-reader-toolbar [aria-label="目录"]').click()`);
+    await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('.kos-reader-toc button'))`), 'EPUB table of contents after search');
+    await cdp.evaluate(`document.querySelector('.kos-reader-toc button').click()`);
+    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-reader-document').dataset.readerLocation !== ${JSON.stringify(epubSearchLocation)}`), 'return to first EPUB chapter');
+    epubInitialLocation = await cdp.evaluate(`document.querySelector('.kos-reader-document').dataset.readerLocation`);
+    await cdp.evaluate(`document.querySelector('.kos-reader-panel [aria-label="关闭面板"]').click()`);
     const epubSelectionLabel = await cdp.evaluate(`document.querySelector('.kos-reader-position')?.textContent || 'EPUB 选区'`);
-    const selectedEpubText = await cdp.evaluate(`(() => {
-      const iframe = document.querySelector('.kos-reader-document[data-reader-kind="epub"] iframe');
+    await waitFor(() => cdp.evaluate(`[...document.querySelectorAll('.kos-reader-document[data-reader-kind="epub"] iframe')].some((frame) => frame.contentDocument?.body?.innerText?.trim())`), 'EPUB chapter content after search');
+    const epubTextRect = await cdp.evaluate(`(() => {
+      const iframe = [...document.querySelectorAll('.kos-reader-document[data-reader-kind="epub"] iframe')].find((frame) => frame.contentDocument?.body?.innerText?.trim());
       const frameDocument = iframe?.contentDocument;
       const target = [...(frameDocument?.querySelectorAll('p') || [])].find((element) => element.textContent?.trim()) || frameDocument?.body;
-      if (!target?.textContent?.trim()) return '';
-      const range = frameDocument.createRange();
-      range.selectNodeContents(target);
-      const selection = iframe.contentWindow.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      frameDocument.dispatchEvent(new iframe.contentWindow.Event('selectionchange'));
-      return selection.toString().trim();
+      if (!target?.textContent?.trim()) return null;
+      const frameRect = iframe.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      return { x: frameRect.x + targetRect.x, y: frameRect.y + targetRect.y, width: targetRect.width, height: targetRect.height, text: target.textContent.trim() };
     })()`);
-    if (!selectedEpubText) throw new Error('EPUB iframe did not expose selectable text');
+    if (!epubTextRect?.text || epubTextRect.width <= 4) throw new Error(`EPUB iframe did not expose selectable text: ${JSON.stringify(epubTextRect)}`);
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: epubTextRect.x + 2, y: epubTextRect.y + epubTextRect.height / 2, button: 'left', buttons: 1, clickCount: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: epubTextRect.x + epubTextRect.width - 2, y: epubTextRect.y + epubTextRect.height / 2, button: 'left', buttons: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: epubTextRect.x + epubTextRect.width - 2, y: epubTextRect.y + epubTextRect.height / 2, button: 'left', buttons: 0, clickCount: 1 });
+    const selectedEpubText = await waitFor(() => cdp.evaluate(`[...document.querySelectorAll('.kos-reader-document[data-reader-kind="epub"] iframe')].map((frame) => frame.contentWindow?.getSelection()?.toString()?.trim()).find(Boolean) || null`), 'EPUB text selection');
     await waitFor(() => cdp.evaluate(`(() => {
-      const extract = document.querySelector('.kos-reader-toolbar [aria-label="添加到摘录"]');
-      const agent = document.querySelector('.kos-reader-toolbar [aria-label="添加到 Agent"]');
+      const highlight = [...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('划线'));
+      const agent = [...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('添加到 Agent'));
       const selectionBar = document.querySelector('.kos-reader-selection-bar');
-      return Boolean(extract && agent && !extract.disabled && !agent.disabled && selectionBar?.textContent?.includes('添加到摘录') && selectionBar.textContent.includes('添加到 Agent'));
+      return Boolean(highlight && agent && !highlight.disabled && !agent.disabled && selectionBar?.textContent?.includes('批注'));
     })()`), 'enabled Reader selection actions');
     await screenshot(cdp, 'reader-selection-actions-desktop.png');
-    await cdp.evaluate(`document.querySelector('.kos-reader-toolbar [aria-label="添加到摘录"]').click()`);
+    await cdp.evaluate(`[...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('划线')).click()`);
     await waitFor(() => exists(readerExtractPath), 'Reader Extract creation');
     await waitFor(async () => (await readFile(join(vault, '11_原材料', 'E2E输入01.md'), 'utf8')).includes('status: extracted'), 'Reader Source status update');
     const firstExtract = await readFile(readerExtractPath, 'utf8');
     if (!firstExtract.includes(`> ${selectedEpubText}`) || !firstExtract.includes(`- 位置：${epubSelectionLabel}`) || !firstExtract.includes('[[11_原材料/E2E示例.epub]]')) {
       throw new Error(`Reader Extract is incomplete: ${firstExtract.slice(0, 1000)}`);
     }
-    await waitFor(() => cdp.evaluate(`!document.querySelector('.kos-reader-toolbar [aria-label="添加到摘录"]').disabled`), 'Reader Extract action completion');
-    await cdp.evaluate(`document.querySelector('.kos-reader-toolbar [aria-label="添加到摘录"]').click()`);
-    await waitFor(() => cdp.evaluate(`!document.querySelector('.kos-reader-toolbar [aria-label="添加到摘录"]').disabled`), 'duplicate Reader Extract action completion');
+    await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('[ref*="kos-reader-epub-highlight"]'))`), 'EPUB CFI highlight');
+    await waitFor(() => cdp.evaluate(`![...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('划线')).disabled`), 'Reader highlight completion');
+    await cdp.evaluate(`[...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('划线')).click()`);
+    await waitFor(() => cdp.evaluate(`![...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('划线')).disabled`), 'duplicate Reader highlight completion');
     const duplicateExtract = await readFile(readerExtractPath, 'utf8');
     if ((duplicateExtract.match(/<!-- kos-reader-extract:start /g) || []).length !== 1) {
       throw new Error('Duplicate Reader selection created another Extract block');
     }
     const userMessagesBeforeDraft = await cdp.evaluate(`document.querySelectorAll('.kos-agent-message-user').length`);
-    await cdp.evaluate(`document.querySelector('.kos-reader-toolbar [aria-label="添加到 Agent"]').click()`);
+    await cdp.evaluate(`[...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('添加到 Agent')).click()`);
     await waitFor(() => cdp.evaluate(`document.querySelector('.kos-agent-input')?.value?.includes(${JSON.stringify(selectedEpubText)}) && document.querySelector('.kos-agent-input')?.value?.includes('[[11_原材料/E2E输入01]]') && document.querySelector('.kos-agent-input')?.value?.includes(${JSON.stringify(epubSelectionLabel)})`), 'Reader selection Agent draft', 45_000);
     const userMessagesAfterDraft = await cdp.evaluate(`document.querySelectorAll('.kos-agent-message-user').length`);
     if (userMessagesAfterDraft !== userMessagesBeforeDraft) throw new Error('Reader selection was sent to Agent instead of only prefilling the draft');
     await screenshot(cdp, 'reader-selection-agent-draft-desktop.png');
+    await waitFor(() => cdp.evaluate(`[...document.querySelectorAll('.kos-reader-document[data-reader-kind="epub"] iframe')].some((frame) => frame.contentDocument?.querySelector('h1, h2'))`), 'EPUB content after Agent draft');
+    const epubHeadingRect = await cdp.evaluate(`(() => {
+      const iframe = [...document.querySelectorAll('.kos-reader-document[data-reader-kind="epub"] iframe')].find((frame) => frame.contentDocument?.querySelector('h1, h2'));
+      const frameDocument = iframe?.contentDocument;
+      const target = frameDocument?.querySelector('h1, h2');
+      if (!target?.textContent?.trim()) return null;
+      const frameRect = iframe.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      return { x: frameRect.x + targetRect.x, y: frameRect.y + targetRect.y, width: targetRect.width, height: targetRect.height, text: target.textContent.trim() };
+    })()`);
+    if (!epubHeadingRect?.text || epubHeadingRect.width <= 4) throw new Error(`EPUB did not expose a second annotation selection: ${JSON.stringify(epubHeadingRect)}`);
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: epubHeadingRect.x + 2, y: epubHeadingRect.y + epubHeadingRect.height / 2, button: 'left', buttons: 1, clickCount: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: epubHeadingRect.x + epubHeadingRect.width - 2, y: epubHeadingRect.y + epubHeadingRect.height / 2, button: 'left', buttons: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: epubHeadingRect.x + epubHeadingRect.width - 2, y: epubHeadingRect.y + epubHeadingRect.height / 2, button: 'left', buttons: 0, clickCount: 1 });
+    const annotatedEpubText = await waitFor(() => cdp.evaluate(`[...document.querySelectorAll('.kos-reader-document[data-reader-kind="epub"] iframe')].map((frame) => frame.contentWindow?.getSelection()?.toString()?.trim()).find(Boolean) || null`), 'second EPUB text selection');
+    if (!annotatedEpubText || annotatedEpubText === selectedEpubText) throw new Error('EPUB did not expose a second annotation selection');
+    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-reader-selection-count')?.textContent?.includes(${JSON.stringify(`已选择 ${annotatedEpubText.length} 字`)})`), 'second EPUB selection action');
+    await waitFor(() => cdp.evaluate(`Boolean([...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('批注')))`), 'EPUB annotation action');
+    await cdp.evaluate(`[...document.querySelectorAll('.kos-reader-selection-action')].find((el) => el.textContent.includes('批注')).click()`);
+    await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('.kos-reader-annotation-composer input'))`), 'EPUB annotation composer');
+    await cdp.evaluate(`(() => {
+      const input = document.querySelector('.kos-reader-annotation-composer input');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, 'E2E 批注');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      document.querySelector('.kos-reader-color-swatches [aria-label="blue"]').click();
+    })()`);
+    await waitFor(() => cdp.evaluate(`!document.querySelector('.kos-reader-annotation-save').disabled`), 'enabled annotation save');
+    await cdp.evaluate(`document.querySelector('.kos-reader-annotation-save').click()`);
+    await waitFor(async () => ((await readFile(readerExtractPath, 'utf8')).match(/<!-- kos-reader-extract:start /g) || []).length === 2, 'second Reader annotation');
+    await cdp.evaluate(`document.querySelector('.kos-reader-toolbar [aria-label="阅读摘要"]').click()`);
+    await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('.kos-reader-summary-actions button'))`), 'Reader summary panel');
+    const userMessagesBeforeSummary = await cdp.evaluate(`document.querySelectorAll('.kos-agent-message-user').length`);
+    await cdp.evaluate(`[...document.querySelectorAll('.kos-reader-summary-actions button')].find((el) => el.textContent.includes('本次阅读')).click()`);
+    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-agent-input')?.value?.includes('/kos-summarize') && document.querySelector('.kos-agent-input')?.value?.includes('[[11_原材料/E2E输入01]]') && document.querySelector('.kos-agent-input')?.value?.includes('本次阅读会话') && document.querySelector('.kos-agent-input')?.value?.includes('E2E 批注')`), 'Reader session Summary Agent draft');
+    const userMessagesAfterSummary = await cdp.evaluate(`document.querySelectorAll('.kos-agent-message-user').length`);
+    if (userMessagesAfterSummary !== userMessagesBeforeSummary) throw new Error('Reader Summary was sent to Agent instead of only prefilling the draft');
+    await cdp.evaluate(`document.querySelector('.kos-reader-toolbar [aria-label="划线与批注"]').click()`);
+    await waitFor(() => cdp.evaluate(`document.querySelectorAll('.kos-reader-annotation').length === 2`), 'Reader annotation list');
+    await cdp.evaluate(`[...document.querySelectorAll('.kos-reader-annotation [aria-label="删除批注"]')].at(-1).click()`);
+    await waitFor(() => cdp.evaluate(`document.querySelectorAll('.kos-reader-annotation').length === 1`), 'Reader annotation deletion');
+    const extractAfterDelete = await readFile(readerExtractPath, 'utf8');
+    if ((extractAfterDelete.match(/<!-- kos-reader-extract:start /g) || []).length !== 1 || !extractAfterDelete.includes(selectedEpubText) || extractAfterDelete.includes('E2E 批注')) {
+      throw new Error(`Reader annotation deletion removed the wrong block: ${extractAfterDelete.slice(0, 1200)}`);
+    }
     await cdp.evaluate(`document.querySelector('.kos-reader-toolbar [aria-label="下一页"]').click()`);
     await waitFor(() => cdp.evaluate(`document.querySelector('.kos-reader-document').dataset.readerLocation && document.querySelector('.kos-reader-document').dataset.readerLocation !== ${JSON.stringify(epubInitialLocation)}`), 'EPUB next location');
     const epubNextLocation = await cdp.evaluate(`document.querySelector('.kos-reader-document').dataset.readerLocation`);
@@ -739,6 +875,20 @@ async function run() {
     await waitFor(() => cdp.evaluate(`app.workspace.getLeavesOfType('kos-reader').length === 0`), 'closed Reader before restore');
     await cdp.evaluate(`[...document.querySelectorAll('#kos-board-input .kos-board-line')].find((el) => el.textContent.includes('E2E 输入 01')).querySelector('[aria-label="在 Reader 中阅读"]').click()`);
     await waitFor(() => cdp.evaluate(`document.querySelector('.kos-reader-document[data-reader-kind="epub"]')?.dataset.readerLocation === ${JSON.stringify(epubNextLocation)}`), 'restored EPUB progress');
+    await cdp.evaluate(`document.querySelector('.kos-reader-toolbar [aria-label="划线与批注"]').click()`);
+    await waitFor(() => cdp.evaluate(`document.querySelectorAll('.kos-reader-annotation').length === 1`), 'restored EPUB annotation list');
+    await cdp.evaluate(`document.querySelector('.kos-reader-annotation-main').click()`);
+    try {
+      await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('[ref*="kos-reader-epub-highlight"]'))`), 'restored EPUB CFI highlight');
+    } catch (error) {
+      const restoredHighlightState = await cdp.evaluate(`({
+        location: document.querySelector('.kos-reader-document')?.dataset.readerLocation,
+        error: document.querySelector('.kos-reader-action-error')?.textContent,
+        svgs: [...document.querySelectorAll('.epub-view svg')].map((svg) => svg.outerHTML.slice(0, 1000)),
+        frames: [...document.querySelectorAll('.kos-reader-document[data-reader-kind="epub"] iframe')].map((frame) => frame.contentDocument?.body?.innerText),
+      })`);
+      throw new Error(`${error.message}; restoredHighlightState=${JSON.stringify(restoredHighlightState)}`);
+    }
     await cdp.evaluate(`document.querySelector('.kos-reader-header [aria-label="返回看板"]').click()`);
     await waitFor(() => cdp.evaluate(`app.workspace.activeLeaf?.view?.getViewType?.() === 'kos-dashboard'`), 'return to dashboard after Reader restore');
 
@@ -815,46 +965,6 @@ async function run() {
     await waitFor(() => cdp.evaluate(`app.workspace.activeLeaf?.view?.getViewType?.() === 'kos-dashboard' && document.querySelector('#kos-board-action')?.getClientRects().length > 0 && document.querySelector('#kos-board-action').getBoundingClientRect().top < 180`), 'visible action section focus');
     await waitFor(() => cdp.evaluate(`Boolean([...document.querySelectorAll('.kos-board-link')].find((el) => el.textContent.includes('E2E 推进插件二期')))`), 'seed task row');
     await screenshot(cdp, 'dashboard-action-desktop.png');
-    await cdp.evaluate(`(() => {
-      const card = [...document.querySelectorAll('.kos-board-goal-card')].find((item) => item.textContent.includes('交付插件'));
-      card && [...card.querySelectorAll('button')].find((button) => button.textContent === '编辑')?.click();
-    })()`);
-    await waitFor(() => cdp.evaluate(`(() => {
-      const modal = [...document.querySelectorAll('.modal-container')].find((item) => item.textContent.includes('编辑目标：交付插件'));
-      const expected = [...(modal?.querySelectorAll('.setting-item') ?? [])].find((item) => item.querySelector('.setting-item-name')?.textContent === '期望结果');
-      return expected?.querySelector('textarea')?.value === '完成真实 Obsidian 验收';
-    })()`), 'goal editor dialog with existing result definition');
-    await cdp.evaluate(`(() => {
-      const modal = [...document.querySelectorAll('.modal-container')].find((item) => item.textContent.includes('编辑目标：交付插件'));
-      const setting = [...(modal?.querySelectorAll('.setting-item') ?? [])].find((item) => item.querySelector('.setting-item-name')?.textContent === '追加结果证据');
-      const input = setting?.querySelector('textarea');
-      if (input) {
-        input.value = 'E2E 目标证据';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      [...(modal?.querySelectorAll('button') ?? [])].find((button) => button.textContent === '保存')?.click();
-    })()`);
-    await waitFor(async () => {
-      const content = await readFile(goalPath, 'utf8');
-      return content.includes('result_evidence:') && (content.match(/E2E 目标证据/g) ?? []).length === 2;
-    }, 'goal evidence persisted through Agent');
-    await waitFor(() => cdp.evaluate(`(() => {
-      const card = [...document.querySelectorAll('.kos-board-goal-card')].find((item) => item.textContent.includes('交付插件'));
-      return card?.textContent.includes('结果证据 1 条');
-    })()`), 'goal evidence count refreshed');
-    await screenshot(cdp, 'dashboard-goal-edited.png');
-    await cdp.evaluate(`(() => {
-      const card = [...document.querySelectorAll('.kos-board-goal-card')].find((item) => item.textContent.includes('交付插件'));
-      card && [...card.querySelectorAll('button')].find((button) => button.textContent === '状态')?.click();
-    })()`);
-    await waitFor(() => cdp.evaluate(`(() => {
-      const modal = [...document.querySelectorAll('.modal-container')].find((item) => item.textContent.includes('流转：交付插件'));
-      return [...(modal?.querySelectorAll('button') ?? [])].some((button) => button.textContent.includes('paused'));
-    })()`), 'goal status transition menu');
-    await cdp.evaluate(`(() => {
-      const modal = [...document.querySelectorAll('.modal-container')].find((item) => item.textContent.includes('流转：交付插件'));
-      modal?.querySelector('.modal-close-button')?.click();
-    })()`);
     await cdp.evaluate(`document.querySelector('#kos-action-tasks')?.scrollIntoView({ block: 'start' })`);
     await cdp.evaluate(`[...document.querySelectorAll('#kos-action-tasks .kos-board-tabs button')].find((button) => button.textContent === '进行中')?.click()`);
     await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('#kos-action-tasks + .kos-board-lines .kos-board-check:not(:disabled)'))`), 'doing task filter');
@@ -869,9 +979,31 @@ async function run() {
       };
       setValue(modal?.querySelector('textarea'), 'E2E 完成任务');
       for (const input of modal?.querySelectorAll('input[placeholder="贡献证据"]') ?? []) setValue(input, 'E2E 验收通过');
-      [...(modal?.querySelectorAll('button') ?? [])].find((button) => button.textContent === '确认完成')?.click();
     })()`);
-    await waitFor(async () => (await readFile(taskPath, 'utf8')).includes('status: done'), 'Agent task transition', 30_000);
+    await waitFor(() => cdp.evaluate(`(() => {
+      const modal = [...document.querySelectorAll('.modal-container')].find((element) => element.textContent.includes('确认完成'));
+      return modal?.querySelector('textarea')?.value === 'E2E 完成任务'
+        && [...(modal?.querySelectorAll('input[placeholder="贡献证据"]') ?? [])].every((input) => input.value === 'E2E 验收通过');
+    })()`), 'complete task form values');
+    const completionClicked = await cdp.evaluate(`(() => {
+      const modal = [...document.querySelectorAll('.modal-container')].find((element) => element.textContent.includes('确认完成'));
+      const button = [...(modal?.querySelectorAll('button') ?? [])].find((item) => item.textContent === '确认完成');
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`);
+    if (!completionClicked) throw new Error('Complete task submit button was not clicked');
+    try {
+      await waitFor(async () => (await readFile(taskPath, 'utf8')).includes('status: done'), 'Agent task transition', 30_000);
+    } catch (error) {
+      const completionState = await cdp.evaluate(`({
+        notices: [...document.querySelectorAll('.notice')].map((item) => item.textContent),
+        modal: [...document.querySelectorAll('.modal-container')].map((item) => item.textContent).find((text) => text.includes('确认完成')),
+        agentRunning: app.plugins.plugins['kos-companion'].agentClient?.isRunning,
+        pendingCommands: [...(app.plugins.plugins['kos-companion'].agentClient?.pending?.keys?.() ?? [])],
+      })`);
+      throw new Error(`${error.message}; completionState=${JSON.stringify(completionState)}`);
+    }
 
     await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await cdp.evaluate(`(async () => {

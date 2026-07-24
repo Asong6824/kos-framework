@@ -1,6 +1,6 @@
 import type { DashboardModule } from './dashboard';
 
-export type DashboardWidgetId = 'clock' | 'schedule' | 'progress' | 'heatmap';
+export type DashboardWidgetId = 'clock' | 'schedule' | 'goals' | 'progress' | 'heatmap';
 export type DashboardCardId = DashboardWidgetId | DashboardModule;
 
 export const BENTO_COLUMNS = 12;
@@ -19,18 +19,46 @@ export type BentoMinimumRows = Partial<Record<DashboardCardId, number>>;
 
 export type BentoResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
-export const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = ['clock', 'schedule', 'progress', 'heatmap'];
+export const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = ['clock', 'schedule', 'goals', 'progress', 'heatmap'];
 export const DASHBOARD_MODULE_IDS: DashboardModule[] = ['today', 'action', 'input', 'knowledge', 'review', 'system'];
 export const DASHBOARD_CARD_IDS: DashboardCardId[] = [...DASHBOARD_WIDGET_IDS, ...DASHBOARD_MODULE_IDS];
 
 export const UTILITY_MINIMUM_ROWS: BentoMinimumRows = {
   clock: 6,
-  schedule: 8,
+  schedule: 10,
+  goals: 7,
   progress: 9,
   heatmap: 6,
 };
 
 export const DEFAULT_BENTO_LAYOUT: BentoLayoutItem[] = [
+  { id: 'clock', x: 0, y: 0, w: 7, h: 6 },
+  { id: 'schedule', x: 0, y: 6, w: 7, h: 12 },
+  { id: 'goals', x: 0, y: 18, w: 10, h: 8 },
+  { id: 'progress', x: 0, y: 26, w: 10, h: 12 },
+  { id: 'heatmap', x: 0, y: 38, w: 10, h: 7 },
+  { id: 'today', x: 0, y: 45, w: 9, h: 7 },
+  { id: 'knowledge', x: 9, y: 45, w: 3, h: 7 },
+  { id: 'action', x: 0, y: 52, w: 6, h: 10 },
+  { id: 'input', x: 6, y: 52, w: 6, h: 10 },
+  { id: 'review', x: 0, y: 62, w: 9, h: 7 },
+  { id: 'system', x: 9, y: 62, w: 3, h: 7 },
+];
+
+const PRE_GOAL_DEFAULT_BENTO_LAYOUT: BentoLayoutItem[] = [
+  { id: 'clock', x: 0, y: 0, w: 7, h: 6 },
+  { id: 'schedule', x: 0, y: 6, w: 7, h: 12 },
+  { id: 'progress', x: 0, y: 18, w: 10, h: 12 },
+  { id: 'heatmap', x: 0, y: 30, w: 10, h: 7 },
+  { id: 'today', x: 0, y: 37, w: 9, h: 7 },
+  { id: 'knowledge', x: 9, y: 37, w: 3, h: 7 },
+  { id: 'action', x: 0, y: 44, w: 6, h: 10 },
+  { id: 'input', x: 6, y: 44, w: 6, h: 10 },
+  { id: 'review', x: 0, y: 54, w: 9, h: 7 },
+  { id: 'system', x: 9, y: 54, w: 3, h: 7 },
+];
+
+const PREVIOUS_DEFAULT_BENTO_LAYOUT: BentoLayoutItem[] = [
   { id: 'clock', x: 0, y: 0, w: 7, h: 8 },
   { id: 'schedule', x: 0, y: 8, w: 7, h: 10 },
   { id: 'progress', x: 0, y: 18, w: 10, h: 12 },
@@ -65,6 +93,29 @@ function fallbackItem(id: DashboardCardId): BentoLayoutItem {
   return DEFAULT_BENTO_LAYOUT.find((item) => item.id === id)!;
 }
 
+function normalizeTenCardLayout(value: unknown): BentoLayoutItem[] {
+  const ids = PRE_GOAL_DEFAULT_BENTO_LAYOUT.map((item) => item.id);
+  if (!Array.isArray(value)) return cloneBentoLayout(PRE_GOAL_DEFAULT_BENTO_LAYOUT);
+  const byId = new Map<DashboardCardId, BentoLayoutItem>();
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const raw = candidate as Partial<BentoLayoutItem>;
+    if (!ids.includes(raw.id as DashboardCardId) || byId.has(raw.id as DashboardCardId)) continue;
+    const id = raw.id as DashboardCardId;
+    const fallback = PRE_GOAL_DEFAULT_BENTO_LAYOUT.find((item) => item.id === id)!;
+    const w = Math.min(BENTO_COLUMNS, Math.max(1, integer(raw.w, fallback.w)));
+    byId.set(id, {
+      id,
+      x: Math.min(BENTO_COLUMNS - w, Math.max(0, integer(raw.x, fallback.x))),
+      y: Math.max(0, integer(raw.y, fallback.y)),
+      w,
+      h: Math.max(1, integer(raw.h, fallback.h)),
+    });
+  }
+  if (byId.size !== ids.length) return cloneBentoLayout(PRE_GOAL_DEFAULT_BENTO_LAYOUT);
+  return ids.map((id) => ({ ...byId.get(id)! }));
+}
+
 export function cloneBentoLayout(layout: readonly BentoLayoutItem[]): BentoLayoutItem[] {
   return layout.map((item) => ({ ...item }));
 }
@@ -90,6 +141,21 @@ export function normalizeBentoLayout(value: unknown): BentoLayoutItem[] {
   }
   if (byId.size !== DASHBOARD_CARD_IDS.length) return cloneBentoLayout(DEFAULT_BENTO_LAYOUT);
   return DASHBOARD_CARD_IDS.map((id) => ({ ...byId.get(id)! }));
+}
+
+export function migrateClockScheduleLayout(value: unknown): BentoLayoutItem[] {
+  const normalized = normalizeTenCardLayout(value);
+  const isPreviousDefault = PREVIOUS_DEFAULT_BENTO_LAYOUT.every((expected) => {
+    const item = normalized.find((candidate) => candidate.id === expected.id);
+    return item?.x === expected.x && item.y === expected.y && item.w === expected.w && item.h === expected.h;
+  });
+  return isPreviousDefault ? cloneBentoLayout(PRE_GOAL_DEFAULT_BENTO_LAYOUT) : normalized;
+}
+
+export function migrateGoalCardLayout(value: unknown): BentoLayoutItem[] {
+  const layout = normalizeTenCardLayout(value);
+  const goal = DEFAULT_BENTO_LAYOUT.find((item) => item.id === 'goals')!;
+  return resolveBentoLayout([...layout, { ...goal }], UTILITY_MINIMUM_ROWS);
 }
 
 /** Convert the v5 split layout (4-column business grid + pixel utility cards) into the unified v6 grid. */

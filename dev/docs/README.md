@@ -29,10 +29,12 @@ vault/90_系统/文档/  # 跟随 runtime vault 发布的用户文档
 - `Process Eval与Agent Trace.md`：Pi trace 采集、过程合同、指标和安全边界。
 - `Pi驱动kos-test.md`：三层 Vault 边界和 Pi 测试入口。
 - `自举与维护边界.md`：Runtime Distribution 和 Framework Development 的信任与依赖边界。
+- `kos项目面试问答与压力测试.md`：面向 AI 产品经理与 FDE 岗位的项目陈述、递进问答、压力面、演示建议和证据边界。
 - `Obsidian看板二期优化.md`：看板作为 kos-agent 工作流触发器和结果载体的二期设计。
 - `个性化协作与每日推荐优化.md`：测评输入、个人操作画像、Agent Context 和每日个性化推荐的现状基线与关键断层。
 - `目标驱动的个人推进体系设计.md`：年度/月度目标、Project、Task、个人画像、Agent 规划与复盘闭环的完整设计提案。
 - `H1H2目标驱动推进体系操作需求.md`：H1/H2 Goal、Project、公共 Task Pool 在 Vault、kos-agent/Harness 和 Obsidian 看板中的操作合同与验收需求；该功能与旧目标设计冲突时以本文为准。
 - `LiveSync与R2设备同步方案.md`：桌面 Agent、移动 Obsidian 和低成本 R2 设备同步的选型、数据边界、实现阶段和发布验收。
 - `Layout_v2目录迁移.md`：目录重排映射、跨层版本契约、迁移职责和发布验收。
+- Runtime 用户文档现已补充 `26_输入到知识.md`、`27_驾驶舱.md`、`28_Agent协作.md` 和 `29_日常规划与复盘.md`，分别承载端到端知识工作流、产品界面、Agent 操作和日常执行闭环；内部规格仍以本目录、`agent/docs/` 与 `ob-plugin/docs/` 为准。
 - `原公开仓库文档归档.md`：原 `docs/` 目录内容的本地归档。

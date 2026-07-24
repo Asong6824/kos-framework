@@ -1,6 +1,9 @@
 import type {
   KosAppendReaderExtractInput,
   KosAppendReaderExtractResult,
+  KosDeleteReaderAnnotationInput,
+  KosDeleteReaderAnnotationResult,
+  KosListReaderAnnotationsResult,
   KosCreateObjectInput,
   KosConfigureModelInput,
   KosMessage,
@@ -176,8 +179,10 @@ export class KosAgentClient {
     return this.send<void>({ type: 'abort' });
   }
 
-  newSession(): Promise<{ cancelled: boolean }> {
-    return this.send<{ cancelled: boolean }>({ type: 'new_session' });
+  async newSession(): Promise<{ cancelled: boolean }> {
+    const result = await this.send<{ cancelled: boolean }>({ type: 'new_session' });
+    if (!result.cancelled) this.pendingQuestions.clear();
+    return result;
   }
 
   validate(paths?: string[]): Promise<KosValidationReport> {
@@ -190,6 +195,14 @@ export class KosAgentClient {
 
   appendReaderExtract(input: KosAppendReaderExtractInput): Promise<KosAppendReaderExtractResult> {
     return this.send<KosAppendReaderExtractResult>({ type: 'append_reader_extract', ...input });
+  }
+
+  listReaderAnnotations(sourcePath: string): Promise<KosListReaderAnnotationsResult> {
+    return this.send<KosListReaderAnnotationsResult>({ type: 'list_reader_annotations', sourcePath });
+  }
+
+  deleteReaderAnnotation(input: KosDeleteReaderAnnotationInput): Promise<KosDeleteReaderAnnotationResult> {
+    return this.send<KosDeleteReaderAnnotationResult>({ type: 'delete_reader_annotation', ...input });
   }
 
   transitionStatus(input: KosTransitionStatusInput): Promise<KosTransitionStatusResult> {
@@ -299,8 +312,10 @@ export class KosAgentClient {
     return data.sessions;
   }
 
-  switchSession(sessionPath: string): Promise<{ cancelled: boolean }> {
-    return this.send({ type: 'switch_session', sessionPath });
+  async switchSession(sessionPath: string): Promise<{ cancelled: boolean }> {
+    const result = await this.send<{ cancelled: boolean }>({ type: 'switch_session', sessionPath });
+    if (!result.cancelled) this.pendingQuestions.clear();
+    return result;
   }
 
   setSessionName(name: string): Promise<void> {

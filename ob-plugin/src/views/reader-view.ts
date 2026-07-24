@@ -3,7 +3,7 @@ import type { ViewStateResult, WorkspaceLeaf } from 'obsidian';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
-import type { ReaderExcerpt, ReaderProgress, ReaderSelection } from '../reader/model';
+import type { ReaderAnnotation, ReaderAnnotationColor, ReaderContext, ReaderExcerpt, ReaderProgress, ReaderSelection } from '../reader/model';
 import { ReaderApp } from './reader/ReaderApp';
 import { resolveDirectReaderDocument, resolveReaderDocument } from './reader/source';
 
@@ -14,8 +14,11 @@ export interface ReaderViewDeps {
   getProgress(path: string): ReaderProgress | undefined;
   saveProgress(path: string, progress: ReaderProgress): Promise<void>;
   ensureSource(documentPath: string): Promise<string>;
-  addToExtract(excerpt: ReaderExcerpt): Promise<void>;
+  listAnnotations(sourcePath: string): Promise<ReaderAnnotation[]>;
+  addAnnotation(excerpt: ReaderExcerpt, note: string, color: ReaderAnnotationColor): Promise<ReaderAnnotation>;
+  deleteAnnotation(annotation: ReaderAnnotation): Promise<void>;
   addToAgent(excerpt: ReaderExcerpt): Promise<void>;
+  summarize(excerpt: Omit<ReaderExcerpt, 'selection'>, context: ReaderContext, annotations: ReaderAnnotation[], mode: 'section' | 'session'): Promise<void>;
 }
 
 interface ReaderState extends Record<string, unknown> {
@@ -113,6 +116,8 @@ export class ReaderView extends ItemView {
     }
 
     const sourcePath = resolution.document.sourcePath;
+    const annotations = await this.deps.listAnnotations(sourcePath);
+    if (version !== this.renderVersion) return;
     const excerpt = (selection: ReaderSelection): ReaderExcerpt => ({
       sourcePath,
       documentPath: resolution.document.documentPath,
@@ -123,10 +128,18 @@ export class ReaderView extends ItemView {
     root.render(createElement(ReaderApp, {
       document: resolution.document,
       initialProgress: this.deps.getProgress(sourcePath),
+      initialAnnotations: annotations,
       backToInput: () => void this.deps.backToInput(),
       saveProgress: (progress: ReaderProgress) => this.deps.saveProgress(sourcePath, progress),
-      addToExtract: (selection: ReaderSelection) => this.deps.addToExtract(excerpt(selection)),
+      addAnnotation: (selection: ReaderSelection, note: string, color: ReaderAnnotationColor) => this.deps.addAnnotation(excerpt(selection), note, color),
+      deleteAnnotation: (annotation: ReaderAnnotation) => this.deps.deleteAnnotation(annotation),
       addToAgent: (selection: ReaderSelection) => this.deps.addToAgent(excerpt(selection)),
+      summarize: (context: ReaderContext, items: ReaderAnnotation[], mode: 'section' | 'session') => this.deps.summarize({
+        sourcePath,
+        documentPath: resolution.document.documentPath,
+        title: resolution.document.title,
+        kind: resolution.document.kind,
+      }, context, items, mode),
     }));
   }
 }

@@ -63,6 +63,9 @@ export interface AppendReaderExtractInput {
 	location: string;
 	positionLabel: string;
 	text: string;
+	note?: string;
+	color?: ReaderAnnotationColor;
+	anchor?: ReaderAnchor;
 	directories: ObjectDirectories;
 }
 
@@ -70,6 +73,56 @@ export interface AppendReaderExtractResult extends OperationResult {
 	extractId: string;
 	created: boolean;
 	duplicate: boolean;
+	annotation: ReaderAnnotation;
+}
+
+export type ReaderAnnotationColor = "yellow" | "red" | "blue" | "green";
+
+export interface ReaderRect {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+export type ReaderAnchor =
+	| { format: "pdf"; page: number; rects: ReaderRect[]; quote: string }
+	| { format: "epub"; cfiRange: string; quote: string }
+	| { format: "markdown"; quote: string; occurrence?: number };
+
+export interface ReaderAnnotation {
+	id: string;
+	sourcePath: string;
+	documentPath: string;
+	extractPath: string;
+	kind: "markdown" | "pdf" | "epub";
+	location: string;
+	positionLabel: string;
+	text: string;
+	note: string;
+	color: ReaderAnnotationColor;
+	anchor: ReaderAnchor;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface ListReaderAnnotationsInput {
+	sourcePath: string;
+}
+
+export interface ListReaderAnnotationsResult {
+	extractPath: string | null;
+	annotations: ReaderAnnotation[];
+}
+
+export interface DeleteReaderAnnotationInput {
+	sourcePath: string;
+	extractId: string;
+}
+
+export interface DeleteReaderAnnotationResult extends OperationResult {
+	extractId: string;
+	deleted: true;
 }
 
 export interface TransitionStatusInput {
@@ -319,6 +372,13 @@ export interface StartDayInput {
 export interface StartDayResult extends OperationResult {
 	runId: string;
 	context: PlanningContext;
+	recommendations: DailyRecommendation[];
+}
+
+export interface SaveDailyPlanInput {
+	date: string;
+	runId: string;
+	contextFingerprint: string;
 	recommendations: DailyRecommendation[];
 }
 
