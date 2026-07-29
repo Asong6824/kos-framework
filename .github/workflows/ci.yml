@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -23,3 +26,29 @@ jobs:
       - run: npm ci --prefix agent --ignore-scripts
       - run: npm ci --prefix ob-plugin --ignore-scripts
       - run: make release-check
+      - name: Verify fresh install, upgrade, and settings preservation
+        run: node dev/harness/verify_install_local.mjs
+      - name: Build ready-to-open release Vault
+        run: node dev/harness/install_local.mjs "$RUNNER_TEMP/kos-user-vault" --skip-deps
+      - name: Upload installable kos Companion
+        uses: actions/upload-artifact@v4
+        with:
+          name: kos-companion-${{ github.sha }}
+          path: release/kos-companion/
+          if-no-files-found: error
+      - name: Build release archive
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: python dev/harness/build_release_archives.py "$RUNNER_TEMP/kos-user-vault"
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            "release/kos-vault-${version}.zip" \
+            "release/kos-companion-${version}.zip" \
+            "release/SHA256SUMS" \
+            --verify-tag \
+            --generate-notes

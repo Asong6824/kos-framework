@@ -77,11 +77,25 @@ class ModelSetupModal extends Modal {
   onOpen(): void {
     this.contentEl.addClass('kos-modal');
     this.contentEl.createEl('h3', { text: '配置模型' });
-    new Setting(this.contentEl).setName('Provider').addText((text) =>
-      text.setValue(this.provider).onChange((value) => (this.provider = value)),
-    );
-    new Setting(this.contentEl).setName('Model ID').addText((text) =>
-      text.setValue(this.modelId).onChange((value) => (this.modelId = value)),
+    this.contentEl.createEl('p', {
+      cls: 'setting-item-description',
+      text: '选择模型提供商并填写其官方 model ID。API key 只保存到 kos-agent 的 auth.json，不进入 Vault。',
+    });
+    const providerSetting = new Setting(this.contentEl).setName('Provider').setDesc('常用值：openai、anthropic、google');
+    providerSetting.addText((text) => {
+      text.setValue(this.provider).onChange((value) => (this.provider = value.trim()));
+      for (const provider of ['openai', 'anthropic', 'google']) {
+        providerSetting.addButton((button) => button
+          .setButtonText(provider)
+          .setTooltip(`使用 ${provider}`)
+          .onClick(() => {
+            this.provider = provider;
+            text.setValue(provider);
+          }));
+      }
+    });
+    new Setting(this.contentEl).setName('Model ID').setDesc('例如提供商控制台或模型文档中的完整模型 ID').addText((text) =>
+      text.setPlaceholder('输入 model ID').setValue(this.modelId).onChange((value) => (this.modelId = value.trim())),
     );
     new Setting(this.contentEl).setName('API key').addText((text) => {
       text.inputEl.type = 'password';
@@ -103,10 +117,14 @@ class ModelSetupModal extends Modal {
     const row = this.contentEl.createDiv({ cls: 'kos-modal-buttons' });
     const save = row.createEl('button', { cls: 'mod-cta', text: '保存并使用' });
     save.addEventListener('click', () => {
+      if (!this.provider.trim() || !this.modelId.trim() || !this.apiKey.trim()) {
+        new Notice('Provider、Model ID 和 API key 都不能为空');
+        return;
+      }
       const input: KosConfigureModelInput = {
-        provider: this.provider,
-        modelId: this.modelId,
-        apiKey: this.apiKey,
+        provider: this.provider.trim(),
+        modelId: this.modelId.trim(),
+        apiKey: this.apiKey.trim(),
       };
       if (this.baseUrl.trim()) {
         input.baseUrl = this.baseUrl;
@@ -558,6 +576,7 @@ export class AgentView extends ItemView {
     this.sendButton = this.iconButton(sendRow, 'arrow-up', '发送', () => void this.submit());
     this.sendButton.addClass('mod-cta');
     this.usageEl = composer.createDiv({ cls: 'kos-agent-usage', text: '思考 off · 0 tokens' });
+    this.setModelReady(false);
   }
 
   private iconButton(parent: HTMLElement, icon: string, label: string, action: () => void): HTMLButtonElement {
@@ -589,7 +608,8 @@ export class AgentView extends ItemView {
       this.clearAssistantMarkdown();
       this.messagesEl.empty();
       for (const message of messages) this.renderStoredMessage(message);
-      if (messages.length === 0) this.messagesEl.createDiv({ cls: 'kos-agent-empty', text: '开始一个会话' });
+      this.setModelReady(this.hasConfiguredModel(state.model));
+      if (messages.length === 0) this.renderFirstRun(this.hasConfiguredModel(state.model));
       this.setStreaming(state.isStreaming);
       this.renderUsage(stats);
     } catch (error) {
@@ -865,6 +885,66 @@ export class AgentView extends ItemView {
     this.currentModel = model;
     this.idleStatus = model.id;
     this.setStatus(this.idleStatus);
+    this.setModelReady(true);
+    const onboarding = this.messagesEl.querySelector('.kos-agent-onboarding');
+    if (onboarding) {
+      onboarding.remove();
+      this.renderFirstRun(true);
+    }
+  }
+
+  private hasConfiguredModel(model: KosModelInfo | undefined): boolean {
+    return Boolean(model?.id && model.id !== 'unknown');
+  }
+
+  private setModelReady(ready: boolean): void {
+    this.sendButton.disabled = !ready;
+    this.inputEl.disabled = !ready;
+    this.inputEl.placeholder = ready ? '给 kos-agent 发消息' : '先完成模型配置，再开始对话';
+  }
+
+  private renderFirstRun(modelReady: boolean): void {
+    const card = this.messagesEl.createDiv({ cls: 'kos-agent-onboarding' });
+    card.createDiv({ cls: 'kos-agent-onboarding-eyebrow', text: '首次启动' });
+    card.createEl('h3', { text: modelReady ? 'kos Agent 已准备好' : '三步开始使用 kos Agent' });
+    card.createEl('p', {
+      text: modelReady
+        ? '模型已配置。建议先运行一次系统检查，再开始第一个工作流。'
+        : '本地 Agent 已连接。完成模型配置后，运行系统检查并开始第一个工作流。',
+    });
+
+    const steps = card.createDiv({ cls: 'kos-agent-onboarding-steps' });
+    this.renderOnboardingStep(steps, true, '1', '连接本地 Agent', '已连接');
+    this.renderOnboardingStep(steps, modelReady, '2', '配置模型', modelReady ? `${this.currentModel?.provider}/${this.currentModel?.id}` : '待完成');
+    this.renderOnboardingStep(steps, false, '3', '系统检查与首次工作流', '建议执行');
+
+    const actions = card.createDiv({ cls: 'kos-agent-onboarding-actions' });
+    if (!modelReady) {
+      const configure = actions.createEl('button', { cls: 'mod-cta', text: '配置模型' });
+      configure.addEventListener('click', () => void this.configureModel());
+    } else {
+      const validate = actions.createEl('button', { cls: 'mod-cta', text: '运行系统检查' });
+      validate.addEventListener('click', () => void this.runValidation());
+      const firstWorkflow = actions.createEl('button', { text: '填写第一个工作流' });
+      firstWorkflow.addEventListener('click', () => {
+        this.inputEl.value = '帮我开始今天的工作。读取当前 Goal、Project、Task Pool 和最近复盘，根据我今天可用的时间给出最多三项建议；先让我确认，不要直接替我排期。';
+        this.inputEl.focus();
+      });
+    }
+  }
+
+  private renderOnboardingStep(
+    parent: HTMLElement,
+    complete: boolean,
+    number: string,
+    label: string,
+    detail: string,
+  ): void {
+    const step = parent.createDiv({ cls: `kos-agent-onboarding-step${complete ? ' is-complete' : ''}` });
+    step.createSpan({ cls: 'kos-agent-onboarding-number', text: complete ? '✓' : number });
+    const copy = step.createDiv();
+    copy.createDiv({ cls: 'kos-agent-onboarding-label', text: label });
+    copy.createDiv({ cls: 'kos-agent-onboarding-detail', text: detail });
   }
 
   private async attachNote(): Promise<void> {
@@ -1222,7 +1302,7 @@ export class AgentView extends ItemView {
 
   private setStreaming(streaming: boolean): void {
     this.isStreaming = streaming;
-    this.sendButton.disabled = false;
+    this.setModelReady(this.hasConfiguredModel(this.currentModel));
     this.stopButton.hidden = !streaming;
     this.sendModeEl.value = streaming ? 'steer' : 'auto';
     if (streaming) this.setStatus('运行中');

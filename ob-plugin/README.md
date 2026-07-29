@@ -43,7 +43,7 @@ npm run test:e2e     # 独立临时 Vault + 真实 Obsidian + kos-agent RPC
 
 正式本地发布先在仓库根目录运行 `make release-check`，产物位于 `release/kos-companion/`。同步到现有 Vault 时保留目标插件目录中的 `data.json`，因为其中包含用户设置、历史快照、徽章、Reader 进度和自定义看板布局。
 
-`npm run test:e2e` 需要 macOS 上已安装 `/Applications/Obsidian.app`，以及 Node.js 22.19+。脚本会创建独立的临时 Vault 和 `user-data-dir`，不会打开、修改或关闭用户当前 Vault；它通过 Obsidian 的 Chrome DevTools Protocol 验证 Bento 编辑格线、真实拖动与缩放、碰撞无重叠、撤销/重做/复位和布局落盘，同时覆盖区块无内部滚动、桌面/390px 布局、Reader、PDF/EPUB、Extract、Agent 草稿和确定性任务流转。截图和夹具路径会输出到终端。
+`npm run test:e2e` 需要 macOS 上已安装 `/Applications/Obsidian.app`，以及 Node.js 22.19+。脚本会创建独立的临时 Vault、`user-data-dir`、kos-agent 配置目录和本地假模型端点，不读取用户模型凭据，也不会打开、修改或关闭用户当前 Vault；它通过 Obsidian 的 Chrome DevTools Protocol 验证首次启动、模型配置、真实 Agent 每日建议链路、Bento 编辑格线、真实拖动与缩放、碰撞无重叠、撤销/重做/复位和布局落盘，同时覆盖任务结果确认、区块无内部滚动、桌面/390px 布局、Reader、PDF/EPUB、Extract 和 Agent 草稿。截图和夹具路径会输出到终端。
 
 ### 个性化目录布局
 

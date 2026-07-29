@@ -3322,6 +3322,87 @@
   text-align: center;
 }
 
+.kos-agent-onboarding {
+  max-width: 520px;
+  margin: 8px auto 20px;
+  padding: 18px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  background: var(--background-secondary);
+}
+
+.kos-agent-onboarding-eyebrow {
+  margin-bottom: 4px;
+  color: var(--text-accent);
+  font-size: var(--font-ui-smaller);
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.kos-agent-onboarding h3 {
+  margin: 0 0 6px;
+}
+
+.kos-agent-onboarding > p {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.kos-agent-onboarding-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.kos-agent-onboarding-step {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 7px;
+  background: var(--background-primary);
+}
+
+.kos-agent-onboarding-number {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 700;
+}
+
+.kos-agent-onboarding-step.is-complete .kos-agent-onboarding-number {
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
+.kos-agent-onboarding-label {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+}
+
+.kos-agent-onboarding-detail {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kos-agent-onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .kos-agent-message {
   margin-bottom: 14px;
 }

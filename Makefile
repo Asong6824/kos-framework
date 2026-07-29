@@ -1,9 +1,21 @@
-.PHONY: check dev-check eval process-eval process-eval-validate test test-init scan agent-build agent-test agent-check ob-plugin-check mvp-package release-check kos-test-build kos-test-reset kos-test clean
+.PHONY: setup install release-archives check dev-check eval process-eval process-eval-validate test test-init scan agent-build agent-test agent-check ob-plugin-check mvp-package release-check kos-test-build kos-test-reset kos-test clean
 
 PYTHON ?= python3
 VAULT := vault
 KOS_TEST_VAULT ?= $(abspath ../kos-test)
 PI ?= pi
+KOS_VAULT ?= $(abspath ../kos)
+
+setup:
+	npm ci --prefix agent --ignore-scripts
+	npm ci --prefix ob-plugin --ignore-scripts
+
+install:
+	node dev/harness/install_local.mjs "$(KOS_VAULT)"
+
+release-archives: mvp-package
+	node dev/harness/install_local.mjs "$(KOS_VAULT)" --skip-deps
+	$(PYTHON) dev/harness/build_release_archives.py "$(KOS_VAULT)"
 
 check: agent-build
 	node agent/packages/kos-agent/dist/kos-cli.js validate --root $(VAULT)

@@ -140,29 +140,25 @@ LLM 负责推理和生成。Harness 决定模型看见什么、能做什么、�
 - 一个受支持的模型 provider 与 API key
 - macOS、Windows 或 Linux 桌面环境；移动端可以使用不依赖本地 Agent 的 Vault 和驾驶舱能力
 
-### 初始化一个 Vault
+### 下载即用（新用户推荐）
+
+从 [GitHub Releases](https://github.com/Asong6824/kos-framework/releases) 下载 `kos-vault-<version>.zip`，解压后直接用 Obsidian 打开其中的 `kos-user-vault` 文件夹。完整包已包含 Vault 模板和 kos Companion，不需要 Git、npm、make 或 Python。
+
+### 从源码一键安装
 
 ```bash
 git clone https://github.com/Asong6824/kos-framework.git
 cd kos-framework
-python3 dev/harness/init_vault.py ~/kos
+node dev/harness/install_local.mjs ~/kos
 ```
+
+这条命令会安装锁定依赖、初始化 Vault、构建并安装 kos Companion、保留已有插件设置，并运行健康检查。Windows PowerShell 也使用同一命令，只需把目标改成如 `"C:\Users\me\Documents\kos"`。
+
+在 Obsidian 中启用或重新加载 kos Companion，然后打开右侧 kos Agent 配置 provider、model ID 和 API key。API key 由 kos-agent 的配置层保存，不写入 Markdown 笔记。
 
 不要直接在本仓库的 `vault/` 中保存个人笔记。`vault/` 是运行时发行模板，个人内容应位于单独的 Vault。
 
-### 构建并安装 kos Companion
-
-```bash
-make mvp-package
-```
-
-将 `release/kos-companion/` 复制到：
-
-```text
-<Vault>/.obsidian/plugins/kos-companion
-```
-
-在 Obsidian 中启用或重新加载 kos Companion，然后打开右侧 kos Agent 配置 provider、model ID 和 API key。API key 由 kos-agent 的配置层保存，不写入 Markdown 笔记。
+完整的发布包安装、源码安装、更新与分平台说明见 [安装指南](INSTALL.md)。
 
 ### 完成第一次系统检查
 

@@ -1,5 +1,6 @@
 import { mkdtemp, mkdir, cp, writeFile, readFile, access } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,8 @@ const profile = join(root, 'profile');
 const artifacts = process.env.KOS_E2E_ARTIFACT_DIR || join(root, 'artifacts');
 const pluginDir = join(vault, '.obsidian', 'plugins', 'kos-companion');
 const agentEntry = join(repoRoot, 'agent', 'packages', 'kos-agent', 'dist', 'rpc-entry.js');
+const harnessEntry = join(repoRoot, 'agent', 'packages', 'kos-agent', 'dist', 'kos-cli.js');
+const agentConfigDir = join(root, 'agent-config');
 const goalPeriod = `${new Date().getFullYear()}-${new Date().getMonth() < 6 ? 'H1' : 'H2'}`;
 const goalPath = join(vault, '30_目标', goalPeriod, '交付插件.md');
 const projectDir = join(vault, '31_项目', '插件二期');
@@ -35,6 +38,107 @@ function today() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
+}
+
+function extractJsonObject(value) {
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  for (let start = text.indexOf('{'); start >= 0; start = text.indexOf('{', start + 1)) {
+    for (let end = text.lastIndexOf('}'); end > start; end = text.lastIndexOf('}', end - 1)) {
+      try { return JSON.parse(text.slice(start, end + 1)); } catch { /* try a narrower range */ }
+    }
+  }
+  throw new Error(`Fake model could not parse Harness output: ${text.slice(0, 500)}`);
+}
+
+function responseEvents(item, responseId) {
+  return [
+    { type: 'response.created', sequence_number: 0, response: { id: responseId, status: 'in_progress' } },
+    { type: 'response.output_item.added', sequence_number: 1, output_index: 0, item },
+    { type: 'response.output_item.done', sequence_number: 2, output_index: 0, item },
+    {
+      type: 'response.completed',
+      sequence_number: 3,
+      response: {
+        id: responseId,
+        status: 'completed',
+        output: [item],
+        usage: { input_tokens: 10, output_tokens: 10, total_tokens: 20, input_tokens_details: { cached_tokens: 0 } },
+      },
+    },
+  ];
+}
+
+async function startFakeModel() {
+  let responseNumber = 0;
+  const requests = [];
+  const server = createServer(async (request, response) => {
+    if (request.method !== 'POST' || request.url !== '/v1/responses') {
+      response.writeHead(404).end();
+      return;
+    }
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    requests.push(body);
+    responseNumber += 1;
+
+    let item;
+    if (responseNumber === 1) {
+      const input = JSON.stringify({ date: today(), availableMinutes: 120, energy: 'medium', hardConstraints: [] });
+      const command = `${shellQuote(process.execPath)} ${shellQuote(harnessEntry)} start-day --input ${shellQuote(input)} --format json`;
+      item = { type: 'function_call', id: 'fc_start_day', call_id: 'call_start_day', name: 'bash', arguments: JSON.stringify({ command }) };
+    } else if (responseNumber === 2) {
+      const toolOutput = [...(body.input ?? [])].reverse().find((entry) => entry.type === 'function_call_output')?.output;
+      const started = extractJsonObject(toolOutput);
+      const saveInput = {
+        date: started.context.date,
+        runId: started.runId,
+        contextFingerprint: started.context.fingerprint,
+        recommendations: [{
+          id: 'e2e-daily-recommendation',
+          taskPath: '32_任务/E2E推进插件二期.md',
+          title: 'E2E 推进插件二期',
+          status: 'recommended',
+          reason: '直接推进当前主要目标，并完成真实 Obsidian 验收。',
+          goals: [`30_目标/${goalPeriod}/交付插件.md`],
+          projects: ['31_项目/插件二期/插件二期.md'],
+          estimateMinutes: 30,
+          tradeoff: '优先完成当前 P0 验收，暂缓低优先级输入处理。',
+          capabilityFocusUsed: true,
+        }],
+      };
+      const command = `${shellQuote(process.execPath)} ${shellQuote(harnessEntry)} save-daily-plan --input ${shellQuote(JSON.stringify(saveInput))} --format json`;
+      item = { type: 'function_call', id: 'fc_save_plan', call_id: 'call_save_plan', name: 'bash', arguments: JSON.stringify({ command }) };
+    } else {
+      item = {
+        type: 'message',
+        id: `msg_e2e_${responseNumber}`,
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'output_text', text: '今日建议已经生成并写入计划。', annotations: [] }],
+      };
+    }
+
+    const events = responseEvents(item, `resp_e2e_${responseNumber}`);
+    response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+    for (const event of events) response.write(`data: ${JSON.stringify(event)}\n\n`);
+    response.end();
+  });
+  await new Promise((resolveListen, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolveListen);
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Fake model server did not bind a TCP port');
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    requests,
+    close: () => new Promise((resolveClose, reject) => server.close((error) => error ? reject(error) : resolveClose())),
+  };
+}
+
 async function prepareFixture() {
   if (!(await exists(obsidianBin))) throw new Error(`Obsidian not found: ${obsidianBin}`);
   if (!(await exists(agentEntry))) throw new Error(`kos-agent is not built: ${agentEntry}`);
@@ -49,6 +153,7 @@ async function prepareFixture() {
   await mkdir(join(vault, '22_知识库'), { recursive: true });
   await mkdir(profile, { recursive: true });
   await mkdir(artifacts, { recursive: true });
+  await mkdir(agentConfigDir, { recursive: true });
   for (const file of ['main.js', 'manifest.json', 'styles.css']) await cp(join(pluginRoot, file), join(pluginDir, file));
   await cp(join(pluginRoot, 'assets'), join(pluginDir, 'assets'), { recursive: true });
   await writeFile(join(vault, '.obsidian', 'community-plugins.json'), JSON.stringify(['kos-companion']));
@@ -62,7 +167,7 @@ async function prepareFixture() {
     settings: {
       staleThresholdDays: 3, heatmapIncludeDiary: true, enableBadges: false,
       reviewConfirmDialog: false, agentHostPath: agentEntry, agentNodePath: process.execPath,
-      agentAutoStart: false, weekStart: 1,
+      agentAutoStart: true, weekStart: 1,
     },
   }));
   await writeFile(goalPath, `---\ntype: goal\ntitle: 交付插件\nhorizon: ${goalPeriod.endsWith('H1') ? 'H1' : 'H2'}\nperiod: ${goalPeriod}\nstatus: active\nallocation_weight: 100\nhealth: on_track\nperiod_start: ${goalPeriod.slice(0, 4)}-${goalPeriod.endsWith('H1') ? '01-01' : '07-01'}\nperiod_end: ${goalPeriod.slice(0, 4)}-${goalPeriod.endsWith('H1') ? '06-30' : '12-31'}\ncreated: ${today()}\nupdated: ${today()}\nhuman_confirmed: true\nresult_evidence: []\nweight_history: []\ntags: [goal, kos-e2e]\n---\n# 交付插件\n\n## 期望结果\n\n- 完成真实 Obsidian 验收\n`);
@@ -148,13 +253,14 @@ async function screenshot(cdp, name) {
 }
 
 async function run() {
+  const fakeModel = await startFakeModel();
   await prepareFixture();
   const child = spawn(obsidianBin, [
     `--user-data-dir=${profile}`,
     `--remote-debugging-port=${port}`,
     '--disable-gpu',
     '--window-size=1440,1000',
-  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  ], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, KOS_AGENT_DIR: agentConfigDir } });
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += String(chunk); });
   let cdp;
@@ -414,6 +520,47 @@ async function run() {
       throw new Error(`Dashboard Bento sizes differ: ${JSON.stringify(initial.bentoSizes)}`);
     }
     await screenshot(cdp, 'dashboard-today-desktop.png');
+
+    await cdp.evaluate(`app.commands.executeCommandById('kos-companion:open-agent')`);
+    await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('.kos-agent-onboarding')?.textContent.includes('三步开始使用 kos Agent'))`), 'unconfigured Agent first-run card');
+    const unconfiguredAgent = await cdp.evaluate(`(() => ({
+      inputDisabled: document.querySelector('.kos-agent-input')?.disabled,
+      sendDisabled: document.querySelector('.kos-agent-send-row .mod-cta')?.disabled,
+      configureButton: [...document.querySelectorAll('.kos-agent-onboarding button')].some((button) => button.textContent === '配置模型'),
+    }))()`);
+    if (!unconfiguredAgent.inputDisabled || !unconfiguredAgent.sendDisabled || !unconfiguredAgent.configureButton) {
+      throw new Error(`Unconfigured Agent onboarding differs: ${JSON.stringify(unconfiguredAgent)}`);
+    }
+    await cdp.evaluate(`[...document.querySelectorAll('.kos-agent-onboarding button')].find((button) => button.textContent === '配置模型')?.click()`);
+    await waitFor(() => cdp.evaluate(`Boolean([...document.querySelectorAll('.modal-container')].find((modal) => modal.textContent.includes('配置模型')))`), 'model configuration modal');
+    const configured = await cdp.evaluate(`(() => {
+      const modal = [...document.querySelectorAll('.modal-container')].find((element) => element.textContent.includes('配置模型'));
+      if (!modal) return false;
+      const setting = (name) => [...modal.querySelectorAll('.setting-item')].find((item) => item.querySelector('.setting-item-name')?.textContent === name);
+      const setValue = (element, value) => {
+        element.value = value;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      setValue(setting('Provider')?.querySelector('input'), 'e2e-local');
+      setValue(setting('Model ID')?.querySelector('input'), 'e2e-model');
+      setValue(setting('API key')?.querySelector('input'), 'e2e-local-key');
+      setValue(setting('Base URL')?.querySelector('input'), ${JSON.stringify(fakeModel.baseUrl)});
+      [...modal.querySelectorAll('button')].find((button) => button.textContent === '保存并使用')?.click();
+      return true;
+    })()`);
+    if (!configured) throw new Error('Model configuration modal was not filled');
+    await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('.kos-agent-onboarding')?.textContent.includes('kos Agent 已准备好'))`), 'configured Agent first-run card', 45_000);
+    const readyAgent = await cdp.evaluate(`(() => ({
+      inputDisabled: document.querySelector('.kos-agent-input')?.disabled,
+      validateButton: [...document.querySelectorAll('.kos-agent-onboarding button')].some((button) => button.textContent === '运行系统检查'),
+      workflowButton: [...document.querySelectorAll('.kos-agent-onboarding button')].some((button) => button.textContent === '填写第一个工作流'),
+    }))()`);
+    if (readyAgent.inputDisabled || !readyAgent.validateButton || !readyAgent.workflowButton) {
+      throw new Error(`Configured Agent onboarding differs: ${JSON.stringify(readyAgent)}`);
+    }
+    await screenshot(cdp, 'agent-first-run-ready.png');
+    await cdp.evaluate(`app.commands.executeCommandById('kos-companion:open-dashboard')`);
+    await waitFor(() => cdp.evaluate(`Boolean(document.querySelector('.kos-dashboard-v2 .kos-board-canvas'))`), 'dashboard after Agent setup');
 
     await cdp.evaluate(`[...document.querySelectorAll('.kos-board-button')].find((button) => button.textContent === '开始一天')?.click()`);
     await waitFor(() => cdp.evaluate(`Boolean([...document.querySelectorAll('.modal-container button')].find((button) => button.textContent === '生成建议'))`), 'start day constraints dialog');
@@ -1054,7 +1201,11 @@ async function run() {
     if (mobileReaderOverflow.overflow) throw new Error(`Mobile Reader has horizontal overflow: ${JSON.stringify(mobileReaderOverflow)}`);
     await screenshot(cdp, 'reader-epub-mobile.png');
 
-    const result = { root, vault, artifacts, initial, wideBento, resizeHover, mobileBento, agentConnected: true, taskTransition: 'doing -> done' };
+    if (fakeModel.requests.length < 3) throw new Error(`Expected the isolated model workflow, received ${fakeModel.requests.length} requests`);
+    const result = {
+      root, vault, artifacts, initial, wideBento, resizeHover, mobileBento,
+      agentConnected: true, modelRequests: fakeModel.requests.length, taskTransition: 'doing -> done',
+    };
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } finally {
     cdp?.close();
@@ -1065,6 +1216,7 @@ async function run() {
     ]);
     if (child.exitCode === null) child.kill('SIGKILL');
     if (stderr && child.exitCode && child.exitCode !== 0) process.stderr.write(stderr.slice(-4000));
+    await fakeModel.close();
   }
 }
 

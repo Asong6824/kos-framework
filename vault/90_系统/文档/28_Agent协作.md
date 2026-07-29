@@ -23,6 +23,14 @@ Agent = LLM + Harness
 
 插件启动独立 kos-agent host，通过扩展后的 Pi RPC 与它通信。Agent 只支持 Obsidian Desktop；移动端隐藏需要本地 host 的入口。
 
+首次打开时按启动卡完成三个步骤：
+
+1. 确认本地 Agent 已连接。
+2. 配置 provider、model ID 和 API key；配置完成前输入框不会启用。
+3. 运行系统检查，再填写或修改第一个工作流。
+
+“已连接”只代表本地子进程可用，不代表模型凭据有效。第一次实际工作流仍需要 provider 接受 model ID 和 API key。
+
 ## 2. YOLO 是唯一执行模式
 
 kos-agent 的工具调用不会逐次弹出权限审批。它可以在当前进程权限范围内读取、创建和修改文件，并运行命令。

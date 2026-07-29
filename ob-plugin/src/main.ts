@@ -3,6 +3,8 @@ import type { WorkspaceLeaf } from 'obsidian';
 import { openCaptureModal } from './actions/capture';
 import { openCreateModal } from './actions/create';
 import type { CreateExtra, CreateKind, CreateObjectOperation } from './actions/create';
+import { openCompleteTaskModal } from './actions/tasks';
+import type { TaskOperations } from './actions/tasks';
 import { BadgeWatcher } from './actions/badges';
 import { approveReviewObject } from './actions/review';
 import { openObjectTransitionModal, openTransitionModal, statusBadgeProcessor } from './actions/transition';
@@ -426,7 +428,7 @@ export default class KosCompanionPlugin extends Plugin {
 		  deferTask: (task) => void this.runDashboardAgent('action', 'defer-task', [task], task.filePath),
 		  returnTaskToPool: async (task) => { await this.runDashboardAgent('action', 'return-task-to-pool', [task], task.filePath); return true; },
 		  blockTask: (task) => void this.runDashboardAgent('action', 'block-task', [task], task.filePath),
-      completeTask: (task) => void this.runDashboardAgent('action', 'complete-task', [task], task.filePath),
+      completeTask: (task) => openCompleteTaskModal(this.app, task, this.taskOperations()),
 		  archiveTask: async (task) => { await this.runDashboardAgent('action', 'archive-task', [task], task.filePath); return true; },
       startDay: (input) => this.runDashboardAgent('today', 'prioritize-today', [], undefined, { ...input, date: localToday() }),
       loadDailyPlan: () => this.loadDailyPlan(localToday()),
@@ -467,6 +469,34 @@ export default class KosCompanionPlugin extends Plugin {
     };
     const command = buildDashboardAgentCommand(context, input);
     await view.runWorkflow(command, dashboardWorkflowSessionName(intent, input));
+  }
+
+  private taskOperations(): TaskOperations {
+    const client = async () => this.connectAgent();
+    return {
+      update: async (input) => { await (await client()).updateTask(input); return true; },
+      defer: async (path, deferUntil, reason) => {
+        await (await client()).deferTask({ path, deferUntil, reason });
+        return true;
+      },
+      returnToPool: async (path, reason) => {
+        await (await client()).returnTaskToPool({ path, reason });
+        return true;
+      },
+      complete: async (input) => {
+        await (await client()).completeTask(input);
+        new Notice('任务已完成并记录结果');
+        return true;
+      },
+      archive: async (path) => {
+        await (await client()).archiveTask({ path });
+        return true;
+      },
+      block: async (path, reason, unblockCondition) => {
+        await (await client()).transitionStatus({ path, target: 'blocked', reason, unblockCondition });
+        return true;
+      },
+    };
   }
 
   private async transitionObject(object: KosObject, target: string): Promise<boolean> {

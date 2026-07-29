@@ -1,0 +1,52 @@
+import importlib.util
+import tempfile
+import unittest
+from pathlib import Path
+from zipfile import ZipFile
+
+
+SCRIPT = Path(__file__).resolve().parents[1] / "harness" / "build_release_archives.py"
+SPEC = importlib.util.spec_from_file_location("build_release_archives", SCRIPT)
+assert SPEC and SPEC.loader
+archives = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(archives)
+
+
+class BuildReleaseArchivesTests(unittest.TestCase):
+    def test_archives_are_installable_and_preserve_utf8_names(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plugin = root / "plugin"
+            vault = root / "vault"
+            plugin_agent = plugin / "kos-agent"
+            installed_plugin = vault / ".obsidian" / "plugins" / "kos-companion"
+            quick_start = vault / "90_系统" / "文档" / "00_快速开始.md"
+
+            plugin_agent.mkdir(parents=True)
+            installed_plugin.mkdir(parents=True)
+            quick_start.parent.mkdir(parents=True)
+            for name in ("manifest.json", "main.js", "styles.css"):
+                (plugin / name).write_text(name, encoding="utf-8")
+            (plugin_agent / "host.mjs").write_text("", encoding="utf-8")
+            (vault / ".kos.md").write_text("---\ntype: system\n---\n", encoding="utf-8")
+            (installed_plugin / "manifest.json").write_text("{}", encoding="utf-8")
+            quick_start.write_text("# 快速开始\n", encoding="utf-8")
+
+            plugin_zip = root / "plugin.zip"
+            vault_zip = root / "vault.zip"
+            archives.build_archive(plugin_zip, plugin)
+            archives.build_archive(vault_zip, vault, "kos-user-vault")
+            archives.verify_archives(plugin_zip, vault_zip)
+
+            with ZipFile(plugin_zip) as archive:
+                self.assertIn("manifest.json", archive.namelist())
+                self.assertNotIn("kos-companion/manifest.json", archive.namelist())
+            with ZipFile(vault_zip) as archive:
+                self.assertIn(
+                    "kos-user-vault/90_系统/文档/00_快速开始.md",
+                    archive.namelist(),
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -124,11 +124,13 @@ const manifest = JSON.parse(await readFile(join(output, 'manifest.json'), 'utf8'
 await writeFile(join(output, 'INSTALL.md'), [
   `# ${manifest.name} ${manifest.version}`,
   '',
-  'Copy this directory to `<Vault>/.obsidian/plugins/kos-companion`, then enable the plugin in Obsidian.',
+  '将此目录复制到 `<Vault>/.obsidian/plugins/kos-companion`，最终应直接看到 `manifest.json`、`main.js`、`styles.css` 和 `kos-agent/`。',
+  '在 Obsidian 的“设置 → 第三方插件”中启用 kos Companion，然后打开右侧 kos Agent 配置模型。',
   'Keep plugin backups outside `<Vault>/.obsidian/plugins/`. A backup that still contains `manifest.json` with the same plugin id can be loaded instead of the active directory.',
   'The bundled kos-agent host is discovered automatically. Node.js 22.19+ must be installed.',
   'Configure the model from the Agent sidebar. If Node auto-discovery fails, set its executable in plugin settings.',
   'From the Vault root, run the deterministic Harness with `node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs <command>`.',
+  '首次验证应运行 `node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate`，预期结果为 `Harness: PASS`、`Errors: 0`。',
   '',
 ].join('\n'));
 
