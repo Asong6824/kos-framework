@@ -26,10 +26,10 @@ Agent = LLM + Harness
 首次打开时按启动卡完成三个步骤：
 
 1. 确认本地 Agent 已连接。
-2. 配置 provider、model ID 和 API key；配置完成前输入框不会启用。
+2. 配置 provider、model ID 和 API key，点击“保存并测试”；测试完成前输入框不会启用。
 3. 运行系统检查，再填写或修改第一个工作流。
 
-“已连接”只代表本地子进程可用，不代表模型凭据有效。第一次实际工作流仍需要 provider 接受 model ID 和 API key。
+“已连接”只代表本地子进程可用，不代表模型凭据有效。“保存并测试”使用 kos-agent 模型运行时发起最小请求，不写入当前 Session；通过后才表示 API key、协议、地址和模型组合可以真实调用。
 
 ## 2. YOLO 是唯一执行模式
 
@@ -202,6 +202,8 @@ node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate
 ## 14. 模型配置与敏感信息
 
 provider、model ID、Base URL、API 协议和 API key 从侧栏配置。API key 不应进入 Markdown、截图、trace 或 Git 仓库。
+
+火山引擎 Coding Plan 使用侧栏中的同名预设：`volcengine-coding-plan`、`ark-code-latest`、`https://ark.cn-beijing.volces.com/api/coding/v3`、OpenAI Completions。该地址是 Coding Plan 套餐专用网关，不能替换为普通方舟推理的 `/api/v3`。连接成功提示可能同时显示服务端实际路由的模型名，这是 `ark-code-latest` 的正常行为。
 
 分享截图或 Issue 前应检查：
 

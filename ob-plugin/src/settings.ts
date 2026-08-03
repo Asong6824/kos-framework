@@ -2,47 +2,16 @@
  * settings.ts — 设置项与设置页（02 文档第 5 节）
  */
 
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, Modal, Notice, PluginSettingTab, Setting } from 'obsidian';
 import { DEFAULT_OBJECT_DIRS, normalizeObjectDirs } from './core/model';
 import type { ObjectDirs } from './core/model';
-import type { MetricSettings } from './core/metrics';
 import type KosCompanionPlugin from './main';
+import { createKosSyncJoinCode, parseKosSyncJoinCode } from './sync/pairing';
+import { DEFAULT_SETTINGS, toMetricSettings } from './settings-model';
+import type { KosSettings } from './settings-model';
 
-export interface KosSettings {
-  /** 项目停滞预警天数（M10 stale 判定），默认 3 */
-  staleThresholdDays: number;
-  /** 热力图是否计入日记（M5），默认 true */
-  heatmapIncludeDiary: boolean;
-  /** 徽章解锁动画开关（M13），默认 true */
-  enableBadges: boolean;
-  /** 人工确认流转是否弹确认框（B3/B4），默认 true */
-  reviewConfirmDialog: boolean;
-  /** kos-agent 可执行文件或 rpc-entry.js；空值时自动发现 */
-  agentHostPath: string;
-  /** 运行脚本 host 的 Node 可执行文件；空值时自动发现外部 Node */
-  agentNodePath: string;
-  /** 打开 Agent 视图时自动启动本地 host */
-  agentAutoStart: boolean;
-  /** 本机外部 Session 目录使用的稳定 Vault ID；不展示给用户编辑 */
-  agentVaultId: string;
-  /** 周起始日：0=周日 1=周一，默认 1 */
-  weekStart: number;
-  /** 目录映射（个性化布局）：各对象目录的 vault 相对路径，默认标准布局 */
-  objectDirs: ObjectDirs;
-}
-
-export const DEFAULT_SETTINGS: KosSettings = {
-  staleThresholdDays: 3,
-  heatmapIncludeDiary: true,
-  enableBadges: true,
-  reviewConfirmDialog: true,
-  agentHostPath: '',
-  agentNodePath: '',
-  agentAutoStart: true,
-  agentVaultId: '',
-  weekStart: 1,
-  objectDirs: { ...DEFAULT_OBJECT_DIRS },
-};
+export { DEFAULT_SETTINGS, toMetricSettings };
+export type { KosSettings };
 
 /** 目录映射设置项的展示文案（键对齐 ObjectDirs） */
 const OBJECT_DIR_ITEMS: { key: keyof ObjectDirs; label: string; usage: string }[] = [
@@ -62,12 +31,50 @@ const OBJECT_DIR_ITEMS: { key: keyof ObjectDirs; label: string; usage: string }[
 ];
 
 /** 喂给 core metrics 的 settings 参数 */
-export function toMetricSettings(s: KosSettings): MetricSettings {
-  return {
-    weekStart: s.weekStart,
-    staleThresholdDays: s.staleThresholdDays,
-    heatmapIncludeDiary: s.heatmapIncludeDiary,
-  };
+class KosSyncJoinModal extends Modal {
+  constructor(
+    app: App,
+    private readonly initialValue: string,
+    private readonly submit: (code: string) => Promise<void>,
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    this.contentEl.empty();
+    this.contentEl.createEl('h2', { text: '加入 kos-sync Vault' });
+    this.contentEl.createEl('p', {
+      text: '粘贴桌面端生成的加入码。加入码包含未加密的 R2 凭据，导入后请清空剪贴板。',
+    });
+    const input = this.contentEl.createEl('textarea', {
+      attr: {
+        rows: '6',
+        placeholder: 'KOS-SYNC1.…',
+        'aria-label': 'kos-sync 设备加入码',
+      },
+    });
+    input.value = this.initialValue;
+    input.style.width = '100%';
+    const length = this.contentEl.createEl('p', { cls: 'setting-item-description' });
+    const refreshLength = () => {
+      const count = input.value.trim().length;
+      length.setText(count > 0
+        ? `已粘贴 ${count} 个字符。不要从聊天气泡分段选择；请整行复制。`
+        : '尚未粘贴加入码。加入码必须以 KOS-SYNC1. 开头。');
+    };
+    input.addEventListener('input', refreshLength);
+    refreshLength();
+    const actions = this.contentEl.createDiv({ cls: 'modal-button-container' });
+    const join = actions.createEl('button', { cls: 'mod-cta', text: '加入并开始同步' });
+    join.addEventListener('click', () => {
+      void this.submit(input.value)
+        .then(() => this.close())
+        .catch((error: unknown) => {
+          new Notice(error instanceof Error ? error.message : String(error));
+        });
+    });
+    input.focus();
+  }
 }
 
 export class KosSettingTab extends PluginSettingTab {
@@ -81,6 +88,11 @@ export class KosSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+
+    new Setting(containerEl)
+      .setName('首次使用向导')
+      .setDesc('重新检查模型、系统结构、最小工作对象和多端同步的准备状态。')
+      .addButton((button) => button.setButtonText('打开向导').onClick(() => void this.plugin.openOnboarding()));
 
     new Setting(containerEl)
       .setName('项目停滞预警天数')
@@ -127,6 +139,123 @@ export class KosSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }),
       );
+
+    containerEl.createEl('h3', { text: '多端同步' });
+    containerEl.createEl('p', {
+      text: 'kos-sync 使用私人 Cloudflare R2 自动同步 Vault。同步内容不做端到端加密；任何拥有 Bucket 读取权限的人都能读取内容。'
+        + '同一个 Vault 不得同时使用 iCloud、Obsidian Sync、Syncthing 或其他双向同步。',
+      cls: 'setting-item-description',
+    });
+    containerEl.createEl('p', {
+      text: '第一台设备：填写下面四项后再打开同步。第二台设备：不要逐项填写，直接使用“从剪贴板加入”。'
+        + '源端显示“已同步”后才能复制加入码。',
+      cls: 'setting-item-description',
+    });
+    new Setting(containerEl)
+      .setName('Cloudflare Account ID')
+      .setDesc('Cloudflare 控制台中的 32 位 Account ID。')
+      .addText((text) => text.setValue(this.plugin.settings.sync.accountId).onChange(async (value) => {
+        this.plugin.settings.sync.accountId = value.trim();
+        await this.plugin.saveSettings();
+      }));
+    new Setting(containerEl)
+      .setName('R2 Bucket')
+      .setDesc('私有 Bucket 名称；不要把 Bucket 设为公开。')
+      .addText((text) => text.setValue(this.plugin.settings.sync.bucket).onChange(async (value) => {
+        this.plugin.settings.sync.bucket = value.trim();
+        await this.plugin.saveSettings();
+      }));
+    new Setting(containerEl)
+      .setName('R2 Access Key ID')
+      .setDesc('只授予指定 Bucket Object Read & Write 权限。')
+      .addText((text) => text.setValue(this.plugin.settings.sync.accessKeyId).onChange(async (value) => {
+        this.plugin.settings.sync.accessKeyId = value.trim();
+        await this.plugin.saveSettings();
+      }));
+    new Setting(containerEl)
+      .setName('R2 Secret Access Key')
+      .setDesc('只保存在本设备的插件私有 data.json，不写入 Vault 内容或日志。')
+      .addText((text) => {
+        text.inputEl.type = 'password';
+        text.setValue(this.plugin.settings.sync.secretAccessKey).onChange(async (value) => {
+          this.plugin.settings.sync.secretAccessKey = value.trim();
+          await this.plugin.saveSettings();
+        });
+      });
+    new Setting(containerEl)
+      .setName('测试 R2 读写')
+      .setDesc('在当前 Vault 的隔离前缀写入、读回并删除一个随机测试对象；不会修改 Journal 或清空远端数据。测试通过后才能首次启用同步。')
+      .addButton((button) => button.setButtonText('开始测试').onClick(async () => {
+        button.setDisabled(true).setButtonText('测试中…');
+        try {
+          const { result } = await this.plugin.testSyncConfiguration();
+          new Notice(`R2 读写测试通过 · ${result.latencyMs} ms${result.remoteHasData ? ' · 远端已有同步数据' : ' · 当前同步空间为空'}`);
+        } catch (error) {
+          new Notice(error instanceof Error ? error.message : String(error));
+        } finally {
+          button.setDisabled(false).setButtonText('开始测试');
+        }
+      }));
+    new Setting(containerEl)
+      .setName('添加另一台设备')
+      .setDesc('加入码包含 R2 凭据。只通过可信的设备间剪贴板临时传递；粘贴后可立即清空剪贴板。')
+      .addButton((button) => button
+        .setButtonText('复制本机加入码')
+        .onClick(async () => {
+          try {
+            const code = createKosSyncJoinCode(this.plugin.settings.sync);
+            await navigator.clipboard.writeText(code);
+            new Notice('kos-sync 加入码已复制；请在另一台设备粘贴后清空剪贴板');
+          } catch (error) {
+            new Notice(error instanceof Error ? error.message : String(error));
+          }
+        }))
+      .addButton((button) => button
+        .setButtonText('从剪贴板加入')
+        .onClick(async () => {
+          let clipboard = '';
+          try {
+            clipboard = await navigator.clipboard.readText();
+            await this.applySyncJoinCode(clipboard);
+          } catch {
+            new KosSyncJoinModal(
+              this.app,
+              clipboard,
+              async (code) => this.applySyncJoinCode(code),
+            ).open();
+          }
+        }));
+    new Setting(containerEl)
+      .setName('多端同步')
+      .setDesc('启用后使用固定的启动、保存、打开文件和周期同步策略。')
+      .addToggle((toggle) => toggle.setValue(this.plugin.settings.sync.enabled).onChange(async (value) => {
+        if (value && !(await this.plugin.hasCurrentSyncPreflight())) {
+          toggle.setValue(false);
+          new Notice('首次启用前请先完成“测试 R2 读写”；配置变化后需要重新测试');
+          return;
+        }
+        this.plugin.settings.sync.enabled = value;
+        await this.plugin.saveSettings();
+        const snapshot = await this.plugin.reloadSync();
+        if (snapshot.phase === 'error' || snapshot.phase === 'offline') {
+          new Notice(`同步尚未就绪：${snapshot.message}`);
+        }
+      }))
+      .addButton((button) => button
+        .setButtonText('应用并重新连接')
+        .setDisabled(!this.plugin.settings.sync.enabled)
+        .onClick(async () => {
+          try {
+            await this.plugin.testSyncConfiguration();
+          } catch (error) {
+            new Notice(error instanceof Error ? error.message : String(error));
+            return;
+          }
+          const snapshot = await this.plugin.reloadSync();
+          new Notice(snapshot.phase === 'up-to-date'
+            ? 'kos-sync 已连接并完成同步'
+            : `kos-sync 尚未就绪：${snapshot.message}`);
+        }));
 
     containerEl.createEl('h3', { text: 'kos Agent' });
     new Setting(containerEl)
@@ -201,7 +330,17 @@ export class KosSettingTab extends PluginSettingTab {
               if (value.trim() === '') text.setValue(merged[item.key]);
               await this.plugin.saveSettings();
             }),
-        );
+      );
     }
+  }
+
+  private async applySyncJoinCode(code: string): Promise<void> {
+    const candidate = parseKosSyncJoinCode(code);
+    await this.plugin.testSyncConfiguration(candidate, true);
+    const snapshot = await this.plugin.reloadSync();
+    new Notice(snapshot.phase === 'up-to-date' || snapshot.phase === 'conflict'
+      ? '已加入同一个 kos-sync Vault；请清空剪贴板'
+      : `加入码已保存，但首次同步尚未完成：${snapshot.message}`);
+    this.display();
   }
 }

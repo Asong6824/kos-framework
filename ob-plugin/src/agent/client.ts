@@ -9,6 +9,7 @@ import type {
   KosMessage,
   KosImageContent,
   KosModelInfo,
+  KosModelConnectionTestResult,
   KosOperationResult,
   KosRpcCommand,
   KosRpcEvent,
@@ -288,6 +289,10 @@ export class KosAgentClient {
 
   configureModel(input: KosConfigureModelInput): Promise<KosModelInfo> {
     return this.send<KosModelInfo>({ type: 'configure_model', ...input });
+  }
+
+  testModel(): Promise<KosModelConnectionTestResult> {
+    return this.send<KosModelConnectionTestResult>({ type: 'test_model' });
   }
 
   configureWebSearch(provider: 'brave' | 'exa', apiKey: string): Promise<{ provider: 'brave' | 'exa' }> {

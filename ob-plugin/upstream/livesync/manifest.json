@@ -1,0 +1,33 @@
+{
+  "source": "https://github.com/vrtmrz/obsidian-livesync",
+  "tag": "0.25.83",
+  "commit": "977d50566d664c4e94eb2bb3047c00b8e1e21eb1",
+  "commonlib": {
+    "source": "https://github.com/vrtmrz/livesync-commonlib",
+    "commit": "bbf2539d00af4846e3e1640e72460fb7ed930ca5"
+  },
+  "imported_at": "2026-07-30",
+  "license": "MIT",
+  "status": "production-integrated-real-device-validation-pending",
+  "snapshot": {
+    "path": "source/",
+    "modified": false,
+    "compiled_by_plugin": true
+  },
+  "scope": [
+    "object-storage journal replication",
+    "chunking and deduplication",
+    "local change replication",
+    "conflict detection and resolution",
+    "checkpoint and recovery"
+  ],
+  "excluded": [
+    "CouchDB",
+    "WebRTC",
+    "end-to-end encryption",
+    "path obfuscation",
+    "Hidden File Sync",
+    "Customisation Sync",
+    "upstream settings and status UI"
+  ]
+}

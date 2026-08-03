@@ -142,7 +142,11 @@ LLM 负责推理和生成。Harness 决定模型看见什么、能做什么、�
 
 ### 下载即用（新用户推荐）
 
-从 [GitHub Releases](https://github.com/Asong6824/kos-framework/releases) 下载 `kos-vault-<version>.zip`，解压后直接用 Obsidian 打开其中的 `kos-user-vault` 文件夹。完整包已包含 Vault 模板和 kos Companion，不需要 Git、npm、make 或 Python。
+当 [GitHub Releases](https://github.com/Asong6824/kos-framework/releases) 中确实存在 `kos-vault-<version>.zip` 时，下载并解压它，再用 Obsidian 打开其中的 `kos-user-vault` 文件夹。不要把 GitHub 自动生成的 Source code ZIP 当成 kos Vault 发布包。若页面尚无上述发行文件，当前只能使用源码安装或维护者提供的已校验归档。
+
+完整包包含 Vault 模板和 kos Companion，不需要 Git、npm、make 或 Python。第一次使用建议逐项完成 [首次使用验收清单](vault/90_系统/文档/01_首次使用验收清单.md)，不要先配置 iPad 或 R2。
+
+iPad 测试发行物为 `kos-companion-mobile-<version>.zip`，不含 kos-agent。移动端正式自助安装仍以 Obsidian 社区插件渠道为发布条件；在此之前，不把 USB 写入隐藏目录描述为普通用户流程。
 
 ### 从源码一键安装
 
@@ -154,7 +158,7 @@ node dev/harness/install_local.mjs ~/kos
 
 这条命令会安装锁定依赖、初始化 Vault、构建并安装 kos Companion、保留已有插件设置，并运行健康检查。Windows PowerShell 也使用同一命令，只需把目标改成如 `"C:\Users\me\Documents\kos"`。
 
-在 Obsidian 中启用或重新加载 kos Companion，然后打开右侧 kos Agent 配置 provider、model ID 和 API key。API key 由 kos-agent 的配置层保存，不写入 Markdown 笔记。
+在 Obsidian 中启用或重新加载 kos Companion，然后打开右侧 kos Agent 配置 provider、model ID 和 API key，并点击“保存并测试”。火山引擎 Coding Plan 用户可以直接使用同名服务预设。API key 由 kos-agent 的配置层保存，不写入 Markdown 笔记。
 
 不要直接在本仓库的 `vault/` 中保存个人笔记。`vault/` 是运行时发行模板，个人内容应位于单独的 Vault。
 
@@ -171,8 +175,8 @@ node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate
 ### 尝试第一个工作流
 
 ```text
-帮我开始今天的工作。读取当前 H1/H2 Goal、Project、Task Pool 和最近复盘，
-根据我今天可用的时间给出最多三项建议；先让我确认，不要直接替我排期。
+我是第一次使用 kos，目前可能还没有 Goal、Project 或 Task。先用简短问题了解
+我的半年重点和当前事项；提出最小初始化方案，等我确认后再创建第一组对象。
 ```
 
 更多步骤见 [快速开始](vault/90_系统/文档/00_快速开始.md)。
@@ -199,6 +203,7 @@ node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate
 ### 从这里开始
 
 - [快速开始](vault/90_系统/文档/00_快速开始.md)
+- [首次使用验收清单](vault/90_系统/文档/01_首次使用验收清单.md)
 - [驾驶舱](vault/90_系统/文档/27_驾驶舱.md)
 - [Agent 协作](vault/90_系统/文档/28_Agent协作.md)
 - [日常规划与复盘](vault/90_系统/文档/29_日常规划与复盘.md)
@@ -222,6 +227,8 @@ node .obsidian/plugins/kos-companion/kos-agent/dist/kos-harness.mjs validate
 - [Skill Eval 与防腐](vault/90_系统/文档/41_Skill Eval与防腐.md)
 - [扩展与个人化](vault/90_系统/文档/50_扩展与个人化.md)
 - [Framework 同步](vault/90_系统/文档/60_Framework同步.md)
+- [多端同步](vault/90_系统/文档/65_多端同步.md)
+- [多端同步故障排查](vault/90_系统/文档/66_多端同步故障排查.md)
 - [Agent 后端](vault/90_系统/文档/70_Agent后端.md)
 - [故障排查](vault/90_系统/文档/90_故障排查.md)
 

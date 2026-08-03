@@ -1,0 +1,132 @@
+import type { FilePath, UXDataWriteOptions } from "@lib/common/types";
+import type { IVaultAdapter } from "@lib/serviceModules/adapters";
+import type { NodeFile, NodeFolder } from "./NodeTypes";
+import { fsPromises as fs, path } from "@/apps/cli/node-compat";
+
+/**
+ * Vault adapter implementation for Node.js
+ */
+export class NodeVaultAdapter implements IVaultAdapter<NodeFile> {
+    constructor(private basePath: string) {}
+
+    private resolvePath(p: string): string {
+        return path.join(this.basePath, p);
+    }
+
+    async read(file: NodeFile): Promise<string> {
+        const content = await fs.readFile(this.resolvePath(file.path), "utf-8");
+        // Correct stale stat.size — chokidar stats may be from a poll before the final write.
+        // The downstream document integrity check compares stat.size to content length, so
+        // they must agree or other clients reject the file as corrupted.
+        file.stat.size = Buffer.byteLength(content, "utf-8");
+        return content;
+    }
+
+    async cachedRead(file: NodeFile): Promise<string> {
+        // No caching in CLI version, just read directly
+        return await this.read(file);
+    }
+
+    async readBinary(file: NodeFile): Promise<ArrayBuffer> {
+        const buffer = await fs.readFile(this.resolvePath(file.path));
+        // Same correction as read() — ensure stat.size matches actual byte length.
+        file.stat.size = buffer.length;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- required in environments where Buffer.buffer is ArrayBufferLike
+        return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+    }
+
+    async modify(file: NodeFile, data: string, options?: UXDataWriteOptions): Promise<void> {
+        const fullPath = this.resolvePath(file.path);
+        await fs.writeFile(fullPath, data, "utf-8");
+
+        if (options?.mtime || options?.ctime) {
+            const atime = options.mtime ? new Date(options.mtime) : new Date();
+            const mtime = options.mtime ? new Date(options.mtime) : new Date();
+            await fs.utimes(fullPath, atime, mtime);
+        }
+    }
+
+    async modifyBinary(file: NodeFile, data: ArrayBuffer, options?: UXDataWriteOptions): Promise<void> {
+        const fullPath = this.resolvePath(file.path);
+        await fs.writeFile(fullPath, new Uint8Array(data));
+
+        if (options?.mtime || options?.ctime) {
+            const atime = options.mtime ? new Date(options.mtime) : new Date();
+            const mtime = options.mtime ? new Date(options.mtime) : new Date();
+            await fs.utimes(fullPath, atime, mtime);
+        }
+    }
+
+    async create(p: string, data: string, options?: UXDataWriteOptions): Promise<NodeFile> {
+        const fullPath = this.resolvePath(p);
+        await fs.mkdir(path.dirname(fullPath), { recursive: true });
+        await fs.writeFile(fullPath, data, "utf-8");
+
+        if (options?.mtime || options?.ctime) {
+            const atime = options.mtime ? new Date(options.mtime) : new Date();
+            const mtime = options.mtime ? new Date(options.mtime) : new Date();
+            await fs.utimes(fullPath, atime, mtime);
+        }
+
+        const stat = await fs.stat(fullPath);
+        return {
+            path: p as FilePath,
+            stat: {
+                size: stat.size,
+                mtime: Math.floor(stat.mtimeMs),
+                ctime: Math.floor(stat.ctimeMs),
+                type: "file",
+            },
+        };
+    }
+
+    async createBinary(p: string, data: ArrayBuffer, options?: UXDataWriteOptions): Promise<NodeFile> {
+        const fullPath = this.resolvePath(p);
+        await fs.mkdir(path.dirname(fullPath), { recursive: true });
+        await fs.writeFile(fullPath, new Uint8Array(data));
+
+        if (options?.mtime || options?.ctime) {
+            const atime = options.mtime ? new Date(options.mtime) : new Date();
+            const mtime = options.mtime ? new Date(options.mtime) : new Date();
+            await fs.utimes(fullPath, atime, mtime);
+        }
+
+        const stat = await fs.stat(fullPath);
+        return {
+            path: p as FilePath,
+            stat: {
+                size: stat.size,
+                mtime: Math.floor(stat.mtimeMs),
+                ctime: Math.floor(stat.ctimeMs),
+                type: "file",
+            },
+        };
+    }
+
+    async rename(file: NodeFile, newPath: string): Promise<void> {
+        const targetPath = this.resolvePath(newPath);
+        await fs.mkdir(path.dirname(targetPath), { recursive: true });
+        await fs.rename(this.resolvePath(file.path), targetPath);
+        file.path = newPath as FilePath;
+    }
+
+    async delete(file: NodeFile | NodeFolder, force = false): Promise<void> {
+        const fullPath = this.resolvePath(file.path);
+        const stat = await fs.stat(fullPath);
+        if (stat.isDirectory()) {
+            await fs.rm(fullPath, { recursive: true, force });
+        } else {
+            await fs.unlink(fullPath);
+        }
+    }
+
+    async trash(file: NodeFile | NodeFolder, force = false): Promise<void> {
+        // In CLI, trash is the same as delete (no recycle bin)
+        await this.delete(file, force);
+    }
+
+    trigger(name: string, ...data: unknown[]): void {
+        // No-op in CLI version (no event system)
+        return undefined;
+    }
+}

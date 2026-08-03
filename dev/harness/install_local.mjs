@@ -204,9 +204,10 @@ async function main() {
 
 接下来：
 1. 用 Obsidian 打开 ${vaultRoot}
-2. 在“设置 → 第三方插件”中启用 kos Companion
-3. 打开右侧 kos Agent，配置 provider、model ID 和 API key
-4. 点击“系统检查”，然后尝试“帮我开始今天的工作”
+2. 在“设置 → 第三方插件”中关闭 Restricted Mode，并手动启用 kos Companion
+3. 全新安装会自动打开首次使用向导；关闭后可从命令面板或 kos Companion 设置重新打开
+4. 按向导配置并测试模型、运行系统检查，再建立首个 Goal、Project 和 Task
+5. 如需多端同步，阅读 90_系统/文档/65_多端同步.md；填写 R2 后先测试读写再启用，不要另装 LiveSync
 `);
 }
 

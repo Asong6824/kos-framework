@@ -82,6 +82,21 @@ async function startFakeModel() {
     for await (const chunk of request) chunks.push(chunk);
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     requests.push(body);
+    const isConnectionTest = JSON.stringify(body.input ?? '').includes('KOS_MODEL_CONNECTION_TEST');
+    if (isConnectionTest) {
+      const item = {
+        type: 'message',
+        id: 'msg_connection_test',
+        role: 'assistant',
+        status: 'completed',
+        content: [{ type: 'output_text', text: 'OK', annotations: [] }],
+      };
+      const events = responseEvents(item, 'resp_connection_test');
+      response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+      for (const event of events) response.write(`data: ${JSON.stringify(event)}\n\n`);
+      response.end();
+      return;
+    }
     responseNumber += 1;
 
     let item;
@@ -160,10 +175,12 @@ async function prepareFixture() {
   await writeFile(join(vault, '.obsidian', 'appearance.json'), JSON.stringify({ baseFontSize: 16, theme: 'moonstone' }));
   await writeFile(join(profile, 'obsidian.json'), JSON.stringify({ vaults: { e2e: { path: vault, ts: Date.now(), open: true } } }));
   await writeFile(join(pluginDir, 'data.json'), JSON.stringify({
-    version: 1,
+    version: 10,
     installDate: today(),
     lastSnapshotDate: today(),
     snapshots: {}, badges: {}, inboxZeroCount: 0, reviewClearCount: 0,
+    onboarding: { status: 'not_started', validationPassedAt: null, completedAt: null },
+    syncPreflight: null,
     settings: {
       staleThresholdDays: 3, heatmapIncludeDiary: true, enableBadges: false,
       reviewConfirmDialog: false, agentHostPath: agentEntry, agentNodePath: process.execPath,
@@ -329,6 +346,22 @@ async function run() {
     })()`);
     await waitFor(() => cdp.evaluate(`![...document.querySelectorAll('.modal-container')].some((el) => el.textContent.includes('Do you trust the author of this vault?'))`), 'trust prompt dismissal');
     await waitFor(() => cdp.evaluate(`Boolean(globalThis.app?.plugins?.plugins?.['kos-companion'])`), 'plugin after trust prompt');
+    await waitFor(() => cdp.evaluate(`Boolean([...document.querySelectorAll('.modal-container')].some((el) => el.textContent.includes('首次使用 kos') && el.textContent.includes('建立最小工作系统')))`), 'automatic first-use wizard', 45_000);
+    const onboarding = await cdp.evaluate(`(() => {
+      const modal = [...document.querySelectorAll('.modal-container')].find((el) => el.textContent.includes('首次使用 kos'));
+      return {
+        desktopSteps: modal?.textContent.includes('配置并测试模型') && modal?.textContent.includes('建立最小工作系统'),
+        reopenHint: modal?.textContent.includes('命令面板') && modal?.textContent.includes('kos Companion 设置'),
+      };
+    })()`);
+    if (!onboarding.desktopSteps || !onboarding.reopenHint) {
+      throw new Error(`First-use wizard differs: ${JSON.stringify(onboarding)}`);
+    }
+    await cdp.evaluate(`(() => {
+      const modal = [...document.querySelectorAll('.modal-container')].find((el) => el.textContent.includes('首次使用 kos'));
+      [...(modal?.querySelectorAll('button') ?? [])].find((button) => button.textContent === '不再提示')?.click();
+    })()`);
+    await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.pluginData.onboarding.status === 'dismissed'`), 'dismissed first-use wizard persistence');
     const commandInfo = await cdp.evaluate(`(() => ({
       exists: app.commands.listCommands().some((command) => command.id === 'kos-companion:open-dashboard'),
       result: app.commands.executeCommandById('kos-companion:open-dashboard'),
@@ -361,6 +394,13 @@ async function run() {
       cardRadii: [...document.querySelectorAll('.kos-dot-clock, .kos-day-schedule, .kos-goal-overview, .kos-year-progress, .kos-activity-heatmap, .kos-board-section')].map((el) => getComputedStyle(el).borderRadius),
       actionAnchors: [...document.querySelectorAll('#kos-board-action .kos-board-switch button')].map((el) => el.textContent),
       actionGoalCards: document.querySelectorAll('#kos-board-action .kos-board-goal-card').length,
+      syncCard: (() => {
+        const root = document.querySelector('#kos-board-system');
+        return {
+          text: root?.textContent ?? '',
+          buttons: [...(root?.querySelectorAll('.kos-board-button') ?? [])].map((button) => button.textContent),
+        };
+      })(),
       scheduleObjects: app.plugins.plugins['kos-companion'].index.getAll().filter((item) => item.type === 'task').map((item) => ({
         title: item.title, due: item.due, scheduledFor: item.scheduled_for, scheduledTimes: item.scheduled_times,
       })),
@@ -463,6 +503,13 @@ async function run() {
     if (initial.switchNavigation !== 0) throw new Error('Dashboard still contains module-switch navigation');
     if (initial.startButtons !== 1) throw new Error('Manual 开始一天 control is missing');
     if (initial.agentLeaves !== 0) throw new Error('Dashboard open unexpectedly activated Agent');
+    if (!initial.syncCard.text.includes('多端同步')
+      || !initial.syncCard.text.includes('未启用')
+      || !initial.syncCard.text.includes('R2 读写测试')
+      || !initial.syncCard.text.includes('尚未测试')
+      || !initial.syncCard.buttons.includes('配置同步')) {
+      throw new Error(`Disabled sync card differs: ${JSON.stringify(initial.syncCard)}`);
+    }
     if (initial.overflow) throw new Error('Desktop dashboard has horizontal overflow');
     if (initial.internallyScrollable.length) {
       throw new Error(`Dashboard sections must not scroll internally: ${initial.internallyScrollable.join(', ')}; metrics=${JSON.stringify(initial.sectionMetrics)}`);
@@ -545,7 +592,7 @@ async function run() {
       setValue(setting('Model ID')?.querySelector('input'), 'e2e-model');
       setValue(setting('API key')?.querySelector('input'), 'e2e-local-key');
       setValue(setting('Base URL')?.querySelector('input'), ${JSON.stringify(fakeModel.baseUrl)});
-      [...modal.querySelectorAll('button')].find((button) => button.textContent === '保存并使用')?.click();
+      [...modal.querySelectorAll('button')].find((button) => button.textContent === '保存并测试')?.click();
       return true;
     })()`);
     if (!configured) throw new Error('Model configuration modal was not filled');
@@ -557,6 +604,11 @@ async function run() {
     }))()`);
     if (readyAgent.inputDisabled || !readyAgent.validateButton || !readyAgent.workflowButton) {
       throw new Error(`Configured Agent onboarding differs: ${JSON.stringify(readyAgent)}`);
+    }
+    await cdp.evaluate(`[...document.querySelectorAll('.kos-agent-onboarding button')].find((button) => button.textContent === '填写第一个工作流')?.click()`);
+    const firstWorkflowDraft = await cdp.evaluate(`document.querySelector('.kos-agent-input')?.value ?? ''`);
+    if (!firstWorkflowDraft.includes('第一次使用 kos') || !firstWorkflowDraft.includes('等我确认后')) {
+      throw new Error(`First workflow does not guide an empty Vault safely: ${JSON.stringify(firstWorkflowDraft)}`);
     }
     await screenshot(cdp, 'agent-first-run-ready.png');
     await cdp.evaluate(`app.commands.executeCommandById('kos-companion:open-dashboard')`);

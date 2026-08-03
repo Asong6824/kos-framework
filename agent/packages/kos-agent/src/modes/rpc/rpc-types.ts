@@ -13,7 +13,7 @@ import type { CompactionResult } from "../../core/compaction/index.ts";
 import type { SessionEntry, SessionInfo, SessionTreeNode } from "../../core/session-manager.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
 import type { ValidationReport } from "../../kos/validation/types.ts";
-import type { ConfigureModelInput } from "../../kos/model-configuration.ts";
+import type { ConfigureModelInput, ModelConnectionTestResult } from "../../kos/model-configuration.ts";
 import type { UpdateProjectInput } from "../../kos/operations/update-project.ts";
 import type {
 	AppendReaderExtractInput,
@@ -92,6 +92,7 @@ export type RpcCommand =
 	| { id?: string; type: "cycle_model" }
 	| { id?: string; type: "get_available_models" }
 	| ({ id?: string; type: "configure_model" } & ConfigureModelInput)
+	| { id?: string; type: "test_model" }
 	| { id?: string; type: "configure_web_search"; provider: "brave" | "exa"; apiKey: string }
 	| { id?: string; type: "get_web_search_state" }
 
@@ -232,6 +233,7 @@ export type RpcResponse =
 			data: { models: Model<any>[] };
 	  }
 	| { id?: string; type: "response"; command: "configure_model"; success: true; data: Model<any> }
+	| { id?: string; type: "response"; command: "test_model"; success: true; data: ModelConnectionTestResult }
 	| { id?: string; type: "response"; command: "configure_web_search"; success: true; data: { provider: "brave" | "exa" } }
 	| { id?: string; type: "response"; command: "get_web_search_state"; success: true; data: { brave: boolean; exa: boolean } }
 

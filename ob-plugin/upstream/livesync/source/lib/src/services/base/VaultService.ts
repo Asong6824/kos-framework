@@ -1,0 +1,109 @@
+import type { FilePath } from "@lib/common/types";
+import type { IAPIService, ISettingService, IVaultService } from "./IService";
+import { ServiceBase, type ServiceContext } from "./ServiceBase";
+import { handlers } from "@lib/services/lib/HandlerUtils";
+
+export interface VaultServiceDependencies {
+    settingService: ISettingService;
+    APIService: IAPIService;
+}
+/**
+ * The VaultService provides methods for interacting with the vault (local file system).
+ */
+export abstract class VaultService<T extends ServiceContext = ServiceContext>
+    extends ServiceBase<T>
+    implements IVaultService
+{
+    protected settingService: ISettingService;
+    protected APIService: IAPIService;
+
+    get settings() {
+        return this.settingService.currentSettings();
+    }
+    constructor(context: T, dependencies: VaultServiceDependencies) {
+        super(context);
+        this.settingService = dependencies.settingService;
+        this.APIService = dependencies.APIService;
+    }
+    /**
+     * Get the vault name only.
+     */
+    vaultName(): string {
+        return this.APIService.getSystemVaultName();
+    }
+
+    /**
+     * Get the vault name with additional suffixes.
+     */
+    getVaultName() {
+        return (
+            this.vaultName() +
+            (this.settings.additionalSuffixOfDatabaseName ? "-" + this.settings.additionalSuffixOfDatabaseName : "")
+        );
+    }
+
+    /**
+     * Scan the vault for changes (especially for changes during the plug-in were not running).
+     * @param showingNotice Whether to show a notice to the user.
+     * @param ignoreSuspending Whether to ignore any suspending state.
+     */
+    readonly scanVault = handlers<IVaultService>().bailFirstFailure("scanVault");
+
+    /**
+     * Check if a file is ignored by the ignore file (e.g., .gitignore, .obsidianignore).
+     * @param file The file path or file info stub to check.
+     */
+    readonly isIgnoredByIgnoreFile = handlers<IVaultService>().anySuccess("isIgnoredByIgnoreFile");
+
+    /**
+     * Check if a file is a target file for synchronisation.
+     * @param file The file path or file info stub to check.
+     * @param keepFileCheckList Whether to keep the file in the check list.
+     */
+    readonly isTargetFile = handlers<IVaultService>().bailFirstFailure("isTargetFile");
+
+    /**
+     * Check if a file is a target file for some extra feature
+     */
+    readonly isTargetFileInExtra = handlers<IVaultService>().anySuccess("isTargetFileInExtra");
+    /**
+     * Check if a filesize is too large against the current settings.
+     * @param size The file size to check.
+     */
+    isFileSizeTooLarge(size: number) {
+        const maxSize = this.settings.syncMaxSizeInMB;
+        if (maxSize > 0 && size > 0) {
+            if (maxSize * 1024 * 1024 < size) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get the currently active file path in the editor, if any.
+     */
+    abstract getActiveFilePath(): FilePath | undefined;
+
+    /**
+     * Check if the vault is on a case-insensitive file system.
+     * This is important for certain operating systems like Windows and macOS.
+     */
+    abstract isStorageInsensitive(): boolean;
+
+    /**
+     * Check if the file system should be treated case-insensitively.
+     * This is important for certain operating systems like Windows and macOS.
+     */
+    shouldCheckCaseInsensitively(): boolean {
+        // By default, only check if the setting says so.
+        // Override this method in subclasses for the platform-specific logic, i.e., checking the underlying file system.
+        return !this.settings.handleFilenameCaseSensitive;
+    }
+
+    /**
+     * Check if a given path is valid in the vault.
+     * @param path The file path to check.
+     */
+    abstract isValidPath(path: string): boolean;
+}

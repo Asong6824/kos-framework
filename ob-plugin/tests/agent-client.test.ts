@@ -308,6 +308,10 @@ describe('KosAgentClient', () => {
     answer(process, 'configure_model', { provider: 'custom', id: 'model-1' });
     await expect(configured).resolves.toEqual({ provider: 'custom', id: 'model-1' });
 
+    const modelTest = client.testModel();
+    answer(process, 'test_model', { provider: 'custom', modelId: 'model-1', latencyMs: 42 });
+    await expect(modelTest).resolves.toEqual({ provider: 'custom', modelId: 'model-1', latencyMs: 42 });
+
     const webConfigured = client.configureWebSearch('brave', testCredential);
     answer(process, 'configure_web_search', { provider: 'brave' });
     await expect(webConfigured).resolves.toEqual({ provider: 'brave' });

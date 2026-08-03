@@ -47,7 +47,8 @@ class AgentValidationModal extends Modal {
   }
 }
 
-export async function runAgentValidation(app: App, client: KosAgentClient): Promise<void> {
+export async function runAgentValidation(app: App, client: KosAgentClient): Promise<KosValidationReport> {
   const report = await client.validate();
   new AgentValidationModal(app, report).open();
+  return report;
 }

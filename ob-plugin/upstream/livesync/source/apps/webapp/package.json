@@ -1,0 +1,26 @@
+{
+    "name": "livesync-webapp",
+    "private": true,
+    "version": "0.25.83-webapp",
+    "type": "module",
+    "description": "Browser-based Self-hosted LiveSync using FileSystem API",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "build:docker": "docker build -f Dockerfile -t livesync-webapp ../../..",
+        "run:docker": "docker run -p 8002:80 livesync-webapp",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "octagonal-wheels": "^0.1.51"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.58.2",
+        "@sveltejs/vite-plugin-svelte": "^7.1.2",
+        "playwright": "^1.58.2",
+        "svelte": "5.56.3",
+        "typescript": "5.9.3",
+        "vite": "^8.0.16",
+        "vite-plugin-istanbul": "^9.0.1"
+    }
+}

@@ -4,6 +4,8 @@ import type { KosAgentClient } from '../agent/client';
 import { buildAgentPrompt, mentionedVaultPaths } from '../agent/context';
 import type { ObsidianPromptContext } from '../agent/context';
 import { runIsolatedAgentWorkflow } from '../agent/workflow-runner';
+import { VOLCENGINE_CODING_PLAN_PRESET } from '../agent/model-presets';
+import { FIRST_USE_WORKFLOW_PROMPT } from '../agent/first-use';
 import { messageText, messageThinking } from '../agent/protocol';
 import type {
   KosConfigureModelInput,
@@ -82,7 +84,9 @@ class ModelSetupModal extends Modal {
       text: '选择模型提供商并填写其官方 model ID。API key 只保存到 kos-agent 的 auth.json，不进入 Vault。',
     });
     const providerSetting = new Setting(this.contentEl).setName('Provider').setDesc('常用值：openai、anthropic、google');
+    let providerInput!: HTMLInputElement;
     providerSetting.addText((text) => {
+      providerInput = text.inputEl;
       text.setValue(this.provider).onChange((value) => (this.provider = value.trim()));
       for (const provider of ['openai', 'anthropic', 'google']) {
         providerSetting.addButton((button) => button
@@ -94,28 +98,48 @@ class ModelSetupModal extends Modal {
           }));
       }
     });
-    new Setting(this.contentEl).setName('Model ID').setDesc('例如提供商控制台或模型文档中的完整模型 ID').addText((text) =>
-      text.setPlaceholder('输入 model ID').setValue(this.modelId).onChange((value) => (this.modelId = value.trim())),
-    );
+    let modelInput!: HTMLInputElement;
+    new Setting(this.contentEl).setName('Model ID').setDesc('例如提供商控制台或模型文档中的完整模型 ID').addText((text) => {
+      modelInput = text.inputEl;
+      text.setPlaceholder('输入 model ID').setValue(this.modelId).onChange((value) => (this.modelId = value.trim()));
+    });
     new Setting(this.contentEl).setName('API key').addText((text) => {
       text.inputEl.type = 'password';
       text.setPlaceholder('API key').onChange((value) => (this.apiKey = value));
     });
-    new Setting(this.contentEl).setName('Base URL').setDesc('内置 provider 可留空').addText((text) =>
-      text.setPlaceholder('https://.../v1').onChange((value) => (this.baseUrl = value)),
-    );
-    new Setting(this.contentEl).setName('API 协议').addDropdown((dropdown) =>
+    let baseUrlInput!: HTMLInputElement;
+    new Setting(this.contentEl).setName('Base URL').setDesc('内置 provider 可留空').addText((text) => {
+      baseUrlInput = text.inputEl;
+      text.setPlaceholder('https://.../v1').onChange((value) => (this.baseUrl = value));
+    });
+    let apiSelect!: HTMLSelectElement;
+    new Setting(this.contentEl).setName('API 协议').addDropdown((dropdown) => {
+      apiSelect = dropdown.selectEl;
       dropdown
         .addOption('openai-responses', 'OpenAI Responses')
         .addOption('openai-completions', 'OpenAI Completions')
         .addOption('anthropic-messages', 'Anthropic Messages')
         .addOption('google-generative-ai', 'Google Generative AI')
         .setValue(this.api)
-        .onChange((value) => (this.api = value as KosModelApi)),
-    );
+        .onChange((value) => (this.api = value as KosModelApi));
+    });
+
+    new Setting(this.contentEl)
+      .setName('服务预设')
+      .setDesc('火山 Coding Plan 必须使用套餐专用地址；不要改成普通方舟推理地址，以免产生套餐外费用。')
+      .addButton((button) => button.setButtonText('火山 Coding Plan').onClick(() => {
+        this.provider = VOLCENGINE_CODING_PLAN_PRESET.provider;
+        this.modelId = VOLCENGINE_CODING_PLAN_PRESET.modelId;
+        this.baseUrl = VOLCENGINE_CODING_PLAN_PRESET.baseUrl;
+        this.api = VOLCENGINE_CODING_PLAN_PRESET.api;
+        providerInput.value = this.provider;
+        modelInput.value = this.modelId;
+        baseUrlInput.value = this.baseUrl;
+        apiSelect.value = this.api;
+      }));
 
     const row = this.contentEl.createDiv({ cls: 'kos-modal-buttons' });
-    const save = row.createEl('button', { cls: 'mod-cta', text: '保存并使用' });
+    const save = row.createEl('button', { cls: 'mod-cta', text: '保存并测试' });
     save.addEventListener('click', () => {
       if (!this.provider.trim() || !this.modelId.trim() || !this.apiKey.trim()) {
         new Notice('Provider、Model ID 和 API key 都不能为空');
@@ -863,8 +887,12 @@ export class AgentView extends ItemView {
   private async applyModelConfiguration(input: KosConfigureModelInput): Promise<void> {
     if (!this.client) return;
     const model = await this.client.configureModel(input);
+    const tested = await this.client.testModel();
     this.setCurrentModel(model);
-    new Notice(`已配置模型：${model.provider}/${model.id}`);
+    const routed = tested.responseModel && tested.responseModel !== tested.modelId
+      ? `，实际路由 ${tested.responseModel}`
+      : '';
+    new Notice(`模型连接成功：${model.provider}/${model.id}${routed} · ${tested.latencyMs} ms`);
   }
 
   private async cycleThinking(): Promise<void> {
@@ -927,7 +955,7 @@ export class AgentView extends ItemView {
       validate.addEventListener('click', () => void this.runValidation());
       const firstWorkflow = actions.createEl('button', { text: '填写第一个工作流' });
       firstWorkflow.addEventListener('click', () => {
-        this.inputEl.value = '帮我开始今天的工作。读取当前 Goal、Project、Task Pool 和最近复盘，根据我今天可用的时间给出最多三项建议；先让我确认，不要直接替我排期。';
+        this.inputEl.value = FIRST_USE_WORKFLOW_PROMPT;
         this.inputEl.focus();
       });
     }

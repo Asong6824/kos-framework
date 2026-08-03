@@ -1,0 +1,225 @@
+import type { LiveSyncAbstractReplicator } from "@lib/replication/LiveSyncAbstractReplicator";
+import { handlers } from "@lib/services/lib/HandlerUtils";
+import type { IReplicatorService } from "./IService";
+import { ServiceBase, type ServiceContext } from "./ServiceBase";
+import type { SettingService } from "./SettingService";
+import { createInstanceLogFunction } from "@lib/services/lib/logUtils";
+import type { AppLifecycleService } from "./AppLifecycleService";
+import { UnresolvedErrorManager } from "./UnresolvedErrorManager";
+import { $msg } from "@lib/common/i18n";
+import { yieldMicrotask } from "octagonal-wheels/promises";
+import type { DatabaseEventService } from "./DatabaseEventService";
+import { LOG_LEVEL_NOTICE, LOG_LEVEL_VERBOSE } from "@lib/common/logger";
+import { RemoteTypes } from "@lib/common/types";
+import { DEFAULT_REPLICATION_STATICS } from "@lib/common/models/shared.definition";
+import { reactiveSource } from "octagonal-wheels/dataobject/reactive";
+import {
+    runWithOptionalActivity,
+    type AsyncActivityOptions,
+    type AsyncActivityRunner,
+} from "@lib/interfaces/AsyncActivityRunner.ts";
+
+export interface ReplicatorServiceDependencies {
+    settingService: SettingService;
+    appLifecycleService: AppLifecycleService;
+    databaseEventService: DatabaseEventService;
+    activityRunner?: AsyncActivityRunner;
+}
+/**
+ * The ReplicatorService provides methods for managing replication.
+ */
+export abstract class ReplicatorService<T extends ServiceContext = ServiceContext>
+    extends ServiceBase<T>
+    implements IReplicatorService
+{
+    readonly boundedRemoteActivityCount = reactiveSource(0);
+    readonly finiteReplicationActivityCount = reactiveSource(0);
+    _log = createInstanceLogFunction("ReplicatorService");
+
+    private settingService: SettingService;
+    private databaseEventService: DatabaseEventService;
+    private _activeReplicator: LiveSyncAbstractReplicator | undefined;
+    private _replicatorType: string | undefined;
+    private appLifecycleService: AppLifecycleService;
+    _unresolvedErrorManager: UnresolvedErrorManager;
+    constructor(
+        context: T,
+        protected dependencies: ReplicatorServiceDependencies
+    ) {
+        super(context);
+        this.appLifecycleService = dependencies.appLifecycleService;
+        this._unresolvedErrorManager = new UnresolvedErrorManager(dependencies.appLifecycleService);
+        this.settingService = dependencies.settingService;
+        this.settingService.onRealiseSetting.addHandler(this._initialiseReplicator.bind(this));
+        this.databaseEventService = dependencies.databaseEventService;
+        this.databaseEventService.onResetDatabase.addHandler(this.disposeReplicator.bind(this));
+        this.databaseEventService.onDatabaseInitialisation.addHandler(this.disposeReplicator.bind(this));
+        this.databaseEventService.onDatabaseInitialised.addHandler(this.reinitialiseReplicator.bind(this));
+        this.databaseEventService.onDatabaseHasReady.addHandler(this.reinitialiseReplicator.bind(this));
+        this.appLifecycleService.onSuspending.addHandler(this.suspendReplication.bind(this));
+    }
+
+    /**
+     * Runs one finite remote operation while exposing its lifetime to host policy and status UI.
+     * Continuous replication must not use this boundary.
+     */
+    async runBoundedRemoteActivity<TValue>(
+        task: () => TValue | PromiseLike<TValue>,
+        options?: AsyncActivityOptions
+    ): Promise<TValue> {
+        return await this.runRemoteActivity(task, options, false);
+    }
+
+    /** Runs one finite replication and exposes its document-delivery lifetime. */
+    async runFiniteReplicationActivity<TValue>(
+        task: () => TValue | PromiseLike<TValue>,
+        options?: AsyncActivityOptions
+    ): Promise<TValue> {
+        return await this.runRemoteActivity(task, options, true);
+    }
+
+    private async runRemoteActivity<TValue>(
+        task: () => TValue | PromiseLike<TValue>,
+        options: AsyncActivityOptions | undefined,
+        isFiniteReplication: boolean
+    ): Promise<TValue> {
+        this.boundedRemoteActivityCount.value++;
+        if (isFiniteReplication) {
+            this.finiteReplicationActivityCount.value++;
+        }
+        try {
+            return await runWithOptionalActivity(this.dependencies.activityRunner, task, options);
+        } finally {
+            if (isFiniteReplication) {
+                this.finiteReplicationActivityCount.value--;
+            }
+            this.boundedRemoteActivityCount.value--;
+        }
+    }
+
+    private suspendReplication() {
+        // During early lifecycle (e.g. settings migration), suspension can happen before
+        // replicator initialisation. Avoid emitting unresolved-error noise in that case.
+        const activeReplicator = this._activeReplicator;
+        if (activeReplicator) {
+            activeReplicator.closeReplication();
+        }
+        return Promise.resolve(true);
+    }
+
+    private async reinitialiseReplicator() {
+        await this.disposeReplicator();
+        await yieldMicrotask();
+        return this._initialiseReplicator();
+    }
+    private async disposeReplicator() {
+        this._log("Detect database reset, closing active replicator if exists.");
+        if (this._activeReplicator) {
+            await Promise.resolve(this._activeReplicator.closeReplication());
+        }
+        // To flush e2ee salts, device id, and other information kept in the replicator instance, to avoid potential database corruption after reset.
+
+        this._activeReplicator = undefined;
+        this._replicatorType = undefined;
+        return true;
+    }
+
+    private async _initialiseReplicator() {
+        const message = $msg("Replicator.Message.InitialiseFatalError");
+        const setting = this.settingService.currentSettings();
+        if (!setting) {
+            this._activeReplicator = undefined;
+            this._replicatorType = undefined;
+            // Settings may not be available yet during early lifecycle.
+            // Do not treat this as a fatal initialisation failure.
+            this._unresolvedErrorManager.clearError(message);
+            return true;
+        }
+        const replicatorType = setting.remoteType;
+        const isCouchDBConfigured =
+            replicatorType === RemoteTypes.REMOTE_COUCHDB &&
+            !!setting.couchDB_URI?.trim() &&
+            !!setting.couchDB_DBNAME?.trim();
+        const isMinioConfigured =
+            replicatorType === RemoteTypes.REMOTE_MINIO && !!setting.endpoint?.trim() && !!setting.bucket?.trim();
+        const isP2PEnabled = replicatorType === RemoteTypes.REMOTE_P2P && setting.P2P_Enabled;
+        const hasReplicatorConfig = isCouchDBConfigured || isMinioConfigured || isP2PEnabled;
+
+        if (!hasReplicatorConfig) {
+            this._activeReplicator = undefined;
+            this._replicatorType = undefined;
+            this._unresolvedErrorManager.clearError(message);
+            this._log("No remote replicator configuration found. Skipping replicator initialisation.");
+            return true;
+        }
+
+        if (replicatorType === this._replicatorType && this._activeReplicator) {
+            // No need to change the replicator.
+            this._unresolvedErrorManager.clearError(message);
+            this._log("Active replicator has been kept", LOG_LEVEL_VERBOSE);
+            return true;
+        } else {
+            this._log("Acquiring new replicator");
+            const newReplicator = await this.getNewReplicator();
+            if (!newReplicator) {
+                this._unresolvedErrorManager.showError(message, LOG_LEVEL_NOTICE);
+                return false;
+            }
+            // Check existing replicator and close it if exists.
+            if (this._activeReplicator) {
+                await Promise.resolve(this._activeReplicator.closeReplication());
+                this._log("Active replicator closed", LOG_LEVEL_VERBOSE);
+            }
+            this._activeReplicator = newReplicator;
+            this._replicatorType = replicatorType;
+
+            // Reset replication statics when replicator changes.
+            this.replicationStatics.value = { ...DEFAULT_REPLICATION_STATICS };
+            await yieldMicrotask();
+            // Probably we need to clear all synchronising parameters handlers
+            // Note that parameters handler keeps an key-deriving salt in memory,
+            // so we need to clear them when the replicator changes, to avoid potential database corruption.
+            if (!(await this.onReplicatorInitialised())) {
+                this._log("Failed to initialise the replicator, onReplicatorInitialised reported some problems.");
+                this._activeReplicator = undefined;
+                this._replicatorType = undefined;
+                this._unresolvedErrorManager.showError(message, LOG_LEVEL_NOTICE);
+                return false;
+            }
+            const remoteTypeDisplay = replicatorType === RemoteTypes.REMOTE_COUCHDB ? "CouchDB" : replicatorType;
+            this._log(`Replicator (${remoteTypeDisplay}) initialised and activated`, LOG_LEVEL_VERBOSE);
+
+            this._unresolvedErrorManager.clearError(message);
+            return true;
+        }
+    }
+
+    /**
+     * Close the active replication if any.
+     * Not used currently.
+     */
+    readonly onCloseActiveReplication = handlers<IReplicatorService>().anySuccess("onCloseActiveReplication");
+
+    /**
+     * Get a new replicator instance based on the provided settings.
+     */
+    readonly getNewReplicator = handlers<IReplicatorService>().firstResult("getNewReplicator");
+
+    readonly onReplicatorInitialised = handlers<IReplicatorService>().bailFirstFailure("onReplicatorInitialised");
+
+    /**
+     * Get the currently active replicator instance.
+     * If no active replicator, return undefined but that is the fatal situation (on Obsidian).
+     */
+    getActiveReplicator(): LiveSyncAbstractReplicator | undefined {
+        const message = "No replicator has been activated or has not been initialised yet.";
+        if (!this._activeReplicator) {
+            this._unresolvedErrorManager.showError(message, LOG_LEVEL_NOTICE);
+            return undefined;
+        }
+        this._unresolvedErrorManager.clearError(message);
+        return this._activeReplicator;
+    }
+
+    replicationStatics = reactiveSource({ ...DEFAULT_REPLICATION_STATICS });
+}

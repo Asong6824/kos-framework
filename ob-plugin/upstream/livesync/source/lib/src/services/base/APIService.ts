@@ -1,0 +1,140 @@
+import type { FetchHttpHandler } from "@smithy/fetch-http-handler";
+import type { LOG_LEVEL } from "@lib/common/logger";
+import type { IAPIService, ICommandCompat } from "./IService";
+import { ServiceBase, type ServiceContext } from "./ServiceBase";
+import type { Confirm } from "@lib/interfaces/Confirm";
+import { reactiveSource } from "octagonal-wheels/dataobject/reactive";
+import { _fetch, compatGlobal } from "@lib/common/coreEnvFunctions";
+/**
+ * The APIService provides methods for interacting with the plug-in's API,
+ */
+export abstract class APIService<T extends ServiceContext = ServiceContext>
+    extends ServiceBase<T>
+    implements IAPIService
+{
+    /**
+     * Get a custom fetch handler for making HTTP requests (e.g., S3 without CORS issues).
+     */
+    abstract getCustomFetchHandler(): FetchHttpHandler;
+
+    /**
+     * Add a log entry to the log (Now not used).
+     * @param message The log message.
+     * @param level The log level.
+     * @param key The log key.
+     */
+    abstract addLog(message: unknown, level: LOG_LEVEL, key: string): void;
+
+    /**
+     * Check if the app is running on a mobile device.
+     * @returns true if running on mobile, false otherwise.
+     */
+    abstract isMobile(): boolean;
+
+    /**
+     * Show a window (or in Obsidian, a leaf).
+     * @param type The type of window to show.
+     */
+    abstract showWindow(type: string): Promise<void>;
+
+    /**
+     * Show a window on the right sidebar when supported.
+     * Platforms that do not support sidebars can fall back to showWindow.
+     */
+    showWindowOnRight(type: string): Promise<void> {
+        return this.showWindow(type);
+    }
+
+    /**
+     * returns App ID. In Obsidian, it is vault ID.
+     */
+    abstract getAppID(): string;
+
+    /**
+     * Returns the vaultName which system has identified, without any additional suffix.
+     */
+    abstract getSystemVaultName(): string;
+    /**
+     * Check if the last POST request failed due to payload size.
+     */
+    // abstract isLastPostFailedDueToPayloadSize(): boolean;
+
+    abstract getPlatform(): string;
+
+    abstract getAppVersion(): string;
+
+    abstract getPluginVersion(): string;
+
+    abstract getCrypto(): Crypto;
+
+    /**
+     * Register a command to the runtime.
+     * @param command
+     */
+    abstract addCommand<TCommand extends ICommandCompat>(command: TCommand): TCommand;
+
+    /**
+     * Register a window (or leaf) type to the runtime.
+     * @param type
+     * @param factory
+     */
+    abstract registerWindow<T>(type: string, factory: (leaf: T) => unknown): void;
+
+    /**
+     * Add a ribbon icon to the UI.
+     * @param icon
+     * @param title
+     * @param callback
+     */
+    abstract addRibbonIcon(icon: string, title: string, callback: (evt: MouseEvent) => unknown): HTMLElement;
+
+    /**
+     * Register a protocol handler.
+     * @param action The action string for the protocol.
+     * @param handler The handler function for the protocol.
+     */
+    abstract registerProtocolHandler(action: string, handler: (params: Record<string, string>) => unknown): void;
+
+    /**
+     * Get the basic UI component for showing a confirmation dialog to the user.
+     */
+    abstract get confirm(): Confirm;
+    requestCount = reactiveSource(0);
+    responseCount = reactiveSource(0);
+
+    get isOnline() {
+        if ("navigator" in compatGlobal) {
+            return compatGlobal.navigator.onLine;
+        }
+        return true;
+    }
+
+    webCompatFetch(req: string | Request, opts?: RequestInit): Promise<Response> {
+        return _fetch(req, opts);
+    }
+
+    // By default, nativeFetch is not implemented. It can be overridden by platforms that support it (e.g., ObsidianAPIService).
+    nativeFetch(req: string | Request, opts?: RequestInit): Promise<Response> {
+        throw new Error("nativeFetch is not implemented for this platform");
+    }
+
+    abstract addStatusBarItem(): HTMLElement | undefined;
+
+    setInterval(handler: () => void, timeout: number): number {
+        return compatGlobal.setInterval(handler, timeout);
+    }
+
+    clearInterval(timerId: number): void {
+        compatGlobal.clearInterval(timerId);
+    }
+
+    /**
+     * Get the system configuration directory.
+     * This is used for storing configuration files in a consistent location across platforms.
+     * @returns
+     */
+    getSystemConfigDir() {
+        // SHIM.
+        return ".livesync";
+    }
+}

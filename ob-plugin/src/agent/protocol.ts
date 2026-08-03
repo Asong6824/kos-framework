@@ -41,6 +41,7 @@ export type KosRpcCommand =
   | { type: 'get_commands' }
   | { type: 'set_model'; provider: string; modelId: string }
   | ({ type: 'configure_model' } & KosConfigureModelInput)
+  | { type: 'test_model' }
   | { type: 'configure_web_search'; provider: 'brave' | 'exa'; apiKey: string }
   | { type: 'get_web_search_state' };
 
@@ -65,6 +66,13 @@ export interface KosModelInfo {
   reasoning?: boolean;
   contextWindow?: number;
   maxTokens?: number;
+}
+
+export interface KosModelConnectionTestResult {
+  provider: string;
+  modelId: string;
+  responseModel?: string;
+  latencyMs: number;
 }
 
 export interface KosCreateObjectInput {

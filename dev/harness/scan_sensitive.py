@@ -52,8 +52,10 @@ def repository_files() -> list[Path]:
 
 
 def is_vendored_reference(rel: Path) -> bool:
-    """Pi's fixed snapshot retains upstream tests, docs, examples, and changelog fixtures."""
+    """Fixed upstream snapshots retain their original tests, docs, and fixtures."""
     parts = rel.parts
+    if parts[:4] == ("ob-plugin", "upstream", "livesync", "source"):
+        return True
     if len(parts) < 4 or parts[:2] != ("agent", "packages"):
         return False
     return parts[3] in {"test", "docs", "examples", "README.md", "CHANGELOG.md"}

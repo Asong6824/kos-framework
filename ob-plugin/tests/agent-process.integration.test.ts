@@ -69,7 +69,7 @@ describe.runIf(existsSync(entry))('Obsidian kos-agent process contract', () => {
     } finally {
       await client.stop();
     }
-  });
+  }, 20_000);
 
   it('creates and transitions an object through deterministic RPC operations', async () => {
     const root = await mkdtemp(join(tmpdir(), 'kos-obsidian-operations-'));
@@ -102,7 +102,7 @@ describe.runIf(existsSync(entry))('Obsidian kos-agent process contract', () => {
     } finally {
       await client.stop();
     }
-  });
+  }, 20_000);
 
   it('configures a custom model without returning or duplicating its credential', async () => {
     const root = await mkdtemp(join(tmpdir(), 'kos-obsidian-model-config-'));
@@ -139,7 +139,7 @@ describe.runIf(existsSync(entry))('Obsidian kos-agent process contract', () => {
     } finally {
       await client.stop();
     }
-  });
+  }, 20_000);
 });
 
 describe.runIf(

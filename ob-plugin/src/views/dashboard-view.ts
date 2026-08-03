@@ -572,6 +572,7 @@ export class DashboardView extends KosView {
       row.createDiv({ cls: 'kos-board-muted', text: `${finding.path || '全局'}　交给 AGENT 修复` });
     }
     if (findingRows.length) this.pagination(section, 'systemFindings', findingPage, 'system', 'kos-system-findings');
+    this.renderSyncStatus(section);
     this.subhead(section, 'AGENT 运行状态');
     const status = section.createDiv({ cls: 'kos-board-agent-status' });
     status.createSpan({ cls: this.agentSnapshot ? 'is-success' : 'is-warning', text: `● ${this.agentSnapshot ? (this.agentSnapshot.state.isStreaming ? '运行中' : '在线') : '未读取'}` });
@@ -595,6 +596,79 @@ export class DashboardView extends KosView {
     const actions = foot.createDiv({ cls: 'kos-board-actions' });
     this.button(actions, this.systemLoading ? '[LOADING]' : '刷新状态', false, () => void this.loadSystemStatus());
     this.button(actions, this.systemLoading ? '[LOADING]' : '重新检查', false, () => void this.runValidation());
+  }
+
+  private renderSyncStatus(section: HTMLElement): void {
+    const snapshot = this.ctx.syncSnapshot?.();
+    this.subhead(section, '多端同步');
+    const status = section.createDiv({ cls: 'kos-board-agent-status' });
+    const phase = snapshot?.phase ?? 'disabled';
+    const phaseLabel: Record<string, string> = {
+      disabled: '未启用',
+      initializing: '正在初始化',
+      syncing: '正在同步',
+      'up-to-date': '已同步',
+      offline: '离线等待',
+      paused: '已暂停',
+      conflict: '存在冲突',
+      error: '同步错误',
+    };
+    const statusTone = phase === 'up-to-date'
+      ? 'is-success'
+      : phase === 'error' || phase === 'conflict'
+        ? 'is-danger'
+        : 'is-warning';
+    status.createSpan({ cls: statusTone, text: `● ${phaseLabel[phase] ?? phase}` });
+    status.createSpan({ cls: 'kos-board-mono', text: 'KOS-SYNC · R2' });
+    const table = section.createDiv({ cls: 'kos-board-system-table' });
+    const lastAttempt = snapshot?.lastAttemptedSync
+      ? new Date(snapshot.lastAttemptedSync).toLocaleString()
+      : '—';
+    const lastSync = snapshot?.lastSuccessfulSync
+      ? new Date(snapshot.lastSuccessfulSync).toLocaleString()
+      : '—';
+    this.systemRow(table, '最后尝试', lastAttempt);
+    this.systemRow(table, '最后成功', lastSync, phase === 'up-to-date' ? 'success' : 'neutral');
+    this.systemRow(table, '上次耗时', snapshot?.lastSyncDurationMs === null || snapshot?.lastSyncDurationMs === undefined
+      ? '—'
+      : snapshot.lastSyncDurationMs < 1_000
+        ? `${snapshot.lastSyncDurationMs} ms`
+        : `${(snapshot.lastSyncDurationMs / 1_000).toFixed(1)} s`);
+    const configurationHealth = this.ctx.syncConfigurationHealth?.();
+    const preflightLabel = configurationHealth?.preflightCurrent
+      ? `已通过 · ${configurationHealth.preflightPassedAt ? new Date(configurationHealth.preflightPassedAt).toLocaleString() : '时间未知'}`
+      : configurationHealth?.preflightPassedAt
+        ? '配置已变化，需要重新测试'
+        : '尚未测试';
+    this.systemRow(table, 'R2 读写测试', preflightLabel, configurationHealth?.preflightCurrent ? 'success' : 'warning');
+    this.systemRow(table, '待上传', String(snapshot?.pendingUploads ?? 0));
+    this.systemRow(table, '待应用', String(snapshot?.pendingDownloads ?? 0));
+    this.systemRow(table, '冲突', String(snapshot?.conflicts ?? 0), (snapshot?.conflicts ?? 0) > 0 ? 'danger' : 'neutral');
+    const message = section.createDiv({
+      cls: `kos-board-finding${phase === 'error' || phase === 'conflict' ? '' : ' is-success'}`,
+      text: snapshot?.message ?? '未启用',
+    });
+    if (phase === 'disabled') message.addClass('is-muted');
+    const actions = section.createDiv({ cls: 'kos-board-actions' });
+    if (phase === 'disabled') {
+      this.button(actions, '配置同步', true, () => this.ctx.openSyncSettings?.());
+    } else {
+      const syncing = phase === 'syncing' || phase === 'initializing';
+      const syncLabel = syncing
+        ? '同步中…'
+        : phase === 'error' || phase === 'offline'
+          ? '重试同步'
+          : '立即双向同步';
+      const syncButton = this.button(actions, syncLabel, true, () => void this.ctx.syncNow?.());
+      syncButton.disabled = syncing || phase === 'paused';
+      this.button(
+        actions,
+        phase === 'paused' ? '继续' : '暂停',
+        false,
+        () => void this.ctx.toggleSyncPaused?.(),
+      );
+      this.button(actions, '同步设置', false, () => this.ctx.openSyncSettings?.());
+    }
   }
 
   private renderTaskLine(parent: HTMLElement, task: TaskObject, today: string): void {

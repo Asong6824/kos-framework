@@ -20,6 +20,7 @@ import {
 import { runAgentValidation } from './bridge/agent-validation';
 import type { KosAgentClient } from './agent/client';
 import { buildDashboardAgentCommand, dashboardWorkflowSessionName } from './agent/workflows';
+import { FIRST_USE_WORKFLOW_PROMPT } from './agent/first-use';
 import type { KosDailyRecommendation } from './agent/protocol';
 import { pendingReviewCount, projectProgress } from './core/metrics';
 import type { KosObject, ObjectDirs } from './core/model';
@@ -40,6 +41,28 @@ import type { ReaderAnnotation, ReaderAnnotationColor, ReaderContext, ReaderExce
 import { KosView } from './views/view-context';
 import type { DashboardDailyPlan, ViewContext } from './views/view-context';
 import type { DashboardModule } from './core/dashboard';
+import { KosSyncService } from './sync/service';
+import type { KosSyncSnapshot } from './sync/model';
+import type { KosSyncSettings } from './sync/model';
+import type { KosR2PreflightResult } from './sync/upstream/r2-storage';
+import {
+  explainKosSyncPreflightFailure,
+  kosSyncConfigurationFingerprint,
+  validateKosSyncPreflightSettings,
+} from './sync/preflight';
+import {
+  ensureKosSyncVaultId,
+  isKosSyncPathIncluded,
+  KOS_SYNC_INTERVAL_MS,
+} from './sync/policy';
+import { KosLiveSyncEngine } from './sync/livesync-engine';
+import {
+  KosObsidianSyncStateRepository,
+  KosObsidianSyncVault,
+} from './sync/obsidian-livesync';
+import { createKosObsidianR2Storage } from './sync/upstream/r2-storage-obsidian';
+import { KosOnboardingModal } from './onboarding';
+import type { KosOnboardingSnapshot } from './onboarding';
 
 /** 各视图的打开位置：工作台与 Reader 在中央 tab，工具视图在右侧栏。 */
 const VIEW_LOCATIONS: Record<string, 'tab' | 'right'> = {
@@ -53,6 +76,7 @@ const VIEW_LOCATIONS: Record<string, 'tab' | 'right'> = {
 
 /** 跨天检测间隔（02 文档第 4 节：本地日期变化时先落昨日终态再开新一天） */
 const DAY_TICK_MS = 60_000;
+const SYNC_EVENT_DEBOUNCE_MS = 1_500;
 
 function dailyRecommendations(value: unknown): KosDailyRecommendation[] {
   if (!Array.isArray(value)) return [];
@@ -69,7 +93,11 @@ function dailyRecommendations(value: unknown): KosDailyRecommendation[] {
 }
 
 export default class KosCompanionPlugin extends Plugin {
-  settings: KosSettings = { ...DEFAULT_SETTINGS, objectDirs: { ...DEFAULT_SETTINGS.objectDirs } };
+  settings: KosSettings = {
+    ...DEFAULT_SETTINGS,
+    objectDirs: { ...DEFAULT_SETTINGS.objectDirs },
+    sync: { ...DEFAULT_SETTINGS.sync },
+  };
   index!: KosIndex;
   store!: KosDataStore;
   private badges!: BadgeWatcher;
@@ -78,6 +106,12 @@ export default class KosCompanionPlugin extends Plugin {
   private agentClient: KosAgentClient | null = null;
   private agentConnection: Promise<KosAgentClient> | null = null;
   private agentEventUnsubscribe: (() => void) | null = null;
+  private sync!: KosSyncService;
+  private syncEventUnsubscribe: (() => void) | null = null;
+  private syncDebounceTimer: number | null = null;
+  private syncDashboardRefreshTimer: number | null = null;
+  private syncConfigurationHealthRevision = 0;
+  private syncPreflightCurrent = false;
   private viewActivation: Promise<void> = Promise.resolve();
   /** 当前计数的本地日期（跨天检测基准） */
   private currentDate = '';
@@ -86,9 +120,25 @@ export default class KosCompanionPlugin extends Plugin {
     this.registerBundledFonts();
 
     // 持久化：加载 data.json（含设置项，见 store.ts DataFile 说明）
-    this.store = new KosDataStore(this);
+    this.store = new KosDataStore(this, () => this.hardenPluginDataPermissions());
     await this.store.load();
     this.settings = this.store.settings;
+    this.syncPreflightCurrent = await this.hasCurrentSyncPreflight();
+    if (this.settings.sync.enabled) {
+      const nextSyncVaultId = ensureKosSyncVaultId(this.settings.sync.vaultId, () => globalThis.crypto.randomUUID());
+      if (nextSyncVaultId !== this.settings.sync.vaultId) {
+        this.settings.sync.vaultId = nextSyncVaultId;
+        await this.store.save();
+      }
+    }
+    const syncStatePath = `${this.manifest.dir ?? '.obsidian/plugins/kos-companion'}/sync-state.json`;
+    const syncEngine = new KosLiveSyncEngine(
+      new KosObsidianSyncVault(this.app),
+      new KosObsidianSyncStateRepository(this.app, syncStatePath),
+      (settings) => createKosObsidianR2Storage(settings),
+    );
+    this.sync = new KosSyncService(() => this.settings.sync, syncEngine);
+    this.syncEventUnsubscribe = this.sync.subscribe(() => this.scheduleDashboardRefresh());
     if (isKosAgentSupported(this.app)) {
       if (initializeAgentVaultId(this.settings)) await this.store.save();
       try {
@@ -155,6 +205,7 @@ export default class KosCompanionPlugin extends Plugin {
     this.addCommand({ id: 'open-input', name: '打开输入模块', callback: () => void this.activateDashboardModule('input') });
     this.addCommand({ id: 'open-knowledge', name: '打开知识模块', callback: () => void this.activateDashboardModule('knowledge') });
     this.addCommand({ id: 'open-system', name: '打开系统模块', callback: () => void this.activateDashboardModule('system') });
+    this.addCommand({ id: 'open-onboarding', name: '打开首次使用向导', callback: () => void this.openOnboarding() });
     this.addCommand({
       id: 'open-heatmap',
       name: '打开活动热力图',
@@ -279,6 +330,23 @@ export default class KosCompanionPlugin extends Plugin {
 
     // 索引变更 → 视图/状态栏刷新 + 当日快照覆盖 + 徽章检查（02 文档第 4 节事件流）
     this.index.onDidChange(() => void this.onIndexChanged());
+    const scheduleSyncForPath = (path: string) => {
+      if (isKosSyncPathIncluded(path)) this.scheduleSync();
+    };
+    this.registerEvent(this.app.vault.on('create', (file) => scheduleSyncForPath(file.path)));
+    this.registerEvent(this.app.vault.on('modify', (file) => scheduleSyncForPath(file.path)));
+    this.registerEvent(this.app.vault.on('delete', (file) => scheduleSyncForPath(file.path)));
+    this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+      if (isKosSyncPathIncluded(file.path) || isKosSyncPathIncluded(oldPath)) this.scheduleSync();
+    }));
+    this.registerEvent(this.app.workspace.on('file-open', (file) => {
+      if (file && isKosSyncPathIncluded(file.path)) this.scheduleSync();
+    }));
+    this.registerDomEvent(window, 'online', () => this.scheduleSync());
+    this.registerDomEvent(window, 'focus', () => this.scheduleSync());
+    this.registerDomEvent(document, 'visibilitychange', () => {
+      if (document.visibilityState === 'visible') this.scheduleSync();
+    });
 
     // 跨天检测：本地日期变化时落昨日终态快照（非 estimated），重置当日计数
     this.registerInterval(
@@ -286,13 +354,26 @@ export default class KosCompanionPlugin extends Plugin {
         void this.onDayTick();
       }, DAY_TICK_MS),
     );
+    this.registerInterval(
+      window.setInterval(() => {
+        if (this.settings.sync.enabled && !this.settings.sync.paused) void this.sync.syncNow();
+      }, KOS_SYNC_INTERVAL_MS),
+    );
 
     this.addSettingTab(new KosSettingTab(this.app, this));
+    await this.sync.start();
+    if (this.store.pluginData.onboarding.status === 'not_started') {
+      this.app.workspace.onLayoutReady(() => void this.openOnboarding());
+    }
   }
 
   onunload(): void {
+    if (this.syncDebounceTimer !== null) window.clearTimeout(this.syncDebounceTimer);
+    if (this.syncDashboardRefreshTimer !== null) window.clearTimeout(this.syncDashboardRefreshTimer);
     this.index?.dispose();
     this.agentEventUnsubscribe?.();
+    this.syncEventUnsubscribe?.();
+    void this.sync?.stop();
     void this.agentClient?.stop();
     for (const type of Object.keys(VIEW_LOCATIONS)) {
       this.app.workspace.detachLeavesOfType(type);
@@ -306,6 +387,18 @@ export default class KosCompanionPlugin extends Plugin {
     document.fonts.add(doto);
     void doto.load().catch((error) => console.error('Failed to load bundled Doto font', error));
     this.register(() => document.fonts.delete(doto));
+  }
+
+  private hardenPluginDataPermissions(): void {
+    if (!isKosAgentSupported(this.app) || !this.manifest.dir) return;
+    try {
+      const { chmodSync } = require('node:fs') as typeof import('node:fs');
+      const { join } = require('node:path') as typeof import('node:path');
+      const adapter = this.app.vault.adapter as import('obsidian').FileSystemAdapter;
+      chmodSync(join(adapter.getBasePath(), this.manifest.dir, 'data.json'), 0o600);
+    } catch (error) {
+      console.warn('Failed to restrict kos Companion data.json permissions', error);
+    }
   }
 
   private connectAgent(): Promise<KosAgentClient> {
@@ -400,6 +493,123 @@ export default class KosCompanionPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     this.store.settings = this.settings;
     await this.store.save();
+    const revision = ++this.syncConfigurationHealthRevision;
+    const current = await this.hasCurrentSyncPreflight();
+    if (revision === this.syncConfigurationHealthRevision) {
+      this.syncPreflightCurrent = current;
+      this.refreshDashboard();
+    }
+  }
+
+  async reloadSync(): Promise<Readonly<KosSyncSnapshot>> {
+    await this.sync.stop();
+    if (this.settings.sync.enabled) {
+      this.settings.sync.vaultId = ensureKosSyncVaultId(
+        this.settings.sync.vaultId,
+        () => globalThis.crypto.randomUUID(),
+      );
+      await this.saveSettings();
+    }
+    await this.sync.start();
+    return this.sync.getSnapshot();
+  }
+
+  async testSyncConfiguration(
+    input: Readonly<KosSyncSettings> = this.settings.sync,
+    applyToCurrent = true,
+  ): Promise<{ settings: KosSyncSettings; result: KosR2PreflightResult }> {
+    const settings: KosSyncSettings = {
+      ...input,
+      enabled: input.enabled,
+      paused: false,
+      vaultId: ensureKosSyncVaultId(input.vaultId, () => globalThis.crypto.randomUUID()),
+    };
+    validateKosSyncPreflightSettings(settings);
+    const storage = createKosObsidianR2Storage(settings);
+    try {
+      const result = await storage.preflight(globalThis.crypto.randomUUID());
+      if (applyToCurrent) {
+        this.settings.sync = settings;
+        this.store.setSyncPreflight({
+          fingerprint: await kosSyncConfigurationFingerprint(settings),
+          passedAt: new Date().toISOString(),
+        });
+        await this.saveSettings();
+      }
+      return { settings, result };
+    } catch (error) {
+      throw new Error(explainKosSyncPreflightFailure(error));
+    } finally {
+      storage.destroy();
+    }
+  }
+
+  async hasCurrentSyncPreflight(): Promise<boolean> {
+    const saved = this.store.pluginData.syncPreflight;
+    if (!saved) return false;
+    return saved.fingerprint === await kosSyncConfigurationFingerprint(this.settings.sync);
+  }
+
+  async openOnboarding(): Promise<void> {
+    const modal = new KosOnboardingModal(this.app, {
+      snapshot: () => this.onboardingSnapshot(),
+      configureModel: () => this.openAgentFrom(),
+      runValidation: async () => {
+        const report = await runAgentValidation(this.app, await this.connectAgent());
+        if (report.passed) {
+          this.store.markValidationPassed();
+          await this.store.save();
+        }
+      },
+      initializeObjects: () => this.openAgentFrom(undefined, FIRST_USE_WORKFLOW_PROMPT),
+      openSyncSettings: async () => this.openSyncSettings(),
+      setStatus: async (status) => {
+        this.store.setOnboardingStatus(status);
+        await this.store.save();
+      },
+    });
+    modal.open();
+  }
+
+  openSyncSettings(): void {
+    const app = this.app as typeof this.app & {
+      setting?: { open(): void; openTabById(id: string): void };
+    };
+    app.setting?.open();
+    app.setting?.openTabById(this.manifest.id);
+  }
+
+  private async onboardingSnapshot(): Promise<KosOnboardingSnapshot> {
+    const mobile = !isKosAgentSupported(this.app);
+    let modelConfigured = false;
+    if (!mobile) {
+      try {
+        const state = await (await this.connectAgent()).getState();
+        modelConfigured = Boolean(state.model && state.model.id !== 'unknown');
+      } catch {
+        modelConfigured = false;
+      }
+    }
+    const objects = this.index.getAll();
+    return {
+      mobile,
+      modelConfigured,
+      validationPassed: Boolean(this.store.pluginData.onboarding.validationPassedAt),
+      hasGoal: objects.some((object) => object.type === 'goal'),
+      hasProject: objects.some((object) => object.type === 'project'),
+      hasTask: objects.some((object) => object.type === 'task'),
+      runtimePresent: this.app.vault.getAbstractFileByPath('90_系统/文档/00_快速开始.md') !== null,
+      syncPhase: this.sync.getSnapshot().phase,
+    };
+  }
+
+  private scheduleSync(): void {
+    if (!this.settings.sync.enabled || this.settings.sync.paused) return;
+    if (this.syncDebounceTimer !== null) window.clearTimeout(this.syncDebounceTimer);
+    this.syncDebounceTimer = window.setTimeout(() => {
+      this.syncDebounceTimer = null;
+      void this.sync.syncNow();
+    }, SYNC_EVENT_DEBOUNCE_MS);
   }
 
   /** 视图注入上下文（settings 读取时求值，跟随设置变更） */
@@ -450,6 +660,22 @@ export default class KosCompanionPlugin extends Plugin {
       },
       validate: async () => (await this.connectAgent()).validate(),
       pendingQuestions: () => this.agentClient?.getPendingQuestions() ?? [],
+      syncSnapshot: () => this.sync.getSnapshot(),
+      syncNow: async () => {
+        await this.sync.syncNow();
+      },
+      toggleSyncPaused: async () => {
+        const paused = this.sync.getSnapshot().phase === 'paused';
+        this.settings.sync.paused = !paused;
+        await this.saveSettings();
+        if (paused) await this.sync.resume();
+        else await this.sync.pause();
+      },
+      openSyncSettings: () => this.openSyncSettings(),
+      syncConfigurationHealth: () => ({
+        preflightCurrent: this.syncPreflightCurrent,
+        preflightPassedAt: this.store.pluginData.syncPreflight?.passedAt ?? null,
+      }),
     };
   }
 
@@ -662,6 +888,14 @@ export default class KosCompanionPlugin extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType(DASHBOARD_VIEW_TYPE)) {
       if (leaf.view instanceof DashboardView) leaf.view.render();
     }
+  }
+
+  private scheduleDashboardRefresh(): void {
+    if (this.syncDashboardRefreshTimer !== null) window.clearTimeout(this.syncDashboardRefreshTimer);
+    this.syncDashboardRefreshTimer = window.setTimeout(() => {
+      this.syncDashboardRefreshTimer = null;
+      this.refreshDashboard();
+    }, 100);
   }
 
   private async openAgentForInlineEdit(): Promise<void> {

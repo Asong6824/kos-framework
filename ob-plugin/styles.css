@@ -3736,3 +3736,46 @@
   width: 32px;
   height: 32px;
 }
+
+.kos-onboarding-list {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.kos-onboarding-step {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+}
+
+.kos-onboarding-step.is-complete {
+  border-color: var(--color-green);
+}
+
+.kos-onboarding-check {
+  color: var(--text-muted);
+  font-size: var(--font-ui-medium);
+  font-weight: 700;
+}
+
+.kos-onboarding-step.is-complete .kos-onboarding-check {
+  color: var(--color-green);
+}
+
+.kos-onboarding-copy {
+  min-width: 0;
+}
+
+.kos-onboarding-title {
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+
+.kos-onboarding-copy button {
+  margin-top: 8px;
+}

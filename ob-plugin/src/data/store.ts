@@ -1,7 +1,7 @@
 /**
  * store.ts — 插件私有 data.json 的读写与迁移
  *
- * schema v9 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
+ * schema v10 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
  * 不触碰 vault 内任何文件（写入边界见 3.4 节）。
  */
 
@@ -11,17 +11,31 @@ import { REPEATABLE_BADGES } from '../core/metrics';
 import type { BadgeId } from '../core/metrics';
 import { addDays, buildSnapshot, missingDates } from '../core/snapshot';
 import type { DailySnapshot } from '../core/snapshot';
-import { DEFAULT_SETTINGS } from '../settings';
-import type { KosSettings } from '../settings';
+import { DEFAULT_SETTINGS } from '../settings-model';
+import type { KosSettings } from '../settings-model';
 import { cloneBentoLayout, DEFAULT_BENTO_LAYOUT, migrateClockScheduleLayout, migrateGoalCardLayout, migrateLegacyDashboardLayout, normalizeBentoLayout } from '../core/bento-layout';
 import type { BentoLayoutItem } from '../core/bento-layout';
 import { DEFAULT_OBJECT_DIRS, migrateLegacyObjectDirs, normalizeObjectDirs } from '../core/model';
 import type { ReaderProgress } from '../reader/model';
 import { normalizeReaderProgressRecord } from '../reader/model';
+import { normalizeKosSyncSettings } from '../sync/model';
 
-export const DATA_VERSION = 9;
+export const DATA_VERSION = 10;
 
-/** data.json schema v9（02 文档 3.2 节） */
+export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed' | 'dismissed';
+
+export interface OnboardingState {
+  status: OnboardingStatus;
+  validationPassedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface SyncPreflightState {
+  fingerprint: string;
+  passedAt: string;
+}
+
+/** data.json schema v10（02 文档 3.2 节） */
 export interface PluginData {
   version: number;
   /** 安装日期 YYYY-MM-DD */
@@ -40,6 +54,10 @@ export interface PluginData {
   readerProgress: Record<string, ReaderProgress>;
   /** 全部看板卡片的整数 Bento 位置与期望尺寸；内容高度下限不写入配置 */
   dashboardLayout: BentoLayoutItem[];
+  /** 可恢复的首次使用向导状态；旧用户迁移时默认完成，避免升级后强制弹窗。 */
+  onboarding: OnboardingState;
+  /** 最近一次成功 R2 读写预检的配置指纹；不包含明文凭据。 */
+  syncPreflight: SyncPreflightState | null;
 }
 
 /** 可重复徽章的计数器 key */
@@ -73,6 +91,8 @@ function defaultData(today: string): PluginData {
     reviewClearCount: 0,
     readerProgress: {},
     dashboardLayout: cloneBentoLayout(DEFAULT_BENTO_LAYOUT),
+    onboarding: { status: 'not_started', validationPassedAt: null, completedAt: null },
+    syncPreflight: null,
   };
 }
 
@@ -84,12 +104,40 @@ function asNonNegInt(v: unknown): number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : 0;
 }
 
+function normalizeOnboarding(value: unknown, legacy: boolean): OnboardingState {
+  if (!isRecord(value)) {
+    return legacy
+      ? { status: 'completed', validationPassedAt: null, completedAt: null }
+      : { status: 'not_started', validationPassedAt: null, completedAt: null };
+  }
+  const status = ['not_started', 'in_progress', 'completed', 'dismissed'].includes(String(value.status))
+    ? value.status as OnboardingStatus
+    : 'not_started';
+  return {
+    status,
+    validationPassedAt: typeof value.validationPassedAt === 'string' ? value.validationPassedAt : null,
+    completedAt: typeof value.completedAt === 'string' ? value.completedAt : null,
+  };
+}
+
+function normalizeSyncPreflight(value: unknown): SyncPreflightState | null {
+  if (!isRecord(value) || typeof value.fingerprint !== 'string' || typeof value.passedAt !== 'string') return null;
+  return { fingerprint: value.fingerprint, passedAt: value.passedAt };
+}
+
 export class KosDataStore {
   /** 设置与数据同文件持久化，load 后即为当前值；改后调 save() 落盘 */
-  settings: KosSettings = { ...DEFAULT_SETTINGS, objectDirs: { ...DEFAULT_OBJECT_DIRS } };
+  settings: KosSettings = {
+    ...DEFAULT_SETTINGS,
+    objectDirs: { ...DEFAULT_OBJECT_DIRS },
+    sync: { ...DEFAULT_SETTINGS.sync },
+  };
   private data: PluginData = defaultData(localToday());
 
-  constructor(private readonly plugin: Plugin) {}
+  constructor(
+    private readonly plugin: Plugin,
+    private readonly afterSave: () => void | Promise<void> = () => undefined,
+  ) {}
 
   /** 当前数据（只读视图；修改请走方法，改后调 save()） */
   get pluginData(): Readonly<PluginData> {
@@ -106,7 +154,11 @@ export class KosDataStore {
     const raw: unknown = await this.plugin.loadData();
     if (!isRecord(raw)) {
       this.data = defaultData(localToday());
-      this.settings = { ...DEFAULT_SETTINGS, objectDirs: { ...DEFAULT_OBJECT_DIRS } };
+      this.settings = {
+        ...DEFAULT_SETTINGS,
+        objectDirs: { ...DEFAULT_OBJECT_DIRS },
+        sync: { ...DEFAULT_SETTINGS.sync },
+      };
       return;
     }
     const rawVersion = typeof raw.version === 'number' ? raw.version : 0;
@@ -126,16 +178,24 @@ export class KosDataStore {
       reviewClearCount: asNonNegInt(raw.reviewClearCount),
       readerProgress: normalizeReaderProgressRecord(raw.readerProgress),
       dashboardLayout,
+      onboarding: normalizeOnboarding(raw.onboarding, rawVersion < 10),
+      syncPreflight: normalizeSyncPreflight(raw.syncPreflight),
     };
     const s = isRecord(raw.settings) ? raw.settings : {};
     // objectDirs 逐键归一：旧 data.json 没有该字段或个别键缺失/非法时回落标准默认
     const objectDirs = rawVersion < 7 ? migrateLegacyObjectDirs(s.objectDirs) : s.objectDirs;
-    this.settings = { ...DEFAULT_SETTINGS, ...s, objectDirs: normalizeObjectDirs(objectDirs) } as KosSettings;
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...s,
+      objectDirs: normalizeObjectDirs(objectDirs),
+      sync: normalizeKosSyncSettings(s.sync),
+    } as KosSettings;
   }
 
   async save(): Promise<void> {
     const file: DataFile = { ...this.data, settings: this.settings };
     await this.plugin.saveData(file);
+    await this.afterSave();
   }
 
   getDashboardLayout(): BentoLayoutItem[] {
@@ -190,5 +250,18 @@ export class KosDataStore {
 
   setReaderProgress(sourcePath: string, progress: ReaderProgress): void {
     this.data.readerProgress[sourcePath] = progress;
+  }
+
+  setOnboardingStatus(status: OnboardingStatus): void {
+    this.data.onboarding.status = status;
+    if (status === 'completed') this.data.onboarding.completedAt = new Date().toISOString();
+  }
+
+  markValidationPassed(): void {
+    this.data.onboarding.validationPassedAt = new Date().toISOString();
+  }
+
+  setSyncPreflight(value: SyncPreflightState | null): void {
+    this.data.syncPreflight = value;
   }
 }

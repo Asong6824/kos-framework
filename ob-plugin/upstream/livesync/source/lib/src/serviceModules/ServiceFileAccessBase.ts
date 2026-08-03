@@ -1,0 +1,388 @@
+// import { TFile, TFolder, type ListedFiles } from "@/deps.ts";
+import { LOG_LEVEL_INFO, LOG_LEVEL_VERBOSE } from "octagonal-wheels/common/logger";
+import type {
+    FilePath,
+    FilePathWithPrefix,
+    UXDataWriteOptions,
+    UXFileInfo,
+    UXFileInfoStub,
+    UXFolderInfo,
+    UXStat,
+} from "@lib/common/types";
+
+import { ServiceModuleBase } from "@lib/serviceModules/ServiceModuleBase";
+import type { APIService } from "@lib/services/base/APIService";
+import type { IStorageAccessManager, StorageAccess } from "@lib/interfaces/StorageAccess.ts";
+import type { AppLifecycleService } from "@lib/services/base/AppLifecycleService";
+import type { FileProcessingService } from "@lib/services/base/FileProcessingService";
+import { StorageEventManager } from "@lib/interfaces/StorageEventManager.ts";
+import { createBlob, fireAndForget, type CustomRegExp } from "@lib/common/utils";
+import type { VaultService } from "@lib/services/base/VaultService";
+import type { SettingService } from "@lib/services/base/SettingService";
+import type { FileAccessBase, ExtractFile, ExtractFolder } from "@lib/serviceModules/FileAccessBase";
+import type { IFileSystemAdapter } from "@lib/serviceModules/adapters";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- For type extraction.
+export interface StorageAccessBaseDependencies<TAdapter extends IFileSystemAdapter<any, any, any, any>> {
+    API: APIService;
+    appLifecycle: AppLifecycleService;
+    fileProcessing: FileProcessingService;
+    vault: VaultService;
+    setting: SettingService;
+    storageEventManager: StorageEventManager;
+    storageAccessManager: IStorageAccessManager;
+    vaultAccess: FileAccessBase<TAdapter>;
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- For type extraction.
+export class ServiceFileAccessBase<TAdapter extends IFileSystemAdapter<any, any, any, any>>
+    extends ServiceModuleBase<StorageAccessBaseDependencies<TAdapter>>
+    implements StorageAccess
+{
+    private vaultAccess: FileAccessBase<TAdapter>;
+    private vaultManager: StorageEventManager;
+    private vault: VaultService;
+    private setting: SettingService;
+
+    constructor(services: StorageAccessBaseDependencies<TAdapter>) {
+        super(services);
+        // this.appLifecycle = services.appLifecycle;
+        this.vault = services.vault;
+        this.setting = services.setting;
+        this.vaultManager = services.storageEventManager;
+        this.vaultAccess = services.vaultAccess;
+        services.appLifecycle.onFirstInitialise.addHandler(this._everyOnFirstInitialize.bind(this));
+        services.fileProcessing.commitPendingFileEvents.addHandler(this._everyCommitPendingFileEvent.bind(this));
+    }
+
+    restoreState() {
+        return this.vaultManager.restoreState();
+    }
+    async _everyOnFirstInitialize(): Promise<boolean> {
+        await this.vaultManager.beginWatch();
+        return Promise.resolve(true);
+    }
+
+    async _everyCommitPendingFileEvent(): Promise<boolean> {
+        await this.vaultManager.waitForIdle();
+        return Promise.resolve(true);
+    }
+
+    normalisePath(path: string): string {
+        return this.vaultAccess.normalisePath(path);
+    }
+
+    async writeFileAuto(path: string, data: string | ArrayBuffer, opt?: UXDataWriteOptions): Promise<boolean> {
+        const file = await this.vaultAccess.getAbstractFileByPath(path);
+        if (this.vaultAccess.isFile(file)) {
+            return this.vaultAccess.vaultModify(file, data, opt);
+        } else if (file === null) {
+            if (!path.endsWith(".md")) {
+                // Very rare case, we encountered this case with `writing-goals-history.csv` file.
+                // Indeed, that file not appears in the File Explorer, but it exists in the vault.
+                // Hence, we cannot retrieve the file from the vault by getAbstractFileByPath, and we cannot write it via vaultModify.
+                // It makes `File already exists` error.
+                // Therefore, we need to write it via adapterWrite.
+                // Maybe there are others like this, so I will write it via adapterWrite.
+                // This is a workaround for the issue, but I don't know if this is the right solution.
+                // (So limits to non-md files).
+                // Has Obsidian been patched?, anyway, writing directly might be a safer approach.
+                // However, does changes of that file trigger file-change event?
+                await this.vaultAccess.adapterWrite(path, data, opt);
+                // For safety, check existence
+                return await this.vaultAccess.adapterExists(path);
+            } else {
+                // The same stale-index issue described above can also happen for .md files during
+                // concurrent initialisation (UPDATE STORAGE runs up to 10 ops in parallel).
+                // getAbstractFileByPath returns null because Obsidian's in-memory index hasn't
+                // caught up yet, but the file already exists on disk — causing vault.create() to
+                // throw "File already exists."
+                // Fall back to adapterWrite (same approach used for non-md files above) so the
+                // file is written correctly without an error.
+                try {
+                    return (await this.vaultAccess.vaultCreate(path, data, opt)) !== null;
+                } catch (ex) {
+                    if (ex instanceof Error && ex.message === "File already exists.") {
+                        await this.vaultAccess.adapterWrite(path, data, opt);
+                        return await this.vaultAccess.adapterExists(path);
+                    }
+                    throw ex;
+                }
+            }
+        } else {
+            this._log(`Could not write file (Possibly already exists as a folder): ${path}`, LOG_LEVEL_VERBOSE);
+            return false;
+        }
+    }
+    async readFileAuto(path: string): Promise<string | ArrayBuffer> {
+        const file = await this.vaultAccess.getAbstractFileByPath(path);
+        if (this.vaultAccess.isFile(file)) {
+            return this.vaultAccess.vaultReadAuto(file);
+        } else {
+            throw new Error(`Could not read file (Possibly does not exist): ${path}`);
+        }
+    }
+    async readFileText(path: string): Promise<string> {
+        const file = await this.vaultAccess.getAbstractFileByPath(path);
+        if (this.vaultAccess.isFile(file)) {
+            return this.vaultAccess.vaultRead(file);
+        } else {
+            throw new Error(`Could not read file (Possibly does not exist): ${path}`);
+        }
+    }
+    async isExists(path: string): Promise<boolean> {
+        return this.vaultAccess.isFile(await this.vaultAccess.getAbstractFileByPath(path));
+    }
+    async renameFile(
+        file: UXFileInfoStub | FilePathWithPrefix,
+        newPath: FilePathWithPrefix
+    ): Promise<UXFileInfoStub | null> {
+        const oldPath = typeof file === "string" ? file : file.path;
+        const nativeFile = await this.vaultAccess.getAbstractFileByPath(oldPath);
+        if (!this.vaultAccess.isFile(nativeFile)) {
+            this._log(`Could not rename file (Possibly does not exist): ${oldPath}`, LOG_LEVEL_VERBOSE);
+            return null;
+        }
+        const renamedNativeFile = await this.vaultAccess.vaultRename(nativeFile, newPath);
+        const renamedFile = this.vaultAccess.nativeFileToUXFileInfoStub(renamedNativeFile);
+        await this.touched(renamedFile);
+        return renamedFile;
+    }
+    async writeHiddenFileAuto(path: string, data: string | ArrayBuffer, opt?: UXDataWriteOptions): Promise<boolean> {
+        try {
+            await this.vaultAccess.adapterWrite(path, data, opt);
+            return true;
+        } catch (e) {
+            this._log(`Could not write hidden file: ${path}`, LOG_LEVEL_VERBOSE);
+            this._log(e, LOG_LEVEL_VERBOSE);
+            return false;
+        }
+    }
+    async appendHiddenFile(path: string, data: string, opt?: UXDataWriteOptions): Promise<boolean> {
+        try {
+            await this.vaultAccess.adapterAppend(path, data, opt);
+            return true;
+        } catch (e) {
+            this._log(`Could not append hidden file: ${path}`, LOG_LEVEL_VERBOSE);
+            this._log(e, LOG_LEVEL_VERBOSE);
+            return false;
+        }
+    }
+    async stat(path: string): Promise<UXStat | null> {
+        const file = await this.vaultAccess.getAbstractFileByPath(path);
+        if (file === null) return Promise.resolve(null);
+        if (this.vaultAccess.isFile(file)) {
+            const fileWithStat = file as ExtractFile<TAdapter> & {
+                stat: { ctime: number; mtime: number; size: number };
+            };
+            return Promise.resolve({
+                ctime: fileWithStat.stat.ctime,
+                mtime: fileWithStat.stat.mtime,
+                size: fileWithStat.stat.size,
+                type: "file",
+            });
+        } else {
+            throw new Error(`Could not stat file (Possibly does not exist): ${path}`);
+        }
+    }
+    statHidden(path: string): Promise<UXStat | null> {
+        return this.vaultAccess.tryAdapterStat(path);
+    }
+    async removeHidden(path: string): Promise<boolean> {
+        try {
+            await this.vaultAccess.adapterRemove(path);
+            if (this.vaultAccess.tryAdapterStat(path) !== null) {
+                return false;
+            }
+            return true;
+        } catch (e) {
+            this._log(`Could not remove hidden file: ${path}`, LOG_LEVEL_VERBOSE);
+            this._log(e, LOG_LEVEL_VERBOSE);
+            return false;
+        }
+    }
+    async readHiddenFileAuto(path: string): Promise<string | ArrayBuffer> {
+        return await this.vaultAccess.adapterReadAuto(path);
+    }
+    async readHiddenFileText(path: string): Promise<string> {
+        return await this.vaultAccess.adapterRead(path);
+    }
+    async readHiddenFileBinary(path: string): Promise<ArrayBuffer> {
+        return await this.vaultAccess.adapterReadBinary(path);
+    }
+    async isExistsIncludeHidden(path: string): Promise<boolean> {
+        return (await this.vaultAccess.tryAdapterStat(path)) !== null;
+    }
+    async ensureDir(path: string): Promise<boolean> {
+        try {
+            await this.vaultAccess.ensureDirectory(path);
+            return true;
+        } catch (e) {
+            this._log(`Could not ensure directory: ${path}`, LOG_LEVEL_VERBOSE);
+            this._log(e, LOG_LEVEL_VERBOSE);
+            return false;
+        }
+    }
+    async _triggerFileEvent(event: string, path: string): Promise<void> {
+        const file = await this.vaultAccess.getAbstractFileByPath(path);
+        if (file === null) return;
+        this.vaultAccess.trigger(event, file);
+    }
+    triggerFileEvent(event: string, path: string): void {
+        fireAndForget(async () => await this._triggerFileEvent(event, path));
+    }
+    async triggerHiddenFile(path: string): Promise<void> {
+        await this.vaultAccess.reconcileInternalFile(path);
+    }
+    // getFileStub(file: TFile): UXFileInfoStub {
+    //     return  TFileToUXFileInfoStub(file);
+    // }
+    async getFileStub(path: string): Promise<UXFileInfoStub | null> {
+        const file = await this.vaultAccess.getAbstractFileByPath(path);
+        if (this.vaultAccess.isFile(file)) {
+            return this.vaultAccess.nativeFileToUXFileInfoStub(file);
+        } else {
+            return null;
+        }
+    }
+
+    async readStubContent(stub: UXFileInfoStub): Promise<UXFileInfo | false> {
+        const file = await this.vaultAccess.getAbstractFileByPath(stub.path);
+        if (!this.vaultAccess.isFile(file)) {
+            this._log(`Could not read file (Possibly does not exist or a folder): ${stub.path}`, LOG_LEVEL_VERBOSE);
+            return false;
+        }
+        const data = await this.vaultAccess.vaultReadAuto(file);
+        return {
+            ...stub,
+            ...this.vaultAccess.nativeFileToUXFileInfoStub(file),
+            body: createBlob(data),
+        };
+    }
+    async getStub(path: string): Promise<UXFileInfoStub | UXFolderInfo | null> {
+        const file = await this.vaultAccess.getAbstractFileByPath(path);
+        if (this.vaultAccess.isFile(file)) {
+            return this.vaultAccess.nativeFileToUXFileInfoStub(file);
+        } else if (this.vaultAccess.isFolder(file)) {
+            return this.vaultAccess.nativeFolderToUXFolder(file);
+        }
+        return null;
+    }
+    async getFiles(): Promise<UXFileInfoStub[]> {
+        const files = await this.vaultAccess.getFiles();
+        return files.map((f) => this.vaultAccess.nativeFileToUXFileInfoStub(f));
+    }
+    async getFileNames(): Promise<FilePath[]> {
+        const files = await this.vaultAccess.getFiles();
+        return files.map((f) => f.path as FilePath);
+    }
+
+    async getFilesIncludeHidden(
+        basePath: string,
+        includeFilter?: CustomRegExp[],
+        excludeFilter?: CustomRegExp[],
+        skipFolder: string[] = [".git", ".trash", "node_modules"]
+    ): Promise<FilePath[]> {
+        let w: { files: string[]; folders: string[] };
+        try {
+            w = await this.vaultAccess.adapterList(basePath);
+            // w = await this.plugin.app.vault.adapter.list(basePath);
+        } catch (ex) {
+            this._log(`Could not traverse(getFilesIncludeHidden):${basePath}`, LOG_LEVEL_INFO);
+            this._log(ex, LOG_LEVEL_VERBOSE);
+            return [];
+        }
+        skipFolder = skipFolder.map((e) => e.toLowerCase());
+
+        let files = [] as string[];
+        for (const file of w.files) {
+            if (includeFilter && includeFilter.length > 0) {
+                if (!includeFilter.some((e) => e.test(file))) continue;
+            }
+            if (excludeFilter && excludeFilter.some((ee) => ee.test(file))) {
+                continue;
+            }
+            if (await this.vault.isIgnoredByIgnoreFile(file)) continue;
+            files.push(file);
+        }
+
+        for (const v of w.folders) {
+            const folderName = (v.split("/").pop() ?? "").toLowerCase();
+            if (skipFolder.some((e) => folderName === e)) {
+                continue;
+            }
+
+            if (excludeFilter && excludeFilter.some((e) => e.test(v))) {
+                continue;
+            }
+            if (await this.vault.isIgnoredByIgnoreFile(v)) {
+                continue;
+            }
+            // OK, deep dive!
+            files = files.concat(await this.getFilesIncludeHidden(v, includeFilter, excludeFilter, skipFolder));
+        }
+        return files as FilePath[];
+    }
+    async touched(file: UXFileInfoStub | FilePathWithPrefix): Promise<void> {
+        const path = typeof file === "string" ? file : file.path;
+        await this.vaultAccess.touch(path as FilePath);
+    }
+    async recentlyTouched(file: UXFileInfoStub | FilePathWithPrefix): Promise<boolean> {
+        const xFile = typeof file === "string" ? await this.vaultAccess.getAbstractFileByPath(file) : file;
+        if (xFile === null) return false;
+        if (this.vaultAccess.isFolder(xFile)) return false;
+        return this.vaultAccess.recentlyTouched(xFile);
+    }
+    clearTouched(): void {
+        this.vaultAccess.clearTouched();
+    }
+
+    async delete(file: FilePathWithPrefix | UXFileInfoStub | string, force: boolean): Promise<void> {
+        const xPath = typeof file === "string" ? file : file.path;
+        const xFile = await this.vaultAccess.getAbstractFileByPath(xPath);
+        if (xFile === null) return Promise.resolve();
+        // if (!(xFile instanceof TFile) && !(xFile instanceof TFolder)) return Promise.resolve();
+        if (!this.vaultAccess.isFile(xFile) && !this.vaultAccess.isFolder(xFile)) return Promise.resolve();
+        return this.vaultAccess.delete(xFile, force);
+    }
+    async trash(file: FilePathWithPrefix | UXFileInfoStub | string, system: boolean): Promise<void> {
+        const xPath = typeof file === "string" ? file : file.path;
+        const xFile = await this.vaultAccess.getAbstractFileByPath(xPath);
+        if (xFile === null) return Promise.resolve();
+        if (!this.vaultAccess.isFile(xFile) && !this.vaultAccess.isFolder(xFile)) return Promise.resolve();
+        return this.vaultAccess.trash(xFile, system);
+    }
+
+    async __deleteVaultItem(file: ExtractFile<TAdapter> | ExtractFolder<TAdapter>): Promise<void> {
+        const filePath = this.vaultAccess.getPath(file);
+        if (this.vaultAccess.isFile(file)) {
+            if (!(await this.vault.isTargetFile(filePath))) return;
+        }
+        const dir = (file as { parent: ExtractFolder<TAdapter> | null }).parent;
+        const settings = this.setting.currentSettings();
+        if (settings.trashInsteadDelete) {
+            await this.vaultAccess.trash(file, false);
+        } else {
+            await this.vaultAccess.delete(file, true);
+        }
+        this._log(`xxx <- STORAGE (deleted) ${filePath}`);
+        if (dir) {
+            this._log(`files: ${(dir as { children?: unknown[] })?.children?.length ?? "unknown"}`);
+            if ((dir?.children?.length ?? 0) === 0) {
+                if (!settings.doNotDeleteFolder) {
+                    this._log(
+                        `All files under the parent directory (${dir.path}) have been deleted, so delete this one.`
+                    );
+                    await this.__deleteVaultItem(dir);
+                }
+            }
+        }
+    }
+
+    async deleteVaultItem(fileSrc: FilePathWithPrefix | UXFileInfoStub | UXFolderInfo): Promise<void> {
+        const path = typeof fileSrc === "string" ? fileSrc : fileSrc.path;
+        const file = await this.vaultAccess.getAbstractFileByPath(path);
+        if (file === null) return;
+        if (this.vaultAccess.isFile(file) || this.vaultAccess.isFolder(file)) {
+            return await this.__deleteVaultItem(file);
+        }
+    }
+}

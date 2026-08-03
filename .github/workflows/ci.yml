@@ -36,6 +36,12 @@ jobs:
           name: kos-companion-${{ github.sha }}
           path: release/kos-companion/
           if-no-files-found: error
+      - name: Upload installable kos Companion for mobile
+        uses: actions/upload-artifact@v4
+        with:
+          name: kos-companion-mobile-${{ github.sha }}
+          path: release/kos-companion-mobile/
+          if-no-files-found: error
       - name: Build release archive
         if: startsWith(github.ref, 'refs/tags/v')
         run: python dev/harness/build_release_archives.py "$RUNNER_TEMP/kos-user-vault"
@@ -49,6 +55,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "release/kos-vault-${version}.zip" \
             "release/kos-companion-${version}.zip" \
+            "release/kos-companion-mobile-${version}.zip" \
             "release/SHA256SUMS" \
             --verify-tag \
             --generate-notes

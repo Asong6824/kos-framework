@@ -1,0 +1,203 @@
+import qrcode from "qrcode-generator";
+import { configURIBase, configURIBaseQR } from "@lib/common/types";
+import { decodeAnyArray, encodeAnyArray } from "octagonal-wheels/object";
+import {
+    DEFAULT_SETTINGS,
+    KeyIndexOfSettings,
+    LOG_LEVEL_NOTICE,
+    type ObsidianLiveSyncSettings,
+} from "@lib/common/types";
+import { decryptString, encryptString } from "@lib/encryption/stringEncryption";
+import { LOG_LEVEL_VERBOSE, Logger } from "octagonal-wheels/common/logger";
+
+/**
+ * Encode settings to a tiny array to encode in QRCode,
+ * Due to size limitation of QR code, we encode settings as an array instead of object.
+ * @param settings settings to encode
+ */
+export function encodeSettingsToQRCodeData(settings: ObsidianLiveSyncSettings) {
+    const fullIndexes = Object.entries(KeyIndexOfSettings) as [keyof ObsidianLiveSyncSettings, number][];
+
+    // Find the maximum index to properly size the array
+    let maxIndex = 0;
+    for (const [, index] of fullIndexes) {
+        if (index >= 0 && index > maxIndex) {
+            maxIndex = index;
+        }
+    }
+
+    // Create a dense array with proper size
+    const settingArr = new Array(maxIndex + 1).fill(undefined);
+
+    for (const [settingKey, index] of fullIndexes) {
+        const settingValue = settings[settingKey];
+        if (index < 0) {
+            // This setting should be ignored.
+            continue;
+        }
+        settingArr[index] = settingValue;
+    }
+    return encodeAnyArray(settingArr);
+}
+
+/**
+ * Decode settings from QR code data string
+ * @param qr data string from QR code
+ * @returns Decoded settings
+ */
+export function decodeSettingsFromQRCodeData(qr: string): ObsidianLiveSyncSettings {
+    const settingArr = decodeAnyArray(qr);
+    const fullIndexes = Object.entries(KeyIndexOfSettings) as [keyof ObsidianLiveSyncSettings, number][];
+    const newSettings = { ...DEFAULT_SETTINGS } as ObsidianLiveSyncSettings;
+
+    // Diagnostic: track which settings are missing due to array size
+    const skippedSettings: string[] = [];
+
+    for (const [settingKey, index] of fullIndexes) {
+        if (index < 0) {
+            // This setting should be ignored.
+            continue;
+        }
+        if (index >= settingArr.length) {
+            // Possibly a new setting added.
+            skippedSettings.push(`${settingKey} (index ${index})`);
+            continue;
+        }
+        const settingValue = settingArr[index];
+        //@ts-ignore
+        newSettings[settingKey] = settingValue;
+    }
+
+    // Log warning if critical settings were skipped
+    if (skippedSettings.length > 0) {
+        Logger(
+            `Warning: ${skippedSettings.length} settings were skipped during QR decode (array length: ${settingArr.length}): ${skippedSettings.slice(0, 5).join(", ")}${skippedSettings.length > 5 ? "..." : ""}`,
+            LOG_LEVEL_VERBOSE
+        );
+    }
+
+    return newSettings;
+}
+
+export const enum OutputFormat {
+    SVG = 0,
+    ASCII = 1,
+}
+
+const AGGREGATOR_URL = "https://vrtmrz.github.io/obsidian-livesync/aggregator.html";
+
+export interface SplitQRCodeData {
+    total: number;
+    parts: string[];
+}
+
+/**
+ * Encode setting string to QR code in specified format
+ * @param settingString Setting string to encode
+ * @param format Output format
+ */
+export function encodeQR(settingString: string, format: OutputFormat): string | SplitQRCodeData {
+    const tryEncode = (data: string) => {
+        const qr = qrcode(0, "L");
+        qr.addData(data);
+        qr.make();
+        if (format === OutputFormat.SVG) {
+            return qr.createSvgTag(3);
+        } else if (format === OutputFormat.ASCII) {
+            return qr.createASCII(3);
+        }
+        return "";
+    };
+
+    const uri = `${configURIBaseQR}${encodeURIComponent(settingString)}`;
+    try {
+        return tryEncode(uri);
+    } catch (ex) {
+        // Fallback to aggregator
+        Logger(`QR Code size exceeded, switching to aggregator mode`, LOG_LEVEL_NOTICE);
+        Logger(ex, LOG_LEVEL_VERBOSE);
+        const id = Math.random().toString(36).substring(2, 10);
+        const data = encodeURIComponent(settingString);
+        const chunkSize = 2000; // Safe data amount per QR code (QR Version 40, L, Binary can hold up to ~2953 bytes)
+        const total = Math.ceil(data.length / chunkSize);
+        const parts: string[] = [];
+
+        for (let i = 0; i < total; i++) {
+            const chunk = data.substring(i * chunkSize, (i + 1) * chunkSize);
+            const partUri = `${AGGREGATOR_URL}#id=${id}&n=${total}&i=${i}&d=${chunk}`;
+            try {
+                parts.push(tryEncode(partUri));
+            } catch (ex2) {
+                Logger(`Failed to encode split QR Code (${(ex2 as any)?.message || String(ex2)})`, LOG_LEVEL_NOTICE);
+                return "";
+            }
+        }
+        return { total, parts };
+    }
+}
+
+type ErasureProperties = keyof ObsidianLiveSyncSettings;
+
+/**
+ * Properties that will always be removed when encoding settings to setup URI
+ * These properties generated by other informations, so this is meaningless to include them in the URI.
+ */
+const necessaryErasureProperties: ErasureProperties[] = [
+    "configPassphraseStore",
+    "encryptedCouchDBConnection",
+    "encryptedPassphrase",
+];
+
+/**
+ * Generate setup URI with encrypted settings
+ * @param settingString Settings to encode
+ * @param passphrase Passphrase to encrypt the settings
+ * @param removeProperties Properties to remove from the settings
+ * Means these properties will not be included in the generated setup URI,
+ * See also necessaryErasureProperties for properties that will always be removed.
+ * @param skipDefaultValue Whether to skip default values
+ * @returns Generated setup URI
+ */
+export async function encodeSettingsToSetupURI(
+    settingString: ObsidianLiveSyncSettings,
+    passphrase: string,
+    removeProperties: ErasureProperties[] = ["pluginSyncExtendedSetting"],
+    skipDefaultValue = false
+) {
+    const setting = {
+        ...settingString,
+    };
+    if (skipDefaultValue) {
+        const keys = Object.keys(setting) as (keyof ObsidianLiveSyncSettings)[];
+        for (const k of keys) {
+            if (
+                JSON.stringify(k in setting ? setting[k] : "") ==
+                JSON.stringify(k in DEFAULT_SETTINGS ? DEFAULT_SETTINGS[k] : "*")
+            ) {
+                delete setting[k];
+            }
+        }
+    }
+    for (const prop of [...removeProperties]) {
+        delete setting[prop];
+    }
+    for (const prop of necessaryErasureProperties) {
+        //@ts-ignore
+        setting[prop] = "";
+    }
+    const encryptedSetting = encodeURIComponent(await encryptString(JSON.stringify(setting), passphrase));
+    const uri = `${configURIBase}${encryptedSetting} `;
+    return uri;
+}
+
+export async function decodeSettingsFromSetupURI(uri: string, passphrase: string) {
+    const encryptedSetting = uri.substring(configURIBase.length);
+    const decrypted = await decryptString(decodeURIComponent(encryptedSetting), passphrase);
+    try {
+        return JSON.parse(decrypted) as ObsidianLiveSyncSettings;
+    } catch (e) {
+        Logger(`Failed to parse settings from decrypted data`, LOG_LEVEL_NOTICE);
+        Logger(e, LOG_LEVEL_VERBOSE);
+        return false;
+    }
+}

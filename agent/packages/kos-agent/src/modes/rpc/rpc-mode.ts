@@ -12,6 +12,7 @@
  */
 
 import * as crypto from "node:crypto";
+import { contentText } from "@earendil-works/pi-ai";
 import { getModelsPath } from "../../config.ts";
 import type { AgentSessionRuntime } from "../../core/agent-session-runtime.ts";
 import { SessionManager } from "../../core/session-manager.ts";
@@ -40,7 +41,11 @@ import { updateProject } from "../../kos/operations/update-project.ts";
 import { endDay, migrateTaskPool, recordRecommendationFeedback, reviewMonth, reviewWeek, startDay } from "../../kos/operations/progress-workflows.ts";
 import { migrateLayout } from "../../kos/operations/layout-migration.ts";
 import { migrateProjectDirectories } from "../../kos/operations/project-directories.ts";
-import { normalizeModelConfiguration, writeModelConfiguration } from "../../kos/model-configuration.ts";
+import {
+	explainModelConnectionFailure,
+	normalizeModelConfiguration,
+	writeModelConfiguration,
+} from "../../kos/model-configuration.ts";
 import { type Theme, theme } from "../interactive/theme/theme.ts";
 import { attachJsonlLineReader, serializeJsonLine } from "./jsonl.ts";
 import type {
@@ -610,6 +615,35 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				if (!model) throw new Error(`Configured model is not available: ${input.provider}/${input.modelId}`);
 				await session.setModel(model);
 				return success(id, "configure_model", model);
+			}
+
+			case "test_model": {
+				const model = session.model;
+				if (!model) throw new Error("请先配置并选择模型");
+				const startedAt = Date.now();
+				const result = await session.modelRuntime.completeSimple(model, {
+					messages: [{
+						role: "user",
+						content: "KOS_MODEL_CONNECTION_TEST: reply with OK.",
+						timestamp: Date.now(),
+					}],
+				}, {
+					maxTokens: 64,
+					temperature: 0,
+					timeoutMs: 30_000,
+					maxRetries: 0,
+				});
+				if (result.stopReason === "error" || result.stopReason === "aborted") {
+					throw new Error(explainModelConnectionFailure(result.errorMessage));
+				}
+				// Consume text to verify the provider returned a structurally valid assistant message.
+				contentText(result.content, "");
+				return success(id, "test_model", {
+					provider: model.provider,
+					modelId: model.id,
+					responseModel: result.responseModel,
+					latencyMs: Date.now() - startedAt,
+				});
 			}
 
 			case "configure_web_search": {

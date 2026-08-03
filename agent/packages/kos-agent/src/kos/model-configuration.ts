@@ -19,6 +19,13 @@ export interface ConfigureModelInput {
 	api?: SupportedModelApi;
 }
 
+export interface ModelConnectionTestResult {
+	provider: string;
+	modelId: string;
+	responseModel?: string;
+	latencyMs: number;
+}
+
 interface ModelsJson {
 	providers: Record<string, Record<string, unknown>>;
 }
@@ -44,6 +51,33 @@ export function normalizeModelConfiguration(input: ConfigureModelInput): Configu
 	}
 	if (api && !SUPPORTED_MODEL_APIS.includes(api)) throw new Error(`Unsupported model API: ${api}`);
 	return { provider, modelId, apiKey, baseUrl, api };
+}
+
+/** Convert provider/transport failures into useful messages without returning response bodies or credentials. */
+export function explainModelConnectionFailure(value: unknown): string {
+	const message = value instanceof Error ? value.message : String(value ?? "");
+	if (/401|unauthorized|invalid api.?key|authentication/i.test(message)) {
+		return "模型认证失败：请检查 API key 是否正确、有效并属于当前服务";
+	}
+	if (/403|forbidden|permission|not allowed/i.test(message)) {
+		return "模型访问被拒绝：请检查套餐、模型权限和 API key 的授权范围";
+	}
+	if (/404|not found|unknown model|model.*(invalid|不存在)/i.test(message)) {
+		return "模型或接口不存在：请检查 model ID、Base URL 和 API 协议";
+	}
+	if (/429|rate.?limit|too many requests/i.test(message)) {
+		return "模型请求达到限流：请稍后重试并检查套餐额度";
+	}
+	if (/quota|insufficient.*credit|balance|额度|余额/i.test(message)) {
+		return "模型额度不足：请检查套餐或账户余额";
+	}
+	if (/timeout|timed out|abort/i.test(message)) {
+		return "模型连接超时：请检查网络、Base URL 或服务状态";
+	}
+	if (/network|fetch failed|econn|enotfound|certificate|tls/i.test(message)) {
+		return "无法连接模型服务：请检查网络、DNS、证书和 Base URL";
+	}
+	return "模型连接测试失败：请检查 Base URL、API 协议、model ID 和服务状态";
 }
 
 function readModels(path: string): ModelsJson {

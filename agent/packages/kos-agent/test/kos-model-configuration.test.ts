@@ -2,7 +2,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { normalizeModelConfiguration, writeModelConfiguration } from "../src/kos/model-configuration.ts";
+import {
+	explainModelConnectionFailure,
+	normalizeModelConfiguration,
+	writeModelConfiguration,
+} from "../src/kos/model-configuration.ts";
 
 const roots: string[] = [];
 
@@ -50,5 +54,14 @@ describe("kos model configuration", () => {
 			modelId: "model-1",
 			apiKey: "key",
 		}, false)).toThrow(/Base URL and API protocol/);
+	});
+
+	it("explains connection failures without echoing provider response bodies or credentials", () => {
+		expect(explainModelConnectionFailure(new Error("401 invalid api key secret-value"))).toBe(
+			"模型认证失败：请检查 API key 是否正确、有效并属于当前服务",
+		);
+		expect(explainModelConnectionFailure(new Error("upstream dumped secret-value"))).toBe(
+			"模型连接测试失败：请检查 Base URL、API 协议、model ID 和服务状态",
+		);
 	});
 });

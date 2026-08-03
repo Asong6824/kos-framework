@@ -9,26 +9,54 @@
     "build": "node esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:livesync": "vitest run --config vitest.livesync.config.ts",
+    "test:r2-live": "vitest run --config vitest.r2.config.ts",
     "test:e2e": "node e2e/obsidian.cdp.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "@types/pouchdb-adapter-idb": "^6.1.7",
+    "@types/pouchdb-core": "^7.0.15",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "builtin-modules": "^5.3.0",
     "esbuild": "^0.28.1",
+    "fake-indexeddb": "^6.2.4",
     "obsidian": "^1.13.1",
+    "pouchdb-adapter-memory": "^9.0.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1097.0",
     "@dnd-kit/core": "6.3.1",
+    "@smithy/fetch-http-handler": "5.6.12",
+    "@smithy/protocol-http": "5.5.15",
+    "@smithy/querystring-builder": "4.4.15",
+    "diff-match-patch": "^1.0.5",
     "epubjs": "0.3.93",
+    "events": "3.3.0",
+    "fflate": "^0.8.2",
     "framer-motion": "12.42.2",
+    "idb": "^8.0.3",
+    "minimatch": "^10.2.5",
+    "octagonal-wheels": "^0.1.51",
+    "pouchdb-adapter-idb": "^9.0.0",
+    "pouchdb-adapter-indexeddb": "^9.0.0",
+    "pouchdb-core": "^9.0.0",
+    "pouchdb-errors": "^9.0.0",
+    "pouchdb-find": "^9.0.0",
+    "pouchdb-mapreduce": "^9.0.0",
+    "pouchdb-merge": "^9.0.0",
+    "pouchdb-replication": "^9.0.0",
+    "pouchdb-utils": "^9.0.0",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "transform-pouch": "^2.0.0",
+    "xxhash-wasm-102": "npm:xxhash-wasm@^1.1.0"
   },
   "overrides": {
+    "uuid": "11.1.1",
     "epubjs": {
       "@xmldom/xmldom": "0.8.13"
     }

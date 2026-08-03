@@ -14,6 +14,7 @@ import type { KosDailyRecommendation, KosRecommendationFeedbackInput, KosRpcEven
 import type { KosIndex } from '../data/index';
 import type { KosDataStore } from '../data/store';
 import { localToday } from '../data/store';
+import type { KosSyncSnapshot } from '../sync/model';
 
 /** 注入视图的依赖：索引、快照存储、当前指标设置（读取时求值，跟随设置变更） */
 export interface ViewContext {
@@ -46,6 +47,16 @@ export interface ViewContext {
   getAgentSnapshot?(): Promise<DashboardAgentSnapshot>;
   validate?(): Promise<KosValidationReport>;
   pendingQuestions?(): DashboardQuestion[];
+  syncSnapshot?(): Readonly<KosSyncSnapshot>;
+  syncNow?(): Promise<void>;
+  toggleSyncPaused?(): Promise<void>;
+  openSyncSettings?(): void;
+  syncConfigurationHealth?(): KosSyncConfigurationHealth;
+}
+
+export interface KosSyncConfigurationHealth {
+  preflightCurrent: boolean;
+  preflightPassedAt: string | null;
 }
 
 export type DashboardQuestion = Extract<KosRpcEvent, { type: 'extension_ui_request' }>;

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -39,7 +40,10 @@ describe("kos-agent RPC process", () => {
 		try {
 			const readResponse = (expectedId: string): Promise<Record<string, unknown>> =>
 				new Promise<Record<string, unknown>>((resolve, reject) => {
-				const timeout = setTimeout(() => reject(new Error(`RPC startup timed out: ${stderr}`)), 10_000);
+					// Full release-check runs many transform-heavy suites concurrently. The product
+					// process normally starts in ~3s, but a loaded CI host can exceed 10s before it
+					// receives CPU. Keep this a bounded startup assertion without making it flaky.
+					const timeout = setTimeout(() => reject(new Error(`RPC startup timed out: ${stderr}`)), 30_000);
 				let buffer = "";
 
 				child.once("error", reject);
@@ -119,8 +123,12 @@ describe("kos-agent RPC process", () => {
 			expect((await stat(authPath)).mode & 0o777).toBe(0o600);
 			expect(await readFile(authPath, "utf8")).toContain(searchKey);
 		} finally {
-			child.stdin.end();
-			if (child.exitCode === null) child.kill("SIGTERM");
+			if (child.exitCode === null) {
+				const exited = once(child, "exit");
+				child.stdin.end();
+				child.kill("SIGTERM");
+				await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 2_000))]);
+			}
 		}
-	}, 15_000);
+	}, 45_000);
 });
