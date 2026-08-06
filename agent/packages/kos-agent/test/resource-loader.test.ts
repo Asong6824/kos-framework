@@ -40,7 +40,7 @@ describe("DefaultResourceLoader", () => {
 			expect(loader.getThemes().themes).toEqual([]);
 		});
 
-		it("should discover skills from agentDir", async () => {
+		it("should not auto-discover user-global skills from agentDir in kos-agent", async () => {
 			const skillsDir = join(agentDir, "skills");
 			mkdirSync(skillsDir, { recursive: true });
 			writeFileSync(
@@ -56,11 +56,32 @@ Skill content here.`,
 			await loader.reload();
 
 			const { skills } = loader.getSkills();
+			expect(skills.some((s) => s.name === "test-skill")).toBe(false);
+		});
+
+		it("should load a user-global skill when it is explicitly configured", async () => {
+			const skillsDir = join(agentDir, "skills");
+			mkdirSync(skillsDir, { recursive: true });
+			writeFileSync(
+				join(skillsDir, "test-skill.md"),
+				`---
+name: test-skill
+description: An explicitly configured test skill
+---
+Skill content here.`,
+			);
+			const settingsManager = SettingsManager.inMemory();
+			settingsManager.setSkillPaths(["skills/test-skill.md"]);
+
+			const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
+			await loader.reload();
+
+			const { skills } = loader.getSkills();
 			expect(skills.some((s) => s.name === "test-skill")).toBe(true);
 		});
 
 		it("should ignore extra markdown files in auto-discovered skill dirs", async () => {
-			const skillDir = join(agentDir, "skills", "pi-skills", "browser-tools");
+			const skillDir = join(cwd, "80_Skills", "core", "browser-tools");
 			mkdirSync(skillDir, { recursive: true });
 			writeFileSync(
 				join(skillDir, "SKILL.md"),

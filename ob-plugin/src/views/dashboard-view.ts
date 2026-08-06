@@ -33,8 +33,6 @@ import type { KosDailyRecommendation, KosRecommendationFeedbackInput, KosValidat
 import { openRecommendationFeedbackModal, openStartDayModal } from '../actions/daily-planning';
 import { KosView, TYPE_LABELS, objectTitle } from './view-context';
 import type { DashboardAgentSnapshot, DashboardDailyPlan, ViewContext } from './view-context';
-import { renderDotClock } from './components/dot-clock';
-import type { DotClockHandle } from './components/dot-clock';
 import { renderYearProgress } from './components/year-progress';
 import type { YearProgressHandle } from './components/year-progress';
 import { renderDaySchedule } from './components/day-schedule';
@@ -73,7 +71,6 @@ function tone(state: string): string {
 
 export class DashboardView extends KosView {
   private root: Root | null = null;
-  private clock: DotClockHandle | null = null;
   private schedule: DayScheduleHandle | null = null;
   private progress: YearProgressHandle | null = null;
   private renderVersion = 0;
@@ -108,7 +105,6 @@ export class DashboardView extends KosView {
     await super.onOpen();
     this.registerInterval(window.setInterval(() => {
       const now = new Date();
-      this.clock?.update(now);
       this.schedule?.update(now);
       this.progress?.update(now);
     }, 1_000));
@@ -119,14 +115,13 @@ export class DashboardView extends KosView {
     this.moduleFocusTimers = [];
     this.root?.unmount();
     this.root = null;
-    this.clock = null;
     this.schedule = null;
     this.progress = null;
     this.contentEl.empty();
   }
 
   setModule(module: DashboardModule): void {
-    const selector = module === 'today' ? '.kos-dot-clock' : `#kos-board-${module}`;
+    const selector = module === 'today' ? '.kos-day-schedule' : `#kos-board-${module}`;
     const scrollToTarget = () => this.contentEl.querySelector<HTMLElement>(selector)?.scrollIntoView({ behavior: 'auto', block: 'start' });
     if (!this.contentEl.querySelector(selector)) this.render();
     for (const timer of this.moduleFocusTimers) window.clearTimeout(timer);
@@ -143,7 +138,6 @@ export class DashboardView extends KosView {
       initialLayout: this.ctx.store.getDashboardLayout(),
       renderVersion: ++this.renderVersion,
       renderModule: this.renderModule,
-      mountClock: this.mountClock,
       mountSchedule: this.mountSchedule,
       mountGoals: this.mountGoals,
       mountProgress: this.mountProgress,
@@ -168,10 +162,6 @@ export class DashboardView extends KosView {
     else if (module === 'knowledge') this.renderKnowledge(host);
     else if (module === 'review') this.renderReview(host);
     else this.renderSystem(host);
-  };
-
-  private mountClock = (host: HTMLElement): void => {
-    this.clock = renderDotClock(host);
   };
 
   private mountSchedule = (host: HTMLElement): void => {

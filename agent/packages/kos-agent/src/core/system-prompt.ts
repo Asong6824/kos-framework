@@ -18,10 +18,27 @@ export interface BuildSystemPromptOptions {
 	appendSystemPrompt?: string;
 	/** Working directory. */
 	cwd: string;
+	/** Current instant. Injectable for deterministic tests. */
+	now?: Date;
+	/** IANA time zone used to derive the local date and kos goal period. */
+	timeZone?: string;
 	/** Pre-loaded context files. */
 	contextFiles?: Array<{ path: string; content: string }>;
 	/** Pre-loaded skills. */
 	skills?: Skill[];
+}
+
+function buildTemporalContext(now: Date, timeZone: string): string {
+	const parts = new Intl.DateTimeFormat("en-US", {
+		timeZone,
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).formatToParts(now);
+	const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+	const date = `${values.year}-${values.month}-${values.day}`;
+	const half = Number(values.month) <= 6 ? "H1" : "H2";
+	return `Current date: ${date}\nCurrent timezone: ${timeZone}\nCurrent kos goal period: ${values.year}-${half}`;
 }
 
 /** Build the system prompt with tools, guidelines, and context */
@@ -33,10 +50,13 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 		promptGuidelines,
 		appendSystemPrompt,
 		cwd,
+		now = new Date(),
+		timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
 		contextFiles: providedContextFiles,
 		skills: providedSkills,
 	} = options;
 	const promptCwd = cwd.replace(/\\/g, "/");
+	const temporalContext = buildTemporalContext(now, timeZone);
 
 	const appendSection = appendSystemPrompt ? `\n\n${appendSystemPrompt}` : "";
 
@@ -66,6 +86,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 			prompt += formatSkillsForPrompt(skills);
 		}
 
+		prompt += `\n${temporalContext}`;
 		prompt += `\nCurrent working directory: ${promptCwd}`;
 
 		return prompt;
@@ -168,6 +189,7 @@ Pi documentation (read only when the user asks about pi itself, its SDK, extensi
 		prompt += formatSkillsForPrompt(skills);
 	}
 
+	prompt += `\n${temporalContext}`;
 	prompt += `\nCurrent working directory: ${promptCwd}`;
 
 	return prompt;

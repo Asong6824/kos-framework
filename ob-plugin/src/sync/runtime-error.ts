@@ -15,6 +15,12 @@ export function explainKosSyncRuntimeFailure(value: unknown): KosSyncRuntimeFail
   if (/checkpoint|sync-state|本地同步状态/i.test(message)) {
     return { offline: false, message: '本地同步状态异常；原状态已保留，请按故障排查处理' };
   }
+  if (/LiveSync 本地写入失败：\.DS_Store/i.test(message)) {
+    return { offline: false, message: '检测到未排除的 macOS .DS_Store；请更新插件后重试同步' };
+  }
+  if (/LiveSync 本地写入失败/i.test(message)) {
+    return { offline: false, message: '本地文件无法写入同步数据库；请检查同步排除规则和文件名' };
+  }
   if (status === 401 || /invalid.*(access|key)|unauthorized|signature/i.test(message)) {
     return { offline: false, message: 'R2 认证失败；请在同步设置中更新凭据并重新测试' };
   }

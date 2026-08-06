@@ -2,6 +2,37 @@ import { describe, expect, test } from "vitest";
 import { buildSystemPrompt } from "../src/core/system-prompt.ts";
 
 describe("buildSystemPrompt", () => {
+	describe("temporal context", () => {
+		test.each([
+			["2026-01-01T00:00:00.000Z", "2026-01-01", "2026-H1"],
+			["2026-06-30T15:59:59.000Z", "2026-06-30", "2026-H1"],
+			["2026-06-30T16:00:00.000Z", "2026-07-01", "2026-H2"],
+			["2026-12-31T16:00:00.000Z", "2027-01-01", "2027-H1"],
+		])("derives the local date and half-year period at boundaries", (instant, date, period) => {
+			const prompt = buildSystemPrompt({
+				cwd: process.cwd(),
+				now: new Date(instant),
+				timeZone: "Asia/Shanghai",
+			});
+
+			expect(prompt).toContain(`Current date: ${date}`);
+			expect(prompt).toContain("Current timezone: Asia/Shanghai");
+			expect(prompt).toContain(`Current kos goal period: ${period}`);
+		});
+
+		test("also appends temporal context to a custom system prompt", () => {
+			const prompt = buildSystemPrompt({
+				customPrompt: "Custom instructions",
+				cwd: process.cwd(),
+				now: new Date("2026-08-03T04:00:00.000Z"),
+				timeZone: "Asia/Shanghai",
+			});
+
+			expect(prompt).toContain("Current date: 2026-08-03");
+			expect(prompt).toContain("Current kos goal period: 2026-H2");
+		});
+	});
+
 	describe("empty tools", () => {
 		test("shows (none) for empty tools list", () => {
 			const prompt = buildSystemPrompt({

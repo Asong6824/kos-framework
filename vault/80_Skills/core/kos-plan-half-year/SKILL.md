@@ -26,6 +26,7 @@ metadata:
 
 - 读取当前周期 Goal、上期复盘、现有责任和外部承诺。
 - 目标周期只能是 `YYYY-H1` 或 `YYYY-H2`，不创建年度或月度 Goal。
+- 用户未明确指定周期时，使用系统提示词中的 `Current kos goal period`；不得根据模型知识或示例年份猜测当前年份。
 - 结果定义、激活、暂停、达成、放弃和 active 权重变化都等待用户确认。
 
 ## How to Run
@@ -57,6 +58,7 @@ kos-harness set-goal-weights --input '{"period":"2027-H1","humanConfirmed":true,
 ## Pitfalls
 
 - 不创建年度/月度 Goal。
+- 不把示例中的 `2027-H1` 当作当前周期；当前周期以 Harness 注入值为准。
 - 不未经确认激活或调整 active Goal。
 - 不把活动清单写成结果目标。
 - 不按 Task 数量自动改变 Goal 健康度。

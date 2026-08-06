@@ -1,5 +1,5 @@
 import { Component, FuzzySuggestModal, ItemView, MarkdownRenderer, MarkdownView, Modal, Notice, Setting, TFile, TFolder, setIcon } from 'obsidian';
-import type { WorkspaceLeaf } from 'obsidian';
+import type { FuzzyMatch, WorkspaceLeaf } from 'obsidian';
 import type { KosAgentClient } from '../agent/client';
 import { buildAgentPrompt, mentionedVaultPaths } from '../agent/context';
 import type { ObsidianPromptContext } from '../agent/context';
@@ -179,6 +179,7 @@ class CommandPickerModal extends FuzzySuggestModal<KosSlashCommand> {
   ) {
     super(app);
     this.setPlaceholder('选择 Skill 或 prompt');
+    this.modalEl.addClass('kos-agent-command-picker');
   }
 
   getItems(): KosSlashCommand[] {
@@ -188,6 +189,26 @@ class CommandPickerModal extends FuzzySuggestModal<KosSlashCommand> {
   getItemText(command: KosSlashCommand): string {
     const source = command.source === 'skill' ? 'Skill' : command.source === 'prompt' ? 'Prompt' : 'Command';
     return `/${command.name} · ${source}${command.description ? ` · ${command.description}` : ''}`;
+  }
+
+  renderSuggestion(match: FuzzyMatch<KosSlashCommand>, el: HTMLElement): void {
+    const command = match.item;
+    const source = command.source === 'skill' ? 'Skill' : command.source === 'prompt' ? 'Prompt' : 'Command';
+    const displayName = command.source === 'skill' && command.name.startsWith('skill:')
+      ? command.name.slice('skill:'.length)
+      : `/${command.name}`;
+    el.addClass('kos-agent-command-suggestion');
+
+    const header = el.createDiv({ cls: 'kos-agent-command-suggestion-header' });
+    header.createSpan({ cls: 'kos-agent-command-suggestion-name', text: displayName });
+    header.createSpan({
+      cls: `kos-agent-command-suggestion-kind is-${command.source}`,
+      text: source,
+    });
+
+    const description = command.description?.trim() || '暂无描述';
+    const descriptionEl = el.createDiv({ cls: 'kos-agent-command-suggestion-description', text: description });
+    descriptionEl.setAttr('title', description);
   }
 
   onChooseItem(command: KosSlashCommand): void {

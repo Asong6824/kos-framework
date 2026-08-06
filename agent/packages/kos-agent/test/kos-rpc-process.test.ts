@@ -78,6 +78,12 @@ describe("kos-agent RPC process", () => {
 			expect(data.sessionId).toBeTruthy();
 			expect(data.sessionFile).toMatch(new RegExp(`^${sessionDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 
+			const commandsPromise = readResponse("smoke-commands");
+			child.stdin.write(`${JSON.stringify({ id: "smoke-commands", type: "get_commands" })}\n`);
+			const commandsResponse = await commandsPromise;
+			const commandsData = commandsResponse.data as { commands: Array<{ name: string }> };
+			expect(commandsData.commands.some((command) => command.name === "llama")).toBe(false);
+
 			const bashPromise = readResponse("smoke-2");
 			child.stdin.write(`${JSON.stringify({ id: "smoke-2", type: "bash", command: "echo kos-agent-smoke" })}\n`);
 			await expect(bashPromise).resolves.toMatchObject({

@@ -1,7 +1,7 @@
 /**
  * store.ts — 插件私有 data.json 的读写与迁移
  *
- * schema v10 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
+ * schema v11 见 docs/02_技术方案.md 3.2 节。只写插件私有 data.json，
  * 不触碰 vault 内任何文件（写入边界见 3.4 节）。
  */
 
@@ -13,14 +13,14 @@ import { addDays, buildSnapshot, missingDates } from '../core/snapshot';
 import type { DailySnapshot } from '../core/snapshot';
 import { DEFAULT_SETTINGS } from '../settings-model';
 import type { KosSettings } from '../settings-model';
-import { cloneBentoLayout, DEFAULT_BENTO_LAYOUT, migrateClockScheduleLayout, migrateGoalCardLayout, migrateLegacyDashboardLayout, normalizeBentoLayout } from '../core/bento-layout';
+import { cloneBentoLayout, DEFAULT_BENTO_LAYOUT, migrateClockScheduleLayout, migrateGoalCardLayout, migrateLegacyDashboardLayout, migrateRemovedClockLayout, normalizeBentoLayout } from '../core/bento-layout';
 import type { BentoLayoutItem } from '../core/bento-layout';
 import { DEFAULT_OBJECT_DIRS, migrateLegacyObjectDirs, normalizeObjectDirs } from '../core/model';
 import type { ReaderProgress } from '../reader/model';
 import { normalizeReaderProgressRecord } from '../reader/model';
 import { normalizeKosSyncSettings } from '../sync/model';
 
-export const DATA_VERSION = 10;
+export const DATA_VERSION = 11;
 
 export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed' | 'dismissed';
 
@@ -35,7 +35,7 @@ export interface SyncPreflightState {
   passedAt: string;
 }
 
-/** data.json schema v10（02 文档 3.2 节） */
+/** data.json schema v11（02 文档 3.2 节） */
 export interface PluginData {
   version: number;
   /** 安装日期 YYYY-MM-DD */
@@ -164,8 +164,8 @@ export class KosDataStore {
     const rawVersion = typeof raw.version === 'number' ? raw.version : 0;
     const today = localToday();
     let dashboardLayout: BentoLayoutItem[];
-    if (rawVersion >= 9) dashboardLayout = normalizeBentoLayout(raw.dashboardLayout);
-    else if (rawVersion >= 8) dashboardLayout = migrateGoalCardLayout(raw.dashboardLayout);
+    if (rawVersion >= 11) dashboardLayout = normalizeBentoLayout(raw.dashboardLayout);
+    else if (rawVersion >= 8) dashboardLayout = migrateRemovedClockLayout(raw.dashboardLayout);
     else if (rawVersion >= 6) dashboardLayout = migrateGoalCardLayout(migrateClockScheduleLayout(raw.dashboardLayout));
     else dashboardLayout = migrateLegacyDashboardLayout(raw.dashboardLayout, raw.dashboardWidgets);
     this.data = {

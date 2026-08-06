@@ -374,7 +374,17 @@ export class DefaultResourceLoader implements ResourceLoader {
 		const getEnabledPaths = (resources: ResolvedResource[]): string[] =>
 			getEnabledResources(resources).map((r) => r.path);
 		const enabledExtensions = getEnabledPaths(resolvedPaths.extensions);
-		const enabledSkillResources = getEnabledResources(resolvedPaths.skills);
+		const enabledSkillResources = getEnabledResources(resolvedPaths.skills).filter((resource) => {
+			// kos-agent is Vault-scoped: do not implicitly import personal skills from
+			// ~/.kos-agent/agent/skills or the cross-agent ~/.agents/skills directory.
+			// Explicit user settings, packages, and CLI paths remain available because
+			// they are deliberate configuration rather than auto-discovery.
+			return !(
+				APP_NAME === "kos-agent" &&
+				resource.metadata.scope === "user" &&
+				resource.metadata.source === "auto"
+			);
+		});
 		const enabledPrompts = getEnabledPaths(resolvedPaths.prompts);
 		const enabledThemes = getEnabledPaths(resolvedPaths.themes);
 

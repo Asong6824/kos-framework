@@ -10,11 +10,6 @@ export interface ClockSnapshot {
   daysInYear: number;
 }
 
-export interface DotClockHandle {
-  root: HTMLElement;
-  update(now?: Date): void;
-}
-
 function pad(value: number): string {
   return String(value).padStart(2, '0');
 }
@@ -43,28 +38,4 @@ export function clockSnapshot(now: Date): ClockSnapshot {
     dayOfYear: Math.floor((current - start) / 86_400_000) + 1,
     daysInYear: Math.round((nextYear - start) / 86_400_000),
   };
-}
-
-export function renderDotClock(parent: HTMLElement, initialNow = new Date()): DotClockHandle {
-  const root = parent.createEl('section', {
-    cls: 'kos-dot-clock',
-    attr: { role: 'timer', 'aria-live': 'off' },
-  });
-  const eyebrow = root.createDiv({ cls: 'kos-dot-clock-eyebrow' });
-  eyebrow.createSpan({ text: 'CLOCK' });
-  eyebrow.createSpan({ cls: 'kos-dot-clock-separator', text: '·' });
-  eyebrow.createSpan({ text: 'LOCAL' });
-
-  const display = root.createDiv({ cls: 'kos-dot-clock-display' });
-  const time = display.createSpan({ cls: 'kos-dot-clock-time' });
-  const seconds = display.createSpan({ cls: 'kos-dot-clock-seconds' });
-  const update = (now = new Date()): void => {
-    const snapshot = clockSnapshot(now);
-    time.textContent = `${snapshot.hours}:${snapshot.minutes}`;
-    seconds.textContent = snapshot.seconds;
-    root.setAttribute('aria-label', `${snapshot.hours}:${snapshot.minutes}:${snapshot.seconds}`);
-  };
-
-  update(initialNow);
-  return { root, update };
 }

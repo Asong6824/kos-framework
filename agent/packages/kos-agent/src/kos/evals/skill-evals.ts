@@ -189,7 +189,7 @@ function buildCheckers(root: string): Map<string, Checker> {
 		promotion_requires_task_contract: ["evals/contracts", "最大迭代次数"],
 		system_check_includes_task_contracts: ["90_系统/evals/contracts"],
 		task_completion_loop: ["Task Contract", "pass@1", "pass@k", "最大迭代"],
-		goal_planning_contract: ["H1/H2", "allocation_weight", "合计 100", "用户确认"],
+		goal_planning_contract: ["H1/H2", "allocation_weight", "合计 100", "用户确认", "Current kos goal period", "不得根据模型知识或示例年份猜测"],
 		daily_planning_contract: ["PlanningContext", "save-daily-plan", "LLM", "defer_until", "recommended", "accepted", "adjusted", "deferred", "rejected", "最多三项"],
 		period_review_contract: ["review-week", "review-month", "off_goal", "投入偏差", "不自动修改"],
 		capability_focus_contract: ["capability_focus", "applies_to", "max_daily_recommendations", "最多一个"],

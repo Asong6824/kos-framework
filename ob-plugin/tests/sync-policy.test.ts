@@ -30,6 +30,8 @@ describe('kos-sync fixed policy', () => {
     expect(isKosSyncPathIncluded('.git/config')).toBe(false);
     expect(isKosSyncPathIncluded('.kos.md')).toBe(false);
     expect(isKosSyncPathIncluded('90_系统/framework-backups/old.md')).toBe(false);
+    expect(isKosSyncPathIncluded('.DS_Store')).toBe(false);
+    expect(isKosSyncPathIncluded('31_项目/求职资产维护/.DS_Store')).toBe(false);
   });
 
   it('normalizes legacy or malformed stored settings', () => {

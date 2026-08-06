@@ -391,7 +391,7 @@ async function run() {
       bentoDisplay: getComputedStyle(document.querySelector('.kos-board-grid')).display,
       bentoSizes: Object.fromEntries([...document.querySelectorAll('.kos-board-utility-card, .kos-board-section')].map((el) => [el.id || el.dataset.widget, el.dataset.bento])),
       bentoEffective: Object.fromEntries([...document.querySelectorAll('.kos-board-section')].map((el) => [el.id, el.dataset.bentoEffective])),
-      cardRadii: [...document.querySelectorAll('.kos-dot-clock, .kos-day-schedule, .kos-goal-overview, .kos-year-progress, .kos-activity-heatmap, .kos-board-section')].map((el) => getComputedStyle(el).borderRadius),
+      cardRadii: [...document.querySelectorAll('.kos-day-schedule, .kos-goal-overview, .kos-year-progress, .kos-activity-heatmap, .kos-board-section')].map((el) => getComputedStyle(el).borderRadius),
       actionAnchors: [...document.querySelectorAll('#kos-board-action .kos-board-switch button')].map((el) => el.textContent),
       actionGoalCards: document.querySelectorAll('#kos-board-action .kos-board-goal-card').length,
       syncCard: (() => {
@@ -516,13 +516,7 @@ async function run() {
     }
     if (initial.bentoDisplay !== 'grid') throw new Error(`Dashboard is not a Bento grid: ${initial.bentoDisplay}`);
     if (initial.cardRadii.some((radius) => radius !== '30px')) throw new Error(`Dashboard card radii differ: ${JSON.stringify(initial.cardRadii)}`);
-    if (!initial.clock) throw new Error('Dot clock is missing');
-    if (!initial.clock.fontFamily.includes('Doto') || !/^\d{2}:\d{2}$/.test(initial.clock.time) || !/^\d{2}$/.test(initial.clock.seconds)) {
-      throw new Error(`Dot clock typography or time differs: ${JSON.stringify(initial.clock)}`);
-    }
-    if (initial.clock.calendarNodes !== 0) {
-      throw new Error(`Dot clock still contains moved calendar metadata: ${JSON.stringify(initial.clock)}`);
-    }
+    if (initial.clock) throw new Error(`Retired dot clock is still rendered: ${JSON.stringify(initial.clock)}`);
     if (!initial.schedule || !initial.schedule.header?.includes('SCHEDULE') || !initial.schedule.header.includes('任务时刻') || !/^\d{2}:\d{2}$/.test(initial.schedule.time) || !/^\d{2}$/.test(initial.schedule.seconds)) {
       throw new Error(`Day schedule header or clock differs: ${JSON.stringify(initial.schedule)}`);
     }
@@ -556,10 +550,9 @@ async function run() {
     if (!initial.heatmap.fontFamily.includes('Doto') || !/^\d+$/.test(initial.heatmap.total) || initial.heatmap.cells !== 365 || initial.heatmap.today !== 1 || initial.heatmap.months < 12 || !initial.heatmap.range?.includes('—')) {
       throw new Error(`Activity heatmap data differs: ${JSON.stringify(initial.heatmap)}`);
     }
-    await waitFor(() => cdp.evaluate(`${JSON.stringify(initial.clock.seconds)} !== document.querySelector('.kos-dot-clock-seconds')?.textContent`), 'dot clock second tick', 3_000);
     await waitFor(() => cdp.evaluate(`${JSON.stringify(initial.progress.updatedAt)} !== document.querySelector('.kos-year-progress')?.dataset.updatedAt`), 'year progress second tick', 3_000);
     const expectedBentoSizes = {
-      clock: '7x6', schedule: '7x12', goals: '10x8', progress: '10x12', heatmap: '10x7',
+      schedule: '7x12', goals: '10x8', progress: '10x12', heatmap: '10x7',
       'kos-board-today': '9x7', 'kos-board-action': '6x10', 'kos-board-input': '6x10',
       'kos-board-knowledge': '3x7', 'kos-board-review': '9x7', 'kos-board-system': '3x7',
     };
@@ -652,7 +645,6 @@ async function run() {
       const knowledge = rect('#kos-board-knowledge');
       const review = rect('#kos-board-review');
       const system = rect('#kos-board-system');
-      const clock = rect('.kos-dot-clock');
       const schedule = rect('.kos-day-schedule');
       const goals = rect('.kos-goal-overview');
       const progress = rect('.kos-year-progress');
@@ -665,7 +657,6 @@ async function run() {
           && action.top === input.top && action.bottom === input.bottom
           && review.top === system.top && review.bottom === system.bottom,
         effective: Object.fromEntries([...document.querySelectorAll('.kos-board-section')].map((el) => [el.id, el.dataset.bentoEffective])),
-        clock: { width: Math.round(clock.width), height: Math.round(clock.height) },
         schedule: { width: Math.round(schedule.width), height: Math.round(schedule.height) },
         goals: { width: Math.round(goals.width), height: Math.round(goals.height) },
         progress: { width: Math.round(progress.width), height: Math.round(progress.height) },
@@ -675,14 +666,13 @@ async function run() {
       const width = (span) => Math.round(cellWidth * span + 16 * (span - 1));
       const height = (span) => span * 42 + (span - 1) * 16;
       return result.columns === 12 && result.paired
-        && result.clock.width === width(7) && result.clock.height === height(6)
         && result.schedule.width === width(7) && result.schedule.height === height(12)
         && result.goals.width === width(10) && result.goals.height === height(8)
         && result.progress.width === width(10) && result.progress.height === height(12)
         && result.heatmap.width === width(10) && result.heatmap.height === height(7) ? result : null;
     })()`), 'wide twelve-column Bento layout');
-    await cdp.evaluate(`document.querySelector('.kos-dot-clock').scrollIntoView({ block: 'start' })`);
-    await screenshot(cdp, 'dashboard-clock-reference.png');
+    await cdp.evaluate(`document.querySelector('.kos-day-schedule').scrollIntoView({ block: 'start' })`);
+    await screenshot(cdp, 'dashboard-schedule-reference.png');
     await cdp.evaluate(`document.querySelector('.kos-year-progress').scrollIntoView({ block: 'start' })`);
     await screenshot(cdp, 'dashboard-year-progress-reference.png');
     await cdp.evaluate(`document.querySelector('.kos-day-schedule').scrollIntoView({ block: 'start' })`);
@@ -694,34 +684,34 @@ async function run() {
     await screenshot(cdp, 'dashboard-bento-wide.png');
 
     await cdp.evaluate(`document.querySelector('.kos-bento-toolbar-button[aria-label="编辑看板布局"]').click()`);
-    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-board-grid')?.dataset.bentoEditing === 'true' && document.querySelectorAll('.kos-bento-drag-handle').length === 11 && document.querySelectorAll('.kos-bento-drag-handle.is-size-only').length === 0 && document.querySelectorAll('.kos-bento-resize-zone').length === 88 && [...document.querySelectorAll('.kos-board-section, .kos-board-utility-card')].every((card) => card.querySelectorAll('.kos-bento-resize-zone').length === 8) && document.querySelectorAll('.kos-bento-grid-guide span').length >= 120`), 'dashboard layout edit mode');
+    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-board-grid')?.dataset.bentoEditing === 'true' && document.querySelectorAll('.kos-bento-drag-handle').length === 10 && document.querySelectorAll('.kos-bento-drag-handle.is-size-only').length === 0 && document.querySelectorAll('.kos-bento-resize-zone').length === 80 && [...document.querySelectorAll('.kos-board-section, .kos-board-utility-card')].every((card) => card.querySelectorAll('.kos-bento-resize-zone').length === 8) && document.querySelectorAll('.kos-bento-grid-guide span').length >= 120`), 'dashboard layout edit mode');
     await screenshot(cdp, 'dashboard-bento-edit-mode.png');
-    await cdp.evaluate(`document.querySelector('.kos-board-utility-card.is-clock').scrollIntoView({ block: 'center' })`);
+    await cdp.evaluate(`document.querySelector('.kos-board-utility-card.is-schedule').scrollIntoView({ block: 'center' })`);
     const utilityResizeStart = await cdp.evaluate(`(() => {
-      const card = document.querySelector('.kos-board-utility-card.is-clock');
+      const card = document.querySelector('.kos-board-utility-card.is-schedule');
       const rect = card.querySelector('.kos-bento-resize-zone.is-e').getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()`);
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: utilityResizeStart.x, y: utilityResizeStart.y, button: 'none', buttons: 0 });
     await waitFor(() => cdp.evaluate(`(() => {
-      const card = document.querySelector('.kos-board-utility-card.is-clock');
+      const card = document.querySelector('.kos-board-utility-card.is-schedule');
       const handle = card.querySelector('.kos-bento-resize-zone.is-e');
       return getComputedStyle(handle, '::after').opacity === '1'
         && getComputedStyle(handle, '::after').backgroundColor === 'rgb(22, 119, 255)'
-        && getComputedStyle(card.querySelector('.kos-dot-clock')).borderColor === 'rgb(22, 119, 255)';
-    })()`), 'blue clock resize hover');
+        && getComputedStyle(card.querySelector('.kos-day-schedule')).borderColor === 'rgb(22, 119, 255)';
+    })()`), 'blue schedule resize hover');
     await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: utilityResizeStart.x, y: utilityResizeStart.y, button: 'left', buttons: 1, clickCount: 1 });
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: utilityResizeStart.x + 120, y: utilityResizeStart.y, button: 'left', buttons: 1 });
-    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-board-utility-card.is-clock')?.classList.contains('is-layout-resizing') && document.querySelector('.kos-board-utility-card.is-clock')?.dataset.bento === '8x6' && !document.querySelector('.kos-bento-drag-overlay')`), 'clock Bento resize preview');
+    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-board-utility-card.is-schedule')?.classList.contains('is-layout-resizing') && document.querySelector('.kos-board-utility-card.is-schedule')?.dataset.bento === '8x12' && !document.querySelector('.kos-bento-drag-overlay')`), 'schedule Bento resize preview');
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: utilityResizeStart.x + 120, y: utilityResizeStart.y, button: 'left', buttons: 0, clickCount: 1 });
-    await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.getDashboardLayout().find((item) => item.id === 'clock')?.w === 8`), 'persisted clock Bento resize');
-    await screenshot(cdp, 'dashboard-clock-resized.png');
+    await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.getDashboardLayout().find((item) => item.id === 'schedule')?.w === 8`), 'persisted schedule Bento resize');
+    await screenshot(cdp, 'dashboard-schedule-resized.png');
     await cdp.evaluate(`document.querySelector('.kos-bento-toolbar-button[aria-label="撤销布局调整"]').click()`);
-    await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.getDashboardLayout().find((item) => item.id === 'clock')?.w === 7`), 'clock resize undo');
+    await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.getDashboardLayout().find((item) => item.id === 'schedule')?.w === 7`), 'schedule resize undo');
     await cdp.evaluate(`document.querySelector('.kos-bento-toolbar-button[aria-label="重做布局调整"]').click()`);
-    await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.getDashboardLayout().find((item) => item.id === 'clock')?.w === 8`), 'clock resize redo');
+    await waitFor(() => cdp.evaluate(`app.plugins.plugins['kos-companion'].store.getDashboardLayout().find((item) => item.id === 'schedule')?.w === 8`), 'schedule resize redo');
     await cdp.evaluate(`document.querySelector('.kos-bento-toolbar-button[aria-label="恢复默认布局"]').click()`);
-    await waitFor(() => cdp.evaluate(`(() => { const layout = app.plugins.plugins['kos-companion'].store.getDashboardLayout(); return layout.find((item) => item.id === 'clock')?.w === 7 && layout.find((item) => item.id === 'schedule')?.w === 7 && layout.find((item) => item.id === 'goals')?.w === 10 && layout.find((item) => item.id === 'progress')?.w === 10 && layout.find((item) => item.id === 'heatmap')?.w === 10; })()`), 'unified layout reset');
+    await waitFor(() => cdp.evaluate(`(() => { const layout = app.plugins.plugins['kos-companion'].store.getDashboardLayout(); return !layout.some((item) => item.id === 'clock') && layout.find((item) => item.id === 'schedule')?.w === 7 && layout.find((item) => item.id === 'goals')?.w === 10 && layout.find((item) => item.id === 'progress')?.w === 10 && layout.find((item) => item.id === 'heatmap')?.w === 10; })()`), 'unified layout reset');
     await cdp.evaluate(`document.querySelector('.kos-board-utility-card.is-progress').scrollIntoView({ block: 'center' })`);
     const progressResizeStart = await cdp.evaluate(`(() => {
       const rect = document.querySelector('.kos-board-utility-card.is-progress .kos-bento-resize-zone.is-se').getBoundingClientRect();
@@ -1212,7 +1202,7 @@ async function run() {
     await waitFor(() => cdp.evaluate(`Boolean(app.workspace.leftSplit.collapsed && app.workspace.rightSplit.collapsed)`), 'sidebars to collapse');
     await waitFor(() => cdp.evaluate(`document.querySelectorAll('.notice').length === 0`), 'transition notice to close', 15_000);
     await cdp.evaluate(`app.commands.executeCommandById('kos-companion:open-dashboard')`);
-    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-dot-clock').getBoundingClientRect().top < 100`), 'mobile clock entry');
+    await waitFor(() => cdp.evaluate(`document.querySelector('.kos-day-schedule').getBoundingClientRect().top < 100`), 'mobile schedule entry');
     await waitFor(() => cdp.evaluate(`document.querySelector('.kos-board-grid')?.dataset.bentoFitted === 'true'`), 'mobile fitted Bento rows');
     const mobileBento = await cdp.evaluate(`(() => {
       const sections = [...document.querySelectorAll('.kos-board-section')].map((element) => element.getBoundingClientRect());

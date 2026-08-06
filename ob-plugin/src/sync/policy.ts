@@ -14,6 +14,10 @@ export const KOS_SYNC_EXCLUDED_PATHS = [
   '90_系统/framework-backups/',
 ] as const;
 
+const KOS_SYNC_EXCLUDED_FILE_NAMES = new Set([
+  '.DS_Store',
+]);
+
 export interface KosSyncValidation {
   valid: boolean;
   message: string;
@@ -38,7 +42,8 @@ export function kosSyncEndpoint(accountId: string): string {
 
 export function isKosSyncPathIncluded(path: string): boolean {
   const normalized = path.replace(/^\/+/, '');
-  return !KOS_SYNC_EXCLUDED_PATHS.some((excluded) =>
+  return !normalized.split('/').some((segment) => KOS_SYNC_EXCLUDED_FILE_NAMES.has(segment))
+    && !KOS_SYNC_EXCLUDED_PATHS.some((excluded) =>
     excluded.endsWith('/') ? normalized.startsWith(excluded) : normalized === excluded
   );
 }

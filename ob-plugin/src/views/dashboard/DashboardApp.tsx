@@ -47,7 +47,6 @@ const MODULE_LABELS: Record<DashboardModule, string> = {
 };
 
 const WIDGET_LABELS: Record<DashboardWidgetId, string> = {
-  clock: '时钟',
   schedule: '任务时刻',
   goals: '目标',
   progress: '年度进度',
@@ -57,7 +56,7 @@ const WIDGET_LABELS: Record<DashboardWidgetId, string> = {
 const CARD_LABELS: Record<DashboardCardId, string> = { ...WIDGET_LABELS, ...MODULE_LABELS };
 
 function isDashboardWidgetId(id: DashboardCardId): id is DashboardWidgetId {
-  return id === 'clock' || id === 'schedule' || id === 'goals' || id === 'progress' || id === 'heatmap';
+  return id === 'schedule' || id === 'goals' || id === 'progress' || id === 'heatmap';
 }
 
 const DEFAULT_BANDS: DashboardModule[][] = [
@@ -358,7 +357,6 @@ interface DashboardAppProps {
   initialLayout: BentoLayoutItem[];
   renderVersion: number;
   renderModule(module: DashboardModule, host: HTMLElement): void;
-  mountClock(host: HTMLElement): void;
   mountSchedule(host: HTMLElement): void;
   mountGoals(host: HTMLElement): void;
   mountProgress(host: HTMLElement): void;
@@ -370,7 +368,6 @@ export function DashboardApp({
   initialLayout,
   renderVersion,
   renderModule,
-  mountClock,
   mountSchedule,
   mountGoals,
   mountProgress,
@@ -564,7 +561,6 @@ export function DashboardApp({
   const fitted = DASHBOARD_MODULE_IDS.every((id) => minimumRows[id] !== undefined);
   const guideRows = bentoLayoutRows(displayedLayout, presentationMinimums);
   const utilityMounts: Record<DashboardWidgetId, (host: HTMLElement) => void> = {
-    clock: mountClock,
     schedule: mountSchedule,
     goals: mountGoals,
     progress: mountProgress,

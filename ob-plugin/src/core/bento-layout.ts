@@ -1,7 +1,9 @@
 import type { DashboardModule } from './dashboard';
 
-export type DashboardWidgetId = 'clock' | 'schedule' | 'goals' | 'progress' | 'heatmap';
+export type DashboardWidgetId = 'schedule' | 'goals' | 'progress' | 'heatmap';
 export type DashboardCardId = DashboardWidgetId | DashboardModule;
+type LegacyDashboardWidgetId = 'clock' | DashboardWidgetId;
+type LegacyDashboardCardId = LegacyDashboardWidgetId | DashboardModule;
 
 export const BENTO_COLUMNS = 12;
 export const BENTO_ROW_HEIGHT = 42;
@@ -19,12 +21,11 @@ export type BentoMinimumRows = Partial<Record<DashboardCardId, number>>;
 
 export type BentoResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
-export const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = ['clock', 'schedule', 'goals', 'progress', 'heatmap'];
+export const DASHBOARD_WIDGET_IDS: DashboardWidgetId[] = ['schedule', 'goals', 'progress', 'heatmap'];
 export const DASHBOARD_MODULE_IDS: DashboardModule[] = ['today', 'action', 'input', 'knowledge', 'review', 'system'];
 export const DASHBOARD_CARD_IDS: DashboardCardId[] = [...DASHBOARD_WIDGET_IDS, ...DASHBOARD_MODULE_IDS];
 
 export const UTILITY_MINIMUM_ROWS: BentoMinimumRows = {
-  clock: 6,
   schedule: 10,
   goals: 7,
   progress: 9,
@@ -32,20 +33,28 @@ export const UTILITY_MINIMUM_ROWS: BentoMinimumRows = {
 };
 
 export const DEFAULT_BENTO_LAYOUT: BentoLayoutItem[] = [
-  { id: 'clock', x: 0, y: 0, w: 7, h: 6 },
-  { id: 'schedule', x: 0, y: 6, w: 7, h: 12 },
-  { id: 'goals', x: 0, y: 18, w: 10, h: 8 },
-  { id: 'progress', x: 0, y: 26, w: 10, h: 12 },
-  { id: 'heatmap', x: 0, y: 38, w: 10, h: 7 },
-  { id: 'today', x: 0, y: 45, w: 9, h: 7 },
-  { id: 'knowledge', x: 9, y: 45, w: 3, h: 7 },
-  { id: 'action', x: 0, y: 52, w: 6, h: 10 },
-  { id: 'input', x: 6, y: 52, w: 6, h: 10 },
-  { id: 'review', x: 0, y: 62, w: 9, h: 7 },
-  { id: 'system', x: 9, y: 62, w: 3, h: 7 },
+  { id: 'schedule', x: 0, y: 0, w: 7, h: 12 },
+  { id: 'goals', x: 0, y: 12, w: 10, h: 8 },
+  { id: 'progress', x: 0, y: 20, w: 10, h: 12 },
+  { id: 'heatmap', x: 0, y: 32, w: 10, h: 7 },
+  { id: 'today', x: 0, y: 39, w: 9, h: 7 },
+  { id: 'action', x: 0, y: 46, w: 6, h: 10 },
+  { id: 'input', x: 6, y: 46, w: 6, h: 10 },
+  { id: 'knowledge', x: 9, y: 39, w: 3, h: 7 },
+  { id: 'review', x: 0, y: 56, w: 9, h: 7 },
+  { id: 'system', x: 9, y: 56, w: 3, h: 7 },
 ];
 
-const PRE_GOAL_DEFAULT_BENTO_LAYOUT: BentoLayoutItem[] = [
+interface LegacyBentoLayoutItem extends Omit<BentoLayoutItem, 'id'> {
+  id: LegacyDashboardCardId;
+}
+
+const PRE_CLOCK_REMOVAL_DEFAULT_BENTO_LAYOUT: LegacyBentoLayoutItem[] = [
+  { id: 'clock', x: 0, y: 0, w: 7, h: 6 },
+  ...DEFAULT_BENTO_LAYOUT.map((item) => ({ ...item, y: item.y + 6 })),
+];
+
+const PRE_GOAL_DEFAULT_BENTO_LAYOUT: LegacyBentoLayoutItem[] = [
   { id: 'clock', x: 0, y: 0, w: 7, h: 6 },
   { id: 'schedule', x: 0, y: 6, w: 7, h: 12 },
   { id: 'progress', x: 0, y: 18, w: 10, h: 12 },
@@ -58,7 +67,7 @@ const PRE_GOAL_DEFAULT_BENTO_LAYOUT: BentoLayoutItem[] = [
   { id: 'system', x: 9, y: 54, w: 3, h: 7 },
 ];
 
-const PREVIOUS_DEFAULT_BENTO_LAYOUT: BentoLayoutItem[] = [
+const PREVIOUS_DEFAULT_BENTO_LAYOUT: LegacyBentoLayoutItem[] = [
   { id: 'clock', x: 0, y: 0, w: 7, h: 8 },
   { id: 'schedule', x: 0, y: 8, w: 7, h: 10 },
   { id: 'progress', x: 0, y: 18, w: 10, h: 12 },
@@ -93,15 +102,15 @@ function fallbackItem(id: DashboardCardId): BentoLayoutItem {
   return DEFAULT_BENTO_LAYOUT.find((item) => item.id === id)!;
 }
 
-function normalizeTenCardLayout(value: unknown): BentoLayoutItem[] {
+function normalizeTenCardLayout(value: unknown): LegacyBentoLayoutItem[] {
   const ids = PRE_GOAL_DEFAULT_BENTO_LAYOUT.map((item) => item.id);
   if (!Array.isArray(value)) return cloneBentoLayout(PRE_GOAL_DEFAULT_BENTO_LAYOUT);
-  const byId = new Map<DashboardCardId, BentoLayoutItem>();
+  const byId = new Map<LegacyDashboardCardId, LegacyBentoLayoutItem>();
   for (const candidate of value) {
     if (!candidate || typeof candidate !== 'object') continue;
-    const raw = candidate as Partial<BentoLayoutItem>;
-    if (!ids.includes(raw.id as DashboardCardId) || byId.has(raw.id as DashboardCardId)) continue;
-    const id = raw.id as DashboardCardId;
+    const raw = candidate as Partial<LegacyBentoLayoutItem>;
+    if (!ids.includes(raw.id as LegacyDashboardCardId) || byId.has(raw.id as LegacyDashboardCardId)) continue;
+    const id = raw.id as LegacyDashboardCardId;
     const fallback = PRE_GOAL_DEFAULT_BENTO_LAYOUT.find((item) => item.id === id)!;
     const w = Math.min(BENTO_COLUMNS, Math.max(1, integer(raw.w, fallback.w)));
     byId.set(id, {
@@ -116,7 +125,7 @@ function normalizeTenCardLayout(value: unknown): BentoLayoutItem[] {
   return ids.map((id) => ({ ...byId.get(id)! }));
 }
 
-export function cloneBentoLayout(layout: readonly BentoLayoutItem[]): BentoLayoutItem[] {
+export function cloneBentoLayout<T extends { x: number; y: number; w: number; h: number }>(layout: readonly T[]): T[] {
   return layout.map((item) => ({ ...item }));
 }
 
@@ -143,7 +152,7 @@ export function normalizeBentoLayout(value: unknown): BentoLayoutItem[] {
   return DASHBOARD_CARD_IDS.map((id) => ({ ...byId.get(id)! }));
 }
 
-export function migrateClockScheduleLayout(value: unknown): BentoLayoutItem[] {
+export function migrateClockScheduleLayout(value: unknown): LegacyBentoLayoutItem[] {
   const normalized = normalizeTenCardLayout(value);
   const isPreviousDefault = PREVIOUS_DEFAULT_BENTO_LAYOUT.every((expected) => {
     const item = normalized.find((candidate) => candidate.id === expected.id);
@@ -154,33 +163,64 @@ export function migrateClockScheduleLayout(value: unknown): BentoLayoutItem[] {
 
 export function migrateGoalCardLayout(value: unknown): BentoLayoutItem[] {
   const layout = normalizeTenCardLayout(value);
-  const goal = DEFAULT_BENTO_LAYOUT.find((item) => item.id === 'goals')!;
-  return resolveBentoLayout([...layout, { ...goal }], UTILITY_MINIMUM_ROWS);
+  const goal = PRE_CLOCK_REMOVAL_DEFAULT_BENTO_LAYOUT.find((item) => item.id === 'goals')!;
+  return migrateRemovedClockLayout(resolveLegacyLayout([...layout, { ...goal }]));
+}
+
+/** Remove the retired clock card and close its top-of-dashboard space for existing users. */
+export function migrateRemovedClockLayout(value: unknown): BentoLayoutItem[] {
+  if (!Array.isArray(value)) return cloneBentoLayout(DEFAULT_BENTO_LAYOUT);
+  const clock = value.find((candidate) => candidate && typeof candidate === 'object' && (candidate as { id?: unknown }).id === 'clock') as Partial<LegacyBentoLayoutItem> | undefined;
+  const shift = clock?.y === 0 ? Math.max(1, integer(clock.h, 6)) : 0;
+  const remaining = value
+    .filter((candidate) => candidate && typeof candidate === 'object' && (candidate as { id?: unknown }).id !== 'clock')
+    .map((candidate) => {
+      const item = candidate as Partial<BentoLayoutItem>;
+      return { ...item, y: typeof item.y === 'number' && item.y >= shift ? item.y - shift : item.y };
+    });
+  return normalizeBentoLayout(remaining);
+}
+
+function resolveLegacyLayout(layout: readonly LegacyBentoLayoutItem[]): LegacyBentoLayoutItem[] {
+  const order = [...layout].sort((a, b) => a.y - b.y || a.x - b.x);
+  const placed: LegacyBentoLayoutItem[] = [];
+  for (const source of order) {
+    const candidate = { ...source };
+    let collisions = placed.filter((item) => overlaps(candidate as BentoLayoutItem, candidate.h, item as BentoLayoutItem, item.h));
+    while (collisions.length) {
+      candidate.y = Math.max(...collisions.map((item) => item.y + item.h));
+      collisions = placed.filter((item) => overlaps(candidate as BentoLayoutItem, candidate.h, item as BentoLayoutItem, item.h));
+    }
+    placed.push(candidate);
+  }
+  const byId = new Map(placed.map((item) => [item.id, item]));
+  return layout.map((item) => ({ ...byId.get(item.id)! }));
 }
 
 /** Convert the v5 split layout (4-column business grid + pixel utility cards) into the unified v6 grid. */
 export function migrateLegacyDashboardLayout(businessValue: unknown, widgetValue: unknown): BentoLayoutItem[] {
   const widgetSource = widgetValue && typeof widgetValue === 'object' && !Array.isArray(widgetValue)
-    ? widgetValue as Partial<Record<DashboardWidgetId, LegacyWidgetItem>>
+    ? widgetValue as Partial<Record<LegacyDashboardWidgetId, LegacyWidgetItem>>
     : {};
   const columnWidth = (REFERENCE_GRID_WIDTH - (BENTO_COLUMNS - 1) * BENTO_GAP) / BENTO_COLUMNS;
   const horizontalStep = columnWidth + BENTO_GAP;
-  const migrated: BentoLayoutItem[] = [];
+  const migrated: LegacyBentoLayoutItem[] = [];
   let utilityY = 0;
 
-  for (const id of DASHBOARD_WIDGET_IDS) {
-    const fallback = fallbackItem(id);
+  for (const id of ['clock', 'schedule', 'progress', 'heatmap'] as const) {
+    const fallback = PRE_GOAL_DEFAULT_BENTO_LAYOUT.find((item) => item.id === id)!;
     const legacy = widgetSource[id];
     const fallbackWidth = fallback.w * horizontalStep - BENTO_GAP;
     const fallbackHeight = fallback.h * BENTO_GRID_STEP - BENTO_GAP;
     const w = Math.min(BENTO_COLUMNS, Math.max(1, Math.round((rounded(legacy?.width, fallbackWidth) + BENTO_GAP) / horizontalStep)));
-    const h = Math.max(UTILITY_MINIMUM_ROWS[id] ?? 1, Math.round((rounded(legacy?.height, fallbackHeight) + BENTO_GAP) / BENTO_GRID_STEP));
+    const minimumRows = id === 'clock' ? 6 : UTILITY_MINIMUM_ROWS[id] ?? 1;
+    const h = Math.max(minimumRows, Math.round((rounded(legacy?.height, fallbackHeight) + BENTO_GAP) / BENTO_GRID_STEP));
     migrated.push({ id, x: 0, y: utilityY, w, h });
     utilityY += h;
   }
 
   const legacyItems = Array.isArray(businessValue) ? businessValue : [];
-  const byId = new Map<DashboardModule, BentoLayoutItem>();
+  const byId = new Map<DashboardModule, LegacyBentoLayoutItem>();
   for (const candidate of legacyItems) {
     if (!candidate || typeof candidate !== 'object') continue;
     const raw = candidate as Partial<BentoLayoutItem>;
@@ -203,7 +243,8 @@ export function migrateLegacyDashboardLayout(businessValue: unknown, widgetValue
     return cloneBentoLayout(DEFAULT_BENTO_LAYOUT);
   }
   migrated.push(...DASHBOARD_MODULE_IDS.map((id) => byId.get(id)!));
-  return resolveBentoLayout(migrated, UTILITY_MINIMUM_ROWS);
+  const goal = PRE_CLOCK_REMOVAL_DEFAULT_BENTO_LAYOUT.find((item) => item.id === 'goals')!;
+  return migrateRemovedClockLayout(resolveLegacyLayout([...migrated, { ...goal }]));
 }
 
 export function isDefaultBentoLayout(layout: readonly BentoLayoutItem[]): boolean {

@@ -14,4 +14,13 @@ describe('kos sync runtime errors', () => {
     expect(explainKosSyncRuntimeFailure({ $metadata: { httpStatusCode: 403 } }).message).toContain('权限不足');
     expect(explainKosSyncRuntimeFailure(new Error('kos-sync 同步引擎尚未初始化')).message).toContain('重试连接');
   });
+
+  it('explains local database write failures without exposing arbitrary paths', () => {
+    expect(explainKosSyncRuntimeFailure(new Error('LiveSync 本地写入失败：.DS_Store')).message)
+      .toContain('.DS_Store');
+    const privatePath = '31_项目/private-name.md';
+    const result = explainKosSyncRuntimeFailure(new Error(`LiveSync 本地写入失败：${privatePath}`));
+    expect(result.message).toContain('同步数据库');
+    expect(result.message).not.toContain(privatePath);
+  });
 });

@@ -7,6 +7,7 @@ import {
   migrateClockScheduleLayout,
   migrateGoalCardLayout,
   migrateLegacyDashboardLayout,
+  migrateRemovedClockLayout,
   moveBentoItem,
   normalizeBentoLayout,
   resizeBentoItem,
@@ -25,37 +26,31 @@ function overlapFree(layout: BentoLayoutItem[], minimumRows: BentoMinimumRows = 
 }
 
 describe('unified Bento layout engine', () => {
-  it('normalizes missing or invalid layouts to the complete eleven-card default', () => {
+  it('normalizes missing or invalid layouts to the complete ten-card default', () => {
     expect(BENTO_COLUMNS).toBe(12);
-    expect(DEFAULT_BENTO_LAYOUT).toHaveLength(11);
+    expect(DEFAULT_BENTO_LAYOUT).toHaveLength(10);
     expect(normalizeBentoLayout(null)).toEqual(DEFAULT_BENTO_LAYOUT);
     expect(normalizeBentoLayout([{ id: 'today', x: 99, y: -2, w: 18, h: 0 }])).toEqual(DEFAULT_BENTO_LAYOUT);
     expect(isDefaultBentoLayout(normalizeBentoLayout(DEFAULT_BENTO_LAYOUT))).toBe(true);
   });
 
-  it('migrates only the previous untouched default after moving clock metadata', () => {
-    const previousDefault = DEFAULT_BENTO_LAYOUT.filter((item) => item.id !== 'goals').map((item) => {
-      if (item.id === 'clock') return { ...item, h: 8 };
-      if (item.id === 'schedule') return { ...item, y: 8, h: 10 };
-      return { ...item, y: item.y - 8 };
-    });
-    const migratedClock = migrateClockScheduleLayout(previousDefault);
-    expect(migratedClock.find((item) => item.id === 'clock')).toMatchObject({ h: 6 });
-    expect(migratedClock.find((item) => item.id === 'schedule')).toMatchObject({ y: 6, h: 12 });
-    expect(migratedClock).toHaveLength(10);
-    expect(migrateGoalCardLayout(migratedClock)).toEqual(normalizeBentoLayout(DEFAULT_BENTO_LAYOUT));
-    const customized = previousDefault.map((item) => item.id === 'clock' ? { ...item, w: 8 } : item);
-    expect(migrateClockScheduleLayout(customized).find((item) => item.id === 'clock')).toMatchObject({ w: 8, h: 8 });
-    const withGoal = migrateGoalCardLayout(customized);
-    expect(withGoal.find((item) => item.id === 'clock')).toMatchObject({ w: 8, h: 8 });
-    expect(withGoal.find((item) => item.id === 'goals')).toMatchObject({ w: 10, h: 8 });
+  it('removes the retired clock and closes its space in saved layouts', () => {
+    const previousDefault = [
+      { id: 'clock', x: 0, y: 0, w: 7, h: 6 },
+      ...DEFAULT_BENTO_LAYOUT.map((item) => ({ ...item, y: item.y + 6 })),
+    ];
+    expect(migrateRemovedClockLayout(previousDefault)).toEqual(DEFAULT_BENTO_LAYOUT);
+    expect(migrateRemovedClockLayout(previousDefault).some((item) => String(item.id) === 'clock')).toBe(false);
+
+    const preGoal = previousDefault.filter((item) => item.id !== 'goals');
+    expect(migrateGoalCardLayout(migrateClockScheduleLayout(preGoal))).toEqual(DEFAULT_BENTO_LAYOUT);
   });
 
   it('clamps moves to twelve columns and pushes colliding cards down', () => {
-    const moved = moveBentoItem(DEFAULT_BENTO_LAYOUT, 'today', 8, 37, UTILITY_MINIMUM_ROWS);
+    const moved = moveBentoItem(DEFAULT_BENTO_LAYOUT, 'today', 8, 39, UTILITY_MINIMUM_ROWS);
     const today = moved.find((item) => item.id === 'today')!;
     const knowledge = moved.find((item) => item.id === 'knowledge')!;
-    expect(today).toMatchObject({ x: 3, y: 37, w: 9 });
+    expect(today).toMatchObject({ x: 3, y: 39, w: 9 });
     expect(knowledge.y).toBeGreaterThanOrEqual(today.y + today.h);
     expect(overlapFree(moved, UTILITY_MINIMUM_ROWS)).toBe(true);
   });
@@ -67,9 +62,9 @@ describe('unified Bento layout engine', () => {
     expect(resolveBentoLayout(resized, { knowledge: 4 })).toContainEqual(knowledge);
     expect(bentoLayoutRows(resized, { knowledge: 4 })).toBeGreaterThanOrEqual(4);
 
-    const clock = resizeBentoItem(DEFAULT_BENTO_LAYOUT, 'clock', 5, 6, UTILITY_MINIMUM_ROWS)
-      .find((item) => item.id === 'clock');
-    expect(clock).toMatchObject({ w: 5, h: 6 });
+    const schedule = resizeBentoItem(DEFAULT_BENTO_LAYOUT, 'schedule', 5, 10, UTILITY_MINIMUM_ROWS)
+      .find((item) => item.id === 'schedule');
+    expect(schedule).toMatchObject({ w: 5, h: 10 });
   });
 
   it('resizes from the west edge while keeping the right edge fixed', () => {
@@ -82,8 +77,8 @@ describe('unified Bento layout engine', () => {
   it('resizes from the north edge while keeping the visible bottom edge fixed', () => {
     const resized = resizeBentoItemFromEdges(DEFAULT_BENTO_LAYOUT, 'action', 'n', 0, 1);
     const action = resized.find((item) => item.id === 'action')!;
-    expect(action).toMatchObject({ y: 53, h: 9 });
-    expect(action.y + action.h).toBe(62);
+    expect(action).toMatchObject({ y: 47, h: 9 });
+    expect(action.y + action.h).toBe(56);
   });
 
   it('clamps horizontal edge resizing to twelve columns and one-column width', () => {
@@ -117,17 +112,17 @@ describe('unified Bento layout engine', () => {
       { progress: 12 },
     );
     expect(resized.find((item) => item.id === 'progress')).toMatchObject({ x: 0, w: 12, h: 14 });
-    expect(resized.find((item) => item.id === 'heatmap')?.y).toBeGreaterThanOrEqual(40);
+    expect(resized.find((item) => item.id === 'heatmap')?.y).toBeGreaterThanOrEqual(34);
     expect(overlapFree(resized, UTILITY_MINIMUM_ROWS)).toBe(true);
   });
 
   it('reflows later cards when measured content grows without changing preferred sizes', () => {
     const minimumRows = { ...UTILITY_MINIMUM_ROWS, today: 9, knowledge: 9, action: 10, input: 12, review: 7, system: 7 };
     const resolved = resolveBentoLayout(DEFAULT_BENTO_LAYOUT, minimumRows);
-    expect(resolved.find((item) => item.id === 'action')?.y).toBe(54);
-    expect(resolved.find((item) => item.id === 'input')?.y).toBe(54);
-    expect(resolved.find((item) => item.id === 'review')?.y).toBe(66);
-    expect(resolved.find((item) => item.id === 'system')?.y).toBe(66);
+    expect(resolved.find((item) => item.id === 'action')?.y).toBe(48);
+    expect(resolved.find((item) => item.id === 'input')?.y).toBe(48);
+    expect(resolved.find((item) => item.id === 'review')?.y).toBe(60);
+    expect(resolved.find((item) => item.id === 'system')?.y).toBe(60);
     expect(resolved.map(({ id, w, h }) => ({ id, w, h }))).toEqual(
       normalizeBentoLayout(DEFAULT_BENTO_LAYOUT).map(({ id, w, h }) => ({ id, w, h })),
     );
@@ -150,11 +145,11 @@ describe('unified Bento layout engine', () => {
       heatmap: { width: 1182, height: 390 },
     };
     const migrated = migrateLegacyDashboardLayout(legacyBusiness, legacyWidgets);
-    expect(migrated).toHaveLength(11);
-    expect(migrated.find((item) => item.id === 'clock')).toMatchObject({ x: 0, y: 0, w: 7, h: 8 });
-    expect(migrated.find((item) => item.id === 'goals')).toMatchObject({ x: 0, y: 18, w: 10, h: 8 });
+    expect(migrated).toHaveLength(10);
+    expect(migrated.some((item) => String(item.id) === 'clock')).toBe(false);
+    expect(migrated.find((item) => item.id === 'goals')).toMatchObject({ x: 0, w: 10, h: 8 });
     expect(migrated.find((item) => item.id === 'progress')).toMatchObject({ w: 10, h: 12 });
-    expect(migrated.find((item) => item.id === 'today')).toMatchObject({ x: 0, y: 45, w: 9, h: 7 });
+    expect(migrated.find((item) => item.id === 'today')).toMatchObject({ x: 0, w: 9, h: 7 });
     expect(migrated.find((item) => item.id === 'system')).toMatchObject({ x: 9, w: 3, h: 7 });
     expect(overlapFree(migrated, UTILITY_MINIMUM_ROWS)).toBe(true);
   });

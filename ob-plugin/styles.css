@@ -545,7 +545,6 @@
 
 .kos-board-utility-card.is-layout-active { opacity: .22; }
 
-.kos-board-clock-host,
 .kos-board-schedule-host,
 .kos-board-goals-host,
 .kos-board-progress-host,
@@ -555,7 +554,6 @@
   min-width: 0;
 }
 
-.kos-board-utility-card .kos-dot-clock,
 .kos-board-utility-card .kos-day-schedule,
 .kos-board-utility-card .kos-goal-overview,
 .kos-board-utility-card .kos-year-progress,
@@ -566,7 +564,6 @@
   transition: border-color 140ms ease, outline-color 140ms ease;
 }
 
-.kos-board-utility-card.is-layout-editing .kos-dot-clock,
 .kos-board-utility-card.is-layout-editing .kos-day-schedule,
 .kos-board-utility-card.is-layout-editing .kos-goal-overview,
 .kos-board-utility-card.is-layout-editing .kos-year-progress,
@@ -577,12 +574,10 @@
   background-color: var(--kos-board-paper-solid);
 }
 
-.kos-board-utility-card.is-layout-resizing .kos-dot-clock,
 .kos-board-utility-card.is-layout-resizing .kos-day-schedule,
 .kos-board-utility-card.is-layout-resizing .kos-goal-overview,
 .kos-board-utility-card.is-layout-resizing .kos-year-progress,
 .kos-board-utility-card.is-layout-resizing .kos-activity-heatmap,
-.kos-board-utility-card.is-layout-editing:has(.kos-bento-resize-zone:hover) .kos-dot-clock,
 .kos-board-utility-card.is-layout-editing:has(.kos-bento-resize-zone:hover) .kos-day-schedule,
 .kos-board-utility-card.is-layout-editing:has(.kos-bento-resize-zone:hover) .kos-goal-overview,
 .kos-board-utility-card.is-layout-editing:has(.kos-bento-resize-zone:hover) .kos-year-progress,
@@ -669,58 +664,6 @@
   border-radius: 30px;
   background: color-mix(in srgb, var(--kos-board-paper) 28%, transparent);
 }
-
-.kos-dot-clock {
-  width: 812px;
-  height: 443px;
-  max-width: 100%;
-  position: relative;
-  justify-self: start;
-  padding: 44px 48px 38px;
-  overflow: hidden;
-  border: 1px solid var(--kos-board-line);
-  border-radius: 30px;
-  background-color: var(--kos-board-paper);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='1.55' fill='%23d8d9d6' fill-opacity='.72'/%3E%3C/svg%3E");
-  color: var(--kos-board-ink);
-}
-
-.theme-dark .kos-dot-clock {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='1.55' fill='%23343632' fill-opacity='.82'/%3E%3C/svg%3E");
-}
-
-.kos-dot-clock-eyebrow {
-  display: flex;
-  align-items: center;
-  color: var(--kos-board-muted);
-  font-family: "Space Mono", "Noto Sans Mono", monospace;
-  font-size: 22px;
-  line-height: 1;
-}
-
-.kos-dot-clock-eyebrow { gap: 18px; }
-
-.kos-dot-clock-display {
-  height: 114px;
-  display: flex;
-  align-items: flex-end;
-  gap: 28px;
-  margin-top: 56px;
-  white-space: nowrap;
-}
-
-.kos-dot-clock-time,
-.kos-dot-clock-seconds {
-  font-family: "Doto", monospace;
-  font-weight: 700;
-  font-synthesis: none;
-  line-height: .78;
-}
-
-.kos-dot-clock-time { color: var(--kos-board-ink); font-size: 144px; }
-.kos-dot-clock-seconds { margin-bottom: 2px; color: var(--kos-board-muted); font-size: 53px; }
-
-.kos-dot-clock-separator { color: var(--kos-board-dot); }
 
 .kos-day-schedule {
   width: 812px;
@@ -1244,11 +1187,6 @@
 }
 
 @container kos-utility-card (max-width: 720px) {
-  .kos-dot-clock { padding: 30px 24px 26px; }
-  .kos-dot-clock-eyebrow { font-size: 14px; }
-  .kos-dot-clock-display { height: 78px; gap: 14px; margin-top: 38px; }
-  .kos-dot-clock-time { font-size: 82px; }
-  .kos-dot-clock-seconds { font-size: 34px; }
   .kos-day-schedule { padding: 28px 24px 24px; }
   .kos-day-schedule-title { gap: 10px; font-size: 14px; }
   .kos-day-schedule-badge { padding: 6px 9px; font-size: 10px; }
@@ -1323,14 +1261,6 @@
   .kos-activity-heatmap-grid { gap: 2px; }
   .kos-activity-heatmap-months { font-size: 8px; }
   .kos-activity-heatmap-weekdays { font-size: 8px; }
-}
-
-@container kos-utility-card (max-height: 390px) {
-  .kos-dot-clock { padding: 30px 24px 26px; }
-  .kos-dot-clock-eyebrow { font-size: 14px; }
-  .kos-dot-clock-display { height: 78px; gap: 14px; margin-top: 74px; }
-  .kos-dot-clock-time { font-size: 82px; }
-  .kos-dot-clock-seconds { font-size: 34px; }
 }
 
 @container kos-utility-card (max-width: 420px) {
@@ -3265,6 +3195,70 @@
 }
 
 /* ---------- kos Agent sidebar ---------- */
+.kos-agent-command-picker .prompt-results {
+  padding: 6px;
+}
+
+.kos-agent-command-picker .suggestion-item.kos-agent-command-suggestion {
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.kos-agent-command-suggestion-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kos-agent-command-suggestion-name {
+  overflow: hidden;
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-medium);
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kos-agent-command-suggestion-kind {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.kos-agent-command-suggestion-kind.is-skill {
+  border-color: color-mix(in srgb, var(--interactive-accent) 42%, var(--background-modifier-border));
+  background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+  color: var(--interactive-accent);
+}
+
+.kos-agent-command-suggestion-description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.kos-agent-command-picker .suggestion-item.is-selected .kos-agent-command-suggestion-name {
+  color: var(--interactive-accent);
+}
+
+.kos-agent-command-picker .suggestion-item.is-selected .kos-agent-command-suggestion-description {
+  color: var(--text-normal);
+}
+
 .kos-agent-view {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;

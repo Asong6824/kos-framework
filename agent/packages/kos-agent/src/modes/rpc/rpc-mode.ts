@@ -837,6 +837,8 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				const commands: RpcSlashCommand[] = [];
 
 				for (const command of session.extensionRunner.getRegisteredCommands()) {
+					// /llama opens a TUI-only model manager, so it is not actionable for RPC clients.
+					if (command.invocationName === "llama") continue;
 					commands.push({
 						name: command.invocationName,
 						description: command.description,
