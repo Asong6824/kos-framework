@@ -9,6 +9,7 @@ import type KosCompanionPlugin from './main';
 import { createKosSyncJoinCode, parseKosSyncJoinCode } from './sync/pairing';
 import { DEFAULT_SETTINGS, toMetricSettings } from './settings-model';
 import type { KosSettings } from './settings-model';
+import { ModelSetupModal } from './views/agent-view';
 
 export { DEFAULT_SETTINGS, toMetricSettings };
 export type { KosSettings };
@@ -258,6 +259,40 @@ export class KosSettingTab extends PluginSettingTab {
         }));
 
     containerEl.createEl('h3', { text: 'kos Agent' });
+    new Setting(containerEl)
+      .setName('Agent 模型')
+      .setDesc('Provider、model ID 和 API key 只保存在本机 kos-agent 配置目录，不写入 Vault、不参与 kos-sync。')
+      .addButton((button) => button.setButtonText('配置模型').setCta().onClick(async () => {
+        button.setDisabled(true).setButtonText('正在连接…');
+        try {
+          const current = await this.plugin.getAgentModelConfiguration();
+          new ModelSetupModal(this.app, current, async (input) => {
+            const { model, result } = await this.plugin.configureAgentModel(input);
+            const routed = result.responseModel && result.responseModel !== result.modelId
+              ? `，实际路由 ${result.responseModel}`
+              : '';
+            new Notice(`模型连接成功：${model.provider}/${model.id}${routed} · ${result.latencyMs} ms`);
+          }).open();
+        } catch (error) {
+          new Notice(error instanceof Error ? error.message : String(error));
+        } finally {
+          button.setDisabled(false).setButtonText('配置模型');
+        }
+      }))
+      .addButton((button) => button.setButtonText('测试当前模型').onClick(async () => {
+        button.setDisabled(true).setButtonText('测试中…');
+        try {
+          const result = await this.plugin.testAgentModel();
+          const routed = result.responseModel && result.responseModel !== result.modelId
+            ? `，实际路由 ${result.responseModel}`
+            : '';
+          new Notice(`模型连接成功：${result.provider}/${result.modelId}${routed} · ${result.latencyMs} ms`);
+        } catch (error) {
+          new Notice(error instanceof Error ? error.message : String(error));
+        } finally {
+          button.setDisabled(false).setButtonText('测试当前模型');
+        }
+      }));
     new Setting(containerEl)
       .setName('Agent host 路径')
       .setDesc('kos-agent 可执行文件或 rpc-entry.mjs 的绝对路径。留空时优先使用插件内置 host。')

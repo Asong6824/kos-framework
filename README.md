@@ -158,7 +158,7 @@ node dev/harness/install_local.mjs ~/kos
 
 这条命令会安装锁定依赖、初始化 Vault、构建并安装 kos Companion、保留已有插件设置，并运行健康检查。Windows PowerShell 也使用同一命令，只需把目标改成如 `"C:\Users\me\Documents\kos"`。
 
-在 Obsidian 中启用或重新加载 kos Companion，然后打开右侧 kos Agent 配置 provider、model ID 和 API key，并点击“保存并测试”。火山引擎 Coding Plan 用户可以直接使用同名服务预设。API key 由 kos-agent 的配置层保存，不写入 Markdown 笔记。
+在 Obsidian 中启用或重新加载 kos Companion，然后打开“设置 → kos Companion → Agent 模型”，配置 provider、model ID、Base URL 和 API key，并点击“保存并测试”。右侧 kos Agent 也保留同一入口。配置窗口会直接回填本机当前值，适合个人 Vault 快速修改；火山引擎 Coding Plan 用户可以直接使用同名服务预设。API key 由 kos-agent 的配置层保存，不写入 Markdown 笔记、插件 `data.json` 或 kos-sync。
 
 不要直接在本仓库的 `vault/` 中保存个人笔记。`vault/` 是运行时发行模板，个人内容应位于单独的 Vault。
 

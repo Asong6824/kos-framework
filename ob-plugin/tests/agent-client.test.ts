@@ -38,6 +38,31 @@ function answer(process: FakeProcess, command: string, data: unknown): void {
 }
 
 describe('KosAgentClient', () => {
+  it('reads the complete editable model configuration, including URL and API key', async () => {
+    const process = new FakeProcess();
+    const client = new KosAgentClient(() => process, 1_000);
+    const apiKey = ['local', 'test', 'value'].join('-');
+    const started = client.start();
+    answer(process, 'get_state', { protocolVersion: 1, sessionId: 's' });
+    await started;
+
+    const configuration = client.getModelConfiguration();
+    expect(JSON.parse(process.stdin.writes[process.stdin.writes.length - 1]!)).toMatchObject({
+      type: 'get_model_configuration',
+    });
+    answer(process, 'get_model_configuration', {
+      provider: 'volcengine-coding-plan',
+      modelId: 'minimax-m3',
+      apiKey,
+      baseUrl: 'https://ark.cn-beijing.volces.com/api/coding/v3',
+      api: 'openai-completions',
+    });
+    await expect(configuration).resolves.toMatchObject({
+      apiKey,
+      baseUrl: 'https://ark.cn-beijing.volces.com/api/coding/v3',
+    });
+  });
+
   it('transports Task Pool planning, feedback, migration and review RPC commands', async () => {
     const process = new FakeProcess();
     const client = new KosAgentClient(() => process, 1_000);

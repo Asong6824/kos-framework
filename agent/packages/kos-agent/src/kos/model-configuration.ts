@@ -19,6 +19,8 @@ export interface ConfigureModelInput {
 	api?: SupportedModelApi;
 }
 
+export type EditableModelConfiguration = ConfigureModelInput;
+
 export interface ModelConnectionTestResult {
 	provider: string;
 	modelId: string;

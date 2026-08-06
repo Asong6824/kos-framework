@@ -598,6 +598,41 @@ async function run() {
     if (readyAgent.inputDisabled || !readyAgent.validateButton || !readyAgent.workflowButton) {
       throw new Error(`Configured Agent onboarding differs: ${JSON.stringify(readyAgent)}`);
     }
+    await cdp.evaluate(`(() => { app.setting.open(); app.setting.openTabById('kos-companion'); return true; })()`);
+    await waitFor(() => cdp.evaluate(`Boolean([...document.querySelectorAll('.setting-item')].find((item) => item.querySelector('.setting-item-name')?.textContent === 'Agent 模型'))`), 'Agent model quick settings');
+    const quickModelSettings = await cdp.evaluate(`(() => {
+      const item = [...document.querySelectorAll('.setting-item')].find((element) => element.querySelector('.setting-item-name')?.textContent === 'Agent 模型');
+      return {
+        description: item?.querySelector('.setting-item-description')?.textContent,
+        buttons: [...(item?.querySelectorAll('button') ?? [])].map((button) => button.textContent),
+      };
+    })()`);
+    if (!quickModelSettings.description?.includes('不参与 kos-sync')
+      || !quickModelSettings.buttons.includes('配置模型')
+      || !quickModelSettings.buttons.includes('测试当前模型')) {
+      throw new Error(`Agent model quick settings differ: ${JSON.stringify(quickModelSettings)}`);
+    }
+    await cdp.evaluate(`[...document.querySelectorAll('.setting-item')]
+      .find((item) => item.querySelector('.setting-item-name')?.textContent === 'Agent 模型')
+      ?.querySelector('button')?.click()`);
+    await waitFor(() => cdp.evaluate(`Boolean([...document.querySelectorAll('.modal-container')].find((modal) => modal.querySelector('.kos-modal h3')?.textContent === '配置模型'))`), 'settings model configuration modal');
+    const quickModelModal = await cdp.evaluate(`(() => {
+      const modal = [...document.querySelectorAll('.modal-container')].find((element) => element.querySelector('.kos-modal h3')?.textContent === '配置模型');
+      const setting = (name) => [...(modal?.querySelectorAll('.setting-item') ?? [])].find((item) => item.querySelector('.setting-item-name')?.textContent === name);
+      return {
+        provider: setting('Provider')?.querySelector('input')?.value,
+        modelId: setting('Model ID')?.querySelector('input')?.value,
+        apiKey: setting('API key')?.querySelector('input')?.value,
+        baseUrl: setting('Base URL')?.querySelector('input')?.value,
+      };
+    })()`);
+    if (quickModelModal.provider !== 'e2e-local'
+      || quickModelModal.modelId !== 'e2e-model'
+      || quickModelModal.apiKey !== 'e2e-local-key'
+      || quickModelModal.baseUrl !== fakeModel.baseUrl) {
+      throw new Error(`Settings model modal differs: ${JSON.stringify(quickModelModal)}`);
+    }
+    await cdp.evaluate(`(() => { [...document.querySelectorAll('.modal-container')].find((modal) => modal.querySelector('.kos-modal h3')?.textContent === '配置模型')?.querySelector('.modal-close-button')?.click(); app.setting.close(); return true; })()`);
     await cdp.evaluate(`[...document.querySelectorAll('.kos-agent-onboarding button')].find((button) => button.textContent === '填写第一个工作流')?.click()`);
     const firstWorkflowDraft = await cdp.evaluate(`document.querySelector('.kos-agent-input')?.value ?? ''`);
     if (!firstWorkflowDraft.includes('第一次使用 kos') || !firstWorkflowDraft.includes('等我确认后')) {

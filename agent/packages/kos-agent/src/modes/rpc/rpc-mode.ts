@@ -44,6 +44,8 @@ import { migrateProjectDirectories } from "../../kos/operations/project-director
 import {
 	explainModelConnectionFailure,
 	normalizeModelConfiguration,
+	SUPPORTED_MODEL_APIS,
+	type SupportedModelApi,
 	writeModelConfiguration,
 } from "../../kos/model-configuration.ts";
 import { type Theme, theme } from "../interactive/theme/theme.ts";
@@ -602,6 +604,21 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 			case "get_available_models": {
 				const models = await session.modelRuntime.getAvailable();
 				return success(id, "get_available_models", { models });
+			}
+
+			case "get_model_configuration": {
+				const model = session.model;
+				if (!model) return success(id, "get_model_configuration", null);
+				const auth = await session.modelRuntime.getAuth(model.provider);
+				return success(id, "get_model_configuration", {
+					provider: model.provider,
+					modelId: model.id,
+					apiKey: auth?.auth.apiKey ?? "",
+					baseUrl: model.baseUrl,
+					api: SUPPORTED_MODEL_APIS.includes(model.api as SupportedModelApi)
+						? model.api as SupportedModelApi
+						: undefined,
+				});
 			}
 
 			case "configure_model": {

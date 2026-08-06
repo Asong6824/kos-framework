@@ -6,6 +6,7 @@ import type {
   KosListReaderAnnotationsResult,
   KosCreateObjectInput,
   KosConfigureModelInput,
+  KosEditableModelConfiguration,
   KosMessage,
   KosImageContent,
   KosModelInfo,
@@ -285,6 +286,10 @@ export class KosAgentClient {
 
   setModel(provider: string, modelId: string): Promise<KosModelInfo> {
     return this.send<KosModelInfo>({ type: 'set_model', provider, modelId });
+  }
+
+  getModelConfiguration(): Promise<KosEditableModelConfiguration | null> {
+    return this.send<KosEditableModelConfiguration | null>({ type: 'get_model_configuration' });
   }
 
   configureModel(input: KosConfigureModelInput): Promise<KosModelInfo> {

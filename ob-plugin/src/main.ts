@@ -21,7 +21,13 @@ import { runAgentValidation } from './bridge/agent-validation';
 import type { KosAgentClient } from './agent/client';
 import { buildDashboardAgentCommand, dashboardWorkflowSessionName } from './agent/workflows';
 import { FIRST_USE_WORKFLOW_PROMPT } from './agent/first-use';
-import type { KosDailyRecommendation } from './agent/protocol';
+import type {
+  KosConfigureModelInput,
+  KosDailyRecommendation,
+  KosEditableModelConfiguration,
+  KosModelConnectionTestResult,
+  KosModelInfo,
+} from './agent/protocol';
 import { pendingReviewCount, projectProgress } from './core/metrics';
 import type { KosObject, ObjectDirs } from './core/model';
 import { buildSnapshot } from './core/snapshot';
@@ -499,6 +505,27 @@ export default class KosCompanionPlugin extends Plugin {
       this.syncPreflightCurrent = current;
       this.refreshDashboard();
     }
+  }
+
+  /** Read the complete local model configuration for direct editing in the personal Vault UI. */
+  async getAgentModelConfiguration(): Promise<KosEditableModelConfiguration | null> {
+    return (await this.connectAgent()).getModelConfiguration();
+  }
+
+  /** Persist the local model configuration through kos-agent, then verify it with a real request. */
+  async configureAgentModel(
+    input: KosConfigureModelInput,
+  ): Promise<{ model: KosModelInfo; result: KosModelConnectionTestResult }> {
+    const client = await this.connectAgent();
+    const model = await client.configureModel(input);
+    const result = await client.testModel();
+    this.refreshDashboard();
+    return { model, result };
+  }
+
+  /** Test the currently selected model without changing any local configuration. */
+  async testAgentModel(): Promise<KosModelConnectionTestResult> {
+    return (await this.connectAgent()).testModel();
   }
 
   async reloadSync(): Promise<Readonly<KosSyncSnapshot>> {

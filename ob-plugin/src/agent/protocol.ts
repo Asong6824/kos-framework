@@ -40,6 +40,7 @@ export type KosRpcCommand =
   | { type: 'get_tree' }
   | { type: 'get_commands' }
   | { type: 'set_model'; provider: string; modelId: string }
+  | { type: 'get_model_configuration' }
   | ({ type: 'configure_model' } & KosConfigureModelInput)
   | { type: 'test_model' }
   | { type: 'configure_web_search'; provider: 'brave' | 'exa'; apiKey: string }
@@ -58,6 +59,8 @@ export interface KosConfigureModelInput {
   baseUrl?: string;
   api?: KosModelApi;
 }
+
+export type KosEditableModelConfiguration = KosConfigureModelInput;
 
 export interface KosModelInfo {
   provider: string;

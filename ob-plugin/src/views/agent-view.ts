@@ -9,6 +9,7 @@ import { FIRST_USE_WORKFLOW_PROMPT } from '../agent/first-use';
 import { messageText, messageThinking } from '../agent/protocol';
 import type {
   KosConfigureModelInput,
+  KosEditableModelConfiguration,
   KosMessage,
   KosImageContent,
   KosModelApi,
@@ -59,7 +60,7 @@ class ModelPickerModal extends FuzzySuggestModal<KosModelInfo> {
   }
 }
 
-class ModelSetupModal extends Modal {
+export class ModelSetupModal extends Modal {
   private provider: string;
   private modelId: string;
   private apiKey = '';
@@ -68,12 +69,15 @@ class ModelSetupModal extends Modal {
 
   constructor(
     app: AgentView['app'],
-    current: KosModelInfo | undefined,
+    current: KosEditableModelConfiguration | null | undefined,
     private readonly submit: (input: KosConfigureModelInput) => Promise<void>,
   ) {
     super(app);
     this.provider = current?.provider !== 'unknown' ? (current?.provider ?? 'custom') : 'custom';
-    this.modelId = current?.id !== 'unknown' ? (current?.id ?? '') : '';
+    this.modelId = current?.modelId !== 'unknown' ? (current?.modelId ?? '') : '';
+    this.apiKey = current?.apiKey ?? '';
+    this.baseUrl = current?.baseUrl ?? '';
+    this.api = current?.api ?? 'openai-responses';
   }
 
   onOpen(): void {
@@ -81,7 +85,7 @@ class ModelSetupModal extends Modal {
     this.contentEl.createEl('h3', { text: '配置模型' });
     this.contentEl.createEl('p', {
       cls: 'setting-item-description',
-      text: '选择模型提供商并填写其官方 model ID。API key 只保存到 kos-agent 的 auth.json，不进入 Vault。',
+      text: '当前 Provider、模型、Base URL 和 API key 会直接回填；修改后保存并测试。',
     });
     const providerSetting = new Setting(this.contentEl).setName('Provider').setDesc('常用值：openai、anthropic、google');
     let providerInput!: HTMLInputElement;
@@ -104,13 +108,12 @@ class ModelSetupModal extends Modal {
       text.setPlaceholder('输入 model ID').setValue(this.modelId).onChange((value) => (this.modelId = value.trim()));
     });
     new Setting(this.contentEl).setName('API key').addText((text) => {
-      text.inputEl.type = 'password';
-      text.setPlaceholder('API key').onChange((value) => (this.apiKey = value));
+      text.setPlaceholder('API key').setValue(this.apiKey).onChange((value) => (this.apiKey = value));
     });
     let baseUrlInput!: HTMLInputElement;
     new Setting(this.contentEl).setName('Base URL').setDesc('内置 provider 可留空').addText((text) => {
       baseUrlInput = text.inputEl;
-      text.setPlaceholder('https://.../v1').onChange((value) => (this.baseUrl = value));
+      text.setPlaceholder('https://.../v1').setValue(this.baseUrl).onChange((value) => (this.baseUrl = value));
     });
     let apiSelect!: HTMLSelectElement;
     new Setting(this.contentEl).setName('API 协议').addDropdown((dropdown) => {
@@ -865,7 +868,8 @@ export class AgentView extends ItemView {
     try {
       const models = await this.client.getAvailableModels();
       if (models.length === 0) {
-        new ModelSetupModal(this.app, this.currentModel, (input) => this.applyModelConfiguration(input)).open();
+        const current = await this.client.getModelConfiguration();
+        new ModelSetupModal(this.app, current, (input) => this.applyModelConfiguration(input)).open();
         return;
       }
       new ModelPickerModal(this.app, models, (model) => void this.applyModel(model)).open();
@@ -877,7 +881,12 @@ export class AgentView extends ItemView {
   private async configureModel(): Promise<void> {
     if (!this.client?.isRunning) await this.connect();
     if (!this.client) return;
-    new ModelSetupModal(this.app, this.currentModel, (input) => this.applyModelConfiguration(input)).open();
+    try {
+      const current = await this.client.getModelConfiguration();
+      new ModelSetupModal(this.app, current, (input) => this.applyModelConfiguration(input)).open();
+    } catch (error) {
+      this.showError(error);
+    }
   }
 
   private async configureWebSearch(): Promise<void> {
